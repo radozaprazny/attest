@@ -1,0 +1,12 @@
+# Virtual environment
+.venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Claude Code — local settings (permission allowlist)
+.claude/settings.local.json
