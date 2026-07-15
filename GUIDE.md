@@ -115,27 +115,27 @@ everywhere else carries the one-line router below.)
 ## PART 3 — Skills (`.claude/skills/<name>/SKILL.md`)
 
 Each **gate** skill both **writes** its document and **audits** reality against it —
-`/init-tier`, `/decision`, `/compliance` (`/audit-history` audits without owning a document;
+`/business`, `/decision`, `/compliance` (`/audit-history` audits without owning a document;
 `/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All the audits share
 one output shape and one severity ladder so they read as a family:
 
 > **Shared audit ladder:** **blocker** (top, always the bare word) / **major (domain alias)** /
-> **minor**. Aliases: `/init-tier` *major (scope creep)*, `/decision` *major (undocumented
+> **minor**. Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented
 > decision)*, `/compliance` *major (posture gap)*, `/audit-history` *major (PII / client name)*.
 > Always a blocker: a secret, special-category / national-ID personal data, a violated
 > non-goal, a prohibited (Art 5) practice. Always minor: metadata, large files, stale wording.
 > **Ownership — one hunk is flagged once:** `/decision` owns *a new dependency / swapped
-> library / new pattern / notable threshold*; `/init-tier audit` fires only on a non-goal /
+> library / new pattern / notable threshold*; `/business audit` fires only on a non-goal /
 > scope violation; `/compliance audit` fires only on regulated ground; `/audit-history` owns
 > only what the repo **ships** — content in the tree or history. The line between the last two
-> and `/init-tier` is **content vs behaviour**: code that *does* something a non-goal forbids
-> is `/init-tier`'s; bytes that must not leave are `/audit-history`'s.
+> and `/business` is **content vs behaviour**: code that *does* something a non-goal forbids
+> is `/business`'s; bytes that must not leave are `/audit-history`'s.
 
-### 3.1 `/init-tier` — creates/maintains/audits `BUSINESS.md`
-- **How:** type `/init-tier`. It first fixes the project's **archetype** (library / cli /
+### 3.1 `/business` — creates/maintains/audits `BUSINESS.md`
+- **How:** type `/business`. It first fixes the project's **archetype** (library / cli /
   service / data-pipeline / ai-system), which picks a tailored template + question set. Three
   modes: **bootstrap** (file absent), **update** (compare against project state), and
-  **`/init-tier audit`** (check reality — code, commits, diff — against the declared
+  **`/business audit`** (check reality — code, commits, diff — against the declared
   non-goals/scope; read-only, reports a verdict, changes nothing).
 - **What for:** business context — like `/init` for CLAUDE.md, but for BUSINESS.md. The
   archetype is only a **trigger** for `/compliance` (it signals the AI Act *may* apply) — it
@@ -169,9 +169,6 @@ one output shape and one severity ladder so they read as a family:
 - **What for:** the "under what rules" record — self-assessed classification + obligations,
   citing provisions by ID, **never a legal verdict**. Optionally verified live via an
   EU-AI-Act MCP (see PART 6); the core works offline.
-
-> **"tier" ≠ legal tier:** the archetype `/init-tier` records (a.k.a. the project's "tier") is
-> **not** the AI-Act risk tier — that is set here, by `/compliance`, in `COMPLIANCE.md`.
 
 > **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT).
 > The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads;
@@ -309,8 +306,8 @@ audit-ownership contract live only there; if you already have a `GUIDE.md` of yo
 kit's goes in beside it as `attest-GUIDE.md` rather than replacing yours.
 
 Afterwards: **restart Claude Code** (`.claude/` is a new top-level directory, so the skills
-only load on a fresh session — until then `/init-tier` does not exist), fill `CLAUDE.md`
-(`/init`), then declare with `/init-tier`, `/decision` and `/compliance`. Promote mature skills
+only load on a fresh session — until then `/business` does not exist), fill `CLAUDE.md`
+(`/init`), then declare with `/business`, `/decision` and `/compliance`. Promote mature skills
 into **`~/.claude/skills/`** → available globally, in every project.
 
 ---
@@ -322,9 +319,9 @@ once, loop every change, gate before you ship — so read it as two loops around
 single straight line.
 
 **SETUP — once, at the start**
-- `/init-tier` — declare intent + the archetype (`BUSINESS.md`).
+- `/business` — declare intent + the archetype (`BUSINESS.md`).
 - `/compliance` — **only if in regulated scope** — establish the posture (`COMPLIANCE.md`).
-  Run `/init-tier` first: `/compliance` reads the archetype (and if it is missing, offers to
+  Run `/business` first: `/compliance` reads the archetype (and if it is missing, offers to
   derive a provisional one).
 
 **PER-CHANGE — every unit of work**
@@ -332,7 +329,7 @@ single straight line.
 2. **Build.**
 3. **Gate, before the commit** — separate, cheap steps; each fires only when relevant:
    - the `reviewer` subagent — the code-level pass;
-   - `/init-tier audit` — did the work cross a non-goal / creep past scope?
+   - `/business audit` — did the work cross a non-goal / creep past scope?
    - `/decision audit` — a choice made in code but never recorded?
    - `/compliance audit` — did the diff touch regulated ground? (skips unless it did)
 

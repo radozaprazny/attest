@@ -19,7 +19,7 @@ How to use this file:
   - Self-assessment — surfaces provisions/checklists and gaps, NEVER a legal verdict.
   - A compliance-relevant CHOICE is recorded once: its why/alternatives in DECISIONS.md, its
     regulatory consequence here, cross-referenced by ADR id.
-  - If BUSINESS.md / its Archetype line is missing: run /init-tier first, or derive a
+  - If BUSINESS.md / its Archetype line is missing: run /business first, or derive a
     provisional archetype from the repo — do not fail.
 -->
 

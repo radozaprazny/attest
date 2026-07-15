@@ -41,9 +41,9 @@ have them. This skill earns its place by being **EU-first and integrated**:
 
 > **Boundary — content, not behaviour.** You own what the repo **ships**: bytes in the tree or
 > in history. You do **not** own what the code **does**. A non-goal like *"no network access"*
-> violated by new code is `/init-tier audit`'s finding, not yours — even though it looks like
+> violated by new code is `/business audit`'s finding, not yours — even though it looks like
 > an exfiltration risk. If one change both adds forbidden **behaviour** and commits forbidden
-> **data**, flag only the data half and name `/init-tier audit` for the rest.
+> **data**, flag only the data half and name `/business audit` for the rest.
 
 ## What it scans (two modes)
 

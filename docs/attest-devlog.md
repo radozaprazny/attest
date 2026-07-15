@@ -19,9 +19,11 @@ against it. This log records how it got there and, more usefully, what was wrong
 
 - **1 / 1.5 — make the docs true.** Every doc reference resolves to a real file; the kit
   passes its own ruff config; a `/agents` doc-lie removed.
-- **2 — `/business` → `/init-tier`.** Added the project **archetype** (library / cli / service
-  / data-pipeline / ai-system), which selects a tailored template + question set, plus a
-  read-only `audit` mode. *Test: on a real repo, the archetype came out `service` — not
+- **2 — `/business` grew an archetype.** Added the project **archetype** (library / cli /
+  service / data-pipeline / ai-system), which selects a tailored template + question set, plus
+  a read-only `audit` mode. The skill was renamed `/init-tier` here to advertise the new
+  archetype, and renamed **back** to `/business` later — the archetype survived, the name did
+  not (ADR-0009). *Test: on a real repo, the archetype came out `service` — not
   `ai-system` — because the project has no server-side model, and the audit caught a planted
   false non-goal while clearing the true ones.*
 - **3 — `/decision` + `DECISIONS.md`** (append-only ADR-lite), and the doc model evolved
@@ -53,7 +55,7 @@ adoption audit, broke it in about five minutes:
   designed to survive `/clear` would have told every downstream project's next session that
   it *was* attest, and complete. → moved here; the root ships a skeleton.
 - **Every bootstrap mode was dead code.** Modes dispatched on file *existence* — and the
-  template ships the files. So `/init-tier` always entered update-mode and diffed
+  template ships the files. So `/business` always entered update-mode and diffed
   `<placeholders>` against an empty repo. The entire designed onboarding (explore → archetype
   → 2–4 questions → write) had never once run on the primary path. → the predicate is now
   **"absent OR still `<placeholder>`"**.
@@ -88,12 +90,12 @@ them:
 - **The ownership contract holds.** One hunk (a new dependency) was seen by all four audits;
   each flagged only its own aspect and named the others' ground, instead of triple-reporting.
   That contract exists because the design review predicted exactly that failure (ADR-0004).
-- **The kit refuses to fabricate.** `/init-tier` update-mode declined to delete a non-goal to
+- **The kit refuses to fabricate.** `/business` update-mode declined to delete a non-goal to
   match an uncommitted change, and escalated instead. `/decision` declined to invent the
   Options/Why of a threshold nobody had explained — arguing, unprompted, that *"an ADR for a
   choice you discard tomorrow is worse than no ADR, since the log is append-only and can only
   be superseded, never removed."*
-- **Phase 7's fix works.** In a fresh sandbox installed via `install.sh`, `/init-tier` opened
+- **Phase 7's fix works.** In a fresh sandbox installed via `install.sh`, `/business` opened
   with *"BUSINESS.md is still the shipped skeleton (all placeholders), so this is a Mode 1
   bootstrap"* — then explored, derived the archetype from the code, asked four questions only
   about what the code cannot show, and wrote the file. It touched nothing else and did not

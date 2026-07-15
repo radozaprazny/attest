@@ -122,10 +122,10 @@ cat <<'EOF'
 
 NEXT
   1. Restart Claude Code — .claude/ is a new top-level directory, so the skills only load
-     on a fresh session. Until then /init-tier does not exist.
+     on a fresh session. Until then /business does not exist.
   2. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill owns
      it; `/init` is the fastest way.
-  3. /init-tier   — declare intent + archetype (BUSINESS.md)
+  3. /business   — declare intent + archetype (BUSINESS.md)
      /compliance  — only if you are in regulated scope (COMPLIANCE.md)
   4. Everything else: GUIDE.md PART 9 (the whole loop).
 

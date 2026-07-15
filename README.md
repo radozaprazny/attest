@@ -20,7 +20,7 @@ on demand — so the system stays cheap no matter how much it holds.
 |----------|---------|---------------|
 | `CLAUDE.md` | the rules / conventions | edited directly |
 | `PROGRESS.md` | where we are (thread-carrier across `/clear`) | `/checkpoint` |
-| `BUSINESS.md` | **why** it exists — purpose, archetype, non-goals | `/init-tier` |
+| `BUSINESS.md` | **why** it exists — purpose, archetype, non-goals | `/business` |
 | `DECISIONS.md` | **why we chose X over Y** (ADR-lite, append-only) | `/decision` |
 | `COMPLIANCE.md` | **under what rules** it must operate | `/compliance` |
 
@@ -32,7 +32,7 @@ Each of these skills doesn't just help you *write* a document — it **audits re
 it** (`/audit-history` owns no document — its record is the git history itself; `/checkpoint`
 keeps `PROGRESS.md`, but as a live snapshot, not an audit):
 
-- **`/init-tier audit`** — is anything being built violating a stated non-goal or drifting
+- **`/business audit`** — is anything being built violating a stated non-goal or drifting
   past the declared scope (or archetype)?
 - **`/decision audit`** — decisions made in code but never recorded?
 - **`/compliance audit`** — does the diff touch regulated ground (new PII, a change that
@@ -82,8 +82,8 @@ those two files)*:
 3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
-   on a fresh session. Until you do, `/init-tier` does not exist.
-5. **Declare:** `/init-tier` (intent + archetype) · `/decision` as you choose · `/compliance`
+   on a fresh session. Until you do, `/business` does not exist.
+5. **Declare:** `/business` (intent + archetype) · `/decision` as you choose · `/compliance`
    if you're in scope · `/audit-history` before you push, `full` before a public release.
 
 For a full, point-by-point guide to every piece, see [`GUIDE.md`](GUIDE.md) — PART 9 is the

@@ -167,3 +167,30 @@ was created. That restraint is the same rule /decision applies.
   release, not a habit**: the CLAUDE.md rule ("one commit = one logical unit; history should tell
   the truth") governs every commit after this one. Forks or caches of the briefly-public repo may
   still hold the old objects; deleting the remote minimises but cannot guarantee their removal.
+
+## ADR-0009 — Rename `/init-tier` back to `/business` · 2026-07-15 · Accepted
+
+- **Context** — the skill that owns `BUSINESS.md` was renamed `/business` → `/init-tier` in
+  Phase 2 to advertise the archetype it had just gained. The kit's other document skills are
+  named after their document (`/decision` → `DECISIONS.md`, `/compliance` → `COMPLIANCE.md`);
+  `/init-tier` was the one that was not. It also imported the word "tier" into a kit where
+  ADR-0001 had just ruled that "tier" means the **AI-Act risk tier** and nothing else.
+- **Options** — (a) keep `/init-tier`; (b) rename the skill back to `/business`; (c) rename
+  the skill **and** the document (`BUSINESS.md` → something archetype-flavoured).
+- **Decision** — (b). The skill is `/business`; `BUSINESS.md` and the archetype are unchanged.
+- **Why** — (a) costs a **disambiguation tax that exists only because of the name**: the skill
+  glossed the archetype as *"tier"* three times and GUIDE PART 3 carried a whole
+  `"tier" ≠ legal tier` blockquote — none of which describe the feature, all of which exist to
+  stop a reader confusing the skill's *name* with ADR-0001's *legal* tier. Renaming deletes
+  that text rather than maintaining it. (c) was rejected because the archetype is a **section**
+  of the business context, not a rival to it — `/init` : `CLAUDE.md` :: `/business` :
+  `BUSINESS.md` is the parallel the skill is built on, and renaming the doc would break the
+  1:1 doc↔skill symmetry rather than restore it.
+- **Consequences** — this does **not** supersede ADR-0001: the archetype is still a *trigger*
+  and never the legal tier, and that text stays everywhere it was. It retires exactly one of
+  ADR-0001's consequences — *"the word 'tier' now means two things in the kit, so every place
+  both appear carries a disambiguation line"* — which was true only while the skill was named
+  `/init-tier`. ADR-0001 through ADR-0008 keep their `/init-tier` references verbatim: they
+  record what was decided when it *was* the name, and rewriting them would falsify the log this
+  file exists to protect. So `/init-tier` survives in this file and nowhere else — an
+  intentional grep hit, not a missed one.

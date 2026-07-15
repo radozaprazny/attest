@@ -1,11 +1,11 @@
 ---
-name: init-tier
+name: business
 description: >-
   Creates, maintains and audits BUSINESS.md — the project's business context (why
   it exists, for whom, its value, scope and non-goals). Works like /init, but for
-  BUSINESS.md: it first establishes the project's ARCHETYPE ("tier" — library / CLI
-  / service / data-pipeline / AI-system), which selects a tailored template and a
-  focused question set. Three modes: bootstrap (write the file in a new project),
+  BUSINESS.md: it first establishes the project's ARCHETYPE (library / CLI / service
+  / data-pipeline / AI-system), which selects a tailored template and a focused
+  question set. Three modes: bootstrap (write the file in a new project),
   update (reconcile it against the project's state), and `audit` (check reality —
   code, commits, diff — against the declared non-goals and scope, read-only).
   Generic — usable in any project. Do NOT use it for live status (that belongs in
@@ -13,7 +13,7 @@ description: >-
 disable-model-invocation: true
 ---
 
-# /init-tier — business context + archetype (BUSINESS.md)
+# /business — business context + archetype (BUSINESS.md)
 
 This skill maintains **`BUSINESS.md`** — the document about **why the project exists**. It
 changes rarely. It works much like `/init` (which creates `CLAUDE.md`), but focuses purely
@@ -35,7 +35,7 @@ Write each fact in exactly one place. (full table: GUIDE PART 1)
 > leave it out. A specific choice and *why it beat the alternative* is a `DECISIONS.md` entry,
 > not a non-goal.
 
-## The archetype ("tier")
+## The archetype
 
 Before writing anything, decide **what kind of software this is**. The archetype is a
 lightweight label — not a legal judgement. It does two jobs: it picks the right questions
@@ -65,7 +65,7 @@ Keep this section order:
 
 1. **Purpose** — what it is and what it does, in 2–4 sentences.
 2. **Archetype** — one line: the label above (`library | cli | service | data-pipeline |
-   ai-system`, or your own), plus a few words of why. This is the "tier".
+   ai-system`, or your own), plus a few words of why.
 3. **Target user** — who it is for.
 4. **Value** — why it is worth it (speed, privacy, accuracy, cost, ...).
 5. **Scope (in-scope)** — what the project covers, including "Later:" items.
@@ -141,7 +141,7 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
 
 ### Mode 3 — `audit` (check reality against the declared intent)
 
-Invoked as **`/init-tier audit`**. This is one of the kit's pre-ship "gate" checks: it does
+Invoked as **`/business audit`**. This is one of the kit's pre-ship "gate" checks: it does
 not touch the document, it **reports** whether what the repo is *doing* still matches what
 `BUSINESS.md` *declares*. It owns **non-goal / scope** drift only — an undocumented decision
 (a new dependency, a new pattern) is `/decision audit`'s finding and regulated ground is

@@ -18,7 +18,7 @@ the author a short, concrete verdict on **whether it is ready to commit**. You r
 your own context and return only a **summary of findings** — the main context stays clean.
 
 > You are the **code-level** pass of the commit-time gate. The document audits
-> (`/init-tier audit`, `/decision audit`, `/compliance audit`) run **separately** as part of
+> (`/business audit`, `/decision audit`, `/compliance audit`) run **separately** as part of
 > the same gate — do not invoke them, complement them (the full loop is GUIDE PART 9).
 
 ## Ground rules

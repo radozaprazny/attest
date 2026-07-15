@@ -74,8 +74,8 @@ never as a verdict for either side. Cite which findings were MCP-verified in §9
 > `COMPLIANCE.md` as a skeleton — bootstrap over it, do not diff against it.
 
 1. **Read `BUSINESS.md`** — its **Archetype** and **Non-goals**. If `BUSINESS.md` or the
-   Archetype line is missing, recommend running `/init-tier` first, or derive a **provisional**
-   archetype from the repo (the same derivation `/init-tier` uses) — do not fail.
+   Archetype line is missing, recommend running `/business` first, or derive a **provisional**
+   archetype from the repo (the same derivation `/business` uses) — do not fail.
 2. **Run the two triggers** (AI system / GPAI? · personal data of EU people?). Fill only the
    axes that fire; for an axis that does not, record *out of scope* and why.
 3. **Classify** — walk the AI-Act axis (§2 threshold → §3–§5) and/or the GDPR axis (§6),
@@ -94,7 +94,7 @@ never as a verdict for either side. Cite which findings were MCP-verified in §9
 ### Mode 3 — `audit` (does the diff touch regulated ground?)
 
 Invoked as **`/compliance audit`**. Read-only. It **owns regulated ground** — a scope/non-goal
-question is `/init-tier audit`'s and a plain undocumented decision is `/decision audit`'s, so
+question is `/business audit`'s and a plain undocumented decision is `/decision audit`'s, so
 one hunk is flagged once. Run a **cheap trigger check first**; only do the full pass on a hit.
 
 1. **Read `COMPLIANCE.md`** — the declared posture.

@@ -87,7 +87,7 @@ the other?"* If yes, record it; if no, leave it to the commit.
 
 Invoked as **`/decision audit`**. Read-only — it **reports**, it does not write entries. It
 **owns** the "undocumented decision" finding, so a new dependency is flagged here, not by
-`/init-tier audit` (non-goal/scope) or `/compliance audit` (regulated ground) — one hunk is
+`/business audit` (non-goal/scope) or `/compliance audit` (regulated ground) — one hunk is
 flagged once.
 
 1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains).

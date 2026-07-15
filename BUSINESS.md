@@ -6,9 +6,9 @@
 
 <!--
 How to use this file:
-  - Run `/init-tier` to bootstrap this file (it decides the project's archetype, explores
+  - Run `/business` to bootstrap this file (it decides the project's archetype, explores
     the repo, asks what the code cannot show, then writes) or to update it against the
-    current state of the project. Run `/init-tier audit` to check reality against the
+    current state of the project. Run `/business audit` to check reality against the
     non-goals/scope below without changing the file.
   - Anti-duplication: no status here ("done", "12 tests green" -> PROGRESS.md), no
     technical rules (language version, commit style -> CLAUDE.md).
