@@ -104,7 +104,7 @@ one hunk is flagged once. Run a **cheap trigger check first**; only do the full 
    highest severity).
 3. **Compare to the posture** — is this covered, or a gap? Use the MCP to check obligations /
    gaps if present.
-4. **Return a short verdict** (shared audit ladder — see GUIDE PART 3). For each finding: a
+4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (`file:line` / commit), and a severity —
    - **blocker** — a new feature bearing on a **prohibited (Art 5)** practice, or personal data
      handled with no lawful basis in the posture;

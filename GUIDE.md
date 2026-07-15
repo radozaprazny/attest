@@ -119,9 +119,14 @@ Each **gate** skill both **writes** its document and **audits** reality against 
 `/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All the audits share
 one output shape and one severity ladder so they read as a family:
 
-> **Shared audit ladder:** **blocker** (top, always the bare word) / **major (domain alias)** /
-> **minor**. Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented
-> decision)*, `/compliance` *major (posture gap)*, `/audit-history` *major (PII / client name)*.
+> **The ladder and the ownership contract live in
+> [`.claude/skills/_shared/audit-ladder.md`](.claude/skills/_shared/audit-ladder.md) — that
+> file is canonical, this is a summary.** It sits next to the skills because they **read it at
+> runtime**: it installs when they install, so an audit's severity is never undefined (ADR-0010).
+>
+> **Ladder:** **blocker** (always the bare word) / **major (domain alias)** / **minor**.
+> Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented decision)*,
+> `/compliance` *major (posture gap)*, `/audit-history` *major (PII / client name)*.
 > Always a blocker: a secret, special-category / national-ID personal data, a violated
 > non-goal, a prohibited (Art 5) practice. Always minor: metadata, large files, stale wording.
 > **Ownership — one hunk is flagged once:** `/decision` owns *a new dependency / swapped

@@ -59,7 +59,7 @@ have them. This skill earns its place by being **EU-first and integrated**:
 
 ## The leak taxonomy (EU-first, severity-tiered)
 
-Use the shared audit ladder (see GUIDE PART 3), tiered by real GDPR/confidentiality exposure:
+Use the shared audit ladder (see `.claude/skills/_shared/audit-ladder.md`), tiered by real GDPR/confidentiality exposure:
 
 - **blocker**
   - **Secrets / keys** — API keys, tokens, private keys (`-----BEGIN … PRIVATE KEY-----`),
@@ -93,7 +93,7 @@ or in file *content*, is the real exposure.
 
 ## Verdict
 
-**Return a short verdict** (shared audit ladder — see GUIDE PART 3). For each finding give: a
+**Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding give: a
 one-line description; **evidence** — commit + `file:line` (blob ref for history-only hits);
 and a **severity** from the taxonomy above. End with a **recommended remediation** — but
 **do not** rewrite history yourself:

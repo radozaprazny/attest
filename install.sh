@@ -72,9 +72,10 @@ for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md COMPLIANCE.md; do
 done
 
 # --- the reference guide: this one always lands ---------------------------------------
-# The installed skills reference "GUIDE PART 1/2/3" at runtime — the shared audit ladder and
-# the audit-ownership contract exist ONLY there, so an install without it leaves every audit's
-# severity undefined. If you already have a GUIDE.md of your own, ours goes in beside it.
+# GUIDE.md is the kit's reference manual, not a runtime dependency: the shared audit ladder and
+# the ownership contract live in .claude/skills/_shared/audit-ladder.md, which installs with the
+# skills that read it (ADR-0010). The "GUIDE PART N" references in the skills are documentation
+# pointers — a dangling one costs a reader a lookup, not an audit its severity.
 if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
   note_installed "GUIDE.md"
@@ -82,7 +83,7 @@ elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; t
   cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
   note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
 else
-  note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs may dangle"
+  note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs point at whichever is ours"
 fi
 
 # --- .claude/ — per file, so your own skills/commands/settings are never touched ------

@@ -97,7 +97,7 @@ flagged once.
 3. **Match against the log** — for each decision visible in the code that clears the threshold
    but has **no** entry, that is a finding. A choice already recorded (even if later
    superseded) is **not** a finding.
-4. **Return a short verdict** (shared audit ladder — see GUIDE PART 3). For each finding: a
+4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (file / commit / diff hunk), and a severity —
    - **blocker** — a decision that contradicts a recorded ADR or a stated rule;
    - **major (undocumented decision)** — a threshold-clearing choice with no entry;

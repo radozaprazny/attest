@@ -194,3 +194,36 @@ was created. That restraint is the same rule /decision applies.
   record what was decided when it *was* the name, and rewriting them would falsify the log this
   file exists to protect. So `/init-tier` survives in this file and nowhere else — an
   intentional grep hit, not a missed one.
+
+## ADR-0010 — The audit ladder is a runtime contract: move it next to its consumers · 2026-07-15 · Accepted
+
+- **Context** — the shared severity ladder and the ownership contract lived **only** in GUIDE
+  PART 3, and all four audit skills referenced them at runtime ("see GUIDE PART 3"). ADR-0005
+  had already written down the risk: *"an install that omits GUIDE.md leaves every audit's
+  severity undefined."* `install.sh` has two branches that do exactly that — if the target
+  already has a `GUIDE.md`, the kit's lands as `attest-GUIDE.md` (and the skills' hardcoded
+  "GUIDE PART 3" then points at the user's *own* guide, which has no PART 3); if **both**
+  names are taken, the guide is skipped entirely.
+- **Options** — (a) leave it in GUIDE PART 3 and make `install.sh` try harder to land the
+  file; (b) restate the ladder in each of the four skills; (c) extract it to
+  `.claude/skills/_shared/audit-ladder.md` and have GUIDE PART 3 reference *that*.
+- **Decision** — (c).
+- **Why** — the ladder is not a *fact about* the kit, it is a **contract with four consumers**,
+  and a contract belongs where its consumers always find it. (a) treats the symptom: the
+  degraded branches exist for good reasons (never clobber the user's files), and no amount of
+  install effort makes a *reference manual* a safe place for runtime state. (b) is four copies
+  of one fact hand-synced across four files — precisely what ADR-0002 rejected, and worse here
+  because a drifted copy means two audits silently disagreeing about what "major" means.
+  (c) makes the dependency travel with the dependents: `copy_tree_if_absent ".claude/skills"`
+  already copies the whole tree per-file, so `_shared/` installs with zero new install logic.
+  Verified empirically before committing: a directory under `.claude/skills/` with no
+  `SKILL.md` is **silently ignored** by skill discovery — Claude Code loaded the real skills
+  beside it and neither listed nor warned about `_shared`.
+- **Consequences** — GUIDE.md stops being a runtime dependency and goes back to being what it
+  claims to be, a reference manual; its "GUIDE PART N" references are now documentation
+  pointers, so a dangling one costs a reader a lookup rather than an audit its severity.
+  `install.sh`'s GUIDE warning is softened to match. The ladder now has a canonical home and a
+  summary in GUIDE PART 3, which is a duplication the kit must keep honest — the summary is
+  explicitly marked as a summary. `_shared/` relies on undocumented (though verified) Claude
+  Code behaviour: if a future version starts warning about non-skill directories under
+  `.claude/skills/`, the file moves and the four references change with it.

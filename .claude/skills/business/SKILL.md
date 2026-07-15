@@ -156,7 +156,7 @@ not touch the document, it **reports** whether what the repo is *doing* still ma
 3. **Check each declared non-goal** — is the repo now doing the thing it said it would not?
    **Check scope** — is work landing *outside* the stated scope (creep), and are any
    "Later:" items now actually done (stale plan)? Sanity-check the **archetype** still fits.
-4. **Return a short verdict** (shared audit ladder — see GUIDE PART 3). For each finding: a
+4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (file / commit / diff hunk), and a severity —
    - **blocker** — a stated non-goal is being violated;
    - **major (scope creep)** — real work outside the declared scope, or the archetype no
