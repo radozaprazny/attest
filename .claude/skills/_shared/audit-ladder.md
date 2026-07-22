@@ -87,7 +87,10 @@ Every audit returns the same shape:
 3. **A recommended update** — which document, roughly what — but **do not make it**. Recording
    is a separate, human-approved step (each skill's write mode).
 
-**Every audit is read-only. The audit writes nothing.**
+**Every audit is read-only. The audit writes nothing** — no control document, no code. One
+sanctioned artifact exists at the merge point only: `/gate` appends a dated **run record**
+under `.attest/` (attest ADR-0016) — a log *that* the gate ran and what it returned, never a
+document change. The individual audits still write nothing at all.
 
 Do not inflate a minor into a blocker to look thorough, and do not invent findings to avoid
 returning an empty verdict.

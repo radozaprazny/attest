@@ -4,10 +4,11 @@ description: >-
   The commit-time gate as one command. Runs the code-level reviewer subagent plus the three
   document audits — /business audit (non-goals/scope), /decision audit (unrecorded
   decisions), /compliance audit (regulated ground) — each in its own subagent, then merges
-  their findings under the shared audit ladder and ownership contract into ONE verdict.
-  Read-only — writes nothing, changes nothing. Does NOT include /audit-history (that is the
-  separate ship gate, run before a push/release). Generic — usable in any repo. Run it
-  before a commit; each sub-audit fires only where relevant.
+  their findings under the shared audit ladder and ownership contract into ONE verdict and
+  appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
+  control document and changes no code — the run record is its only write. Does NOT include
+  /audit-history (that is the separate ship gate, run before a push/release). Generic —
+  usable in any repo. Run it before a commit; each sub-audit fires only where relevant.
 disable-model-invocation: true
 ---
 
@@ -62,6 +63,24 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - findings ordered by severity, each with its **owner**, **evidence** (`file:line` /
      commit / hunk) and a **severity** from the ladder;
    - each pass's recommended document update, if any — but **make none of them**.
+5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
+   if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
 
-**The gate writes nothing.** If a finding warrants a document change, that is the owning
+   ```markdown
+   # gate run — <UTC ISO timestamp>
+   - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
+   - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
+   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…>
+   - verdict: <✅ ready to commit | ⚠️ commit after changes>
+   - findings: <n> blocker · <n> major · <n> minor <(owner per finding, one line each)>
+   ```
+
+   The directory is append-only: never edit or delete a previous record. Recommend staging
+   the record **with the commit it gates** — that is what makes "the gate ran" a fact in
+   history rather than a memory. The record holds the verdict summary only: never the
+   findings' full text, and never a fact whose home is a control document (the router
+   stands).
+
+**The gate writes nothing to the control documents and nothing to code** — the run record
+above is its one artifact. If a finding warrants a document change, that is the owning
 skill's write mode, run by me afterwards — recording stays a separate, human-approved step.

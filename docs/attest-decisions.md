@@ -331,3 +331,27 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — one more heuristic to keep honest as the kit grows; the format hook
   still installs everywhere (its `.py` filter keeps it inert), so a project that later
   gains Python only needs the config, not a reinstall.
+
+## ADR-0016 — /gate appends a dated run record under .attest/ · 2026-07-22 · Accepted
+
+- **Context** — every audit is hard-coded "the audit writes nothing", and the rule was
+  carried over to the record of the run itself: a kit named *attest*, sold on "answer the
+  questions an auditor asks", produced no evidence that any audit ever ran — no dated
+  artifact, no SHA, no verdict on disk. The devlog itself notes audits vary on secondary
+  findings across runs, so an un-recorded run's actual output is simply gone. An external
+  analysis named this the kit's most important design hole.
+- **Options** — (a) keep write-nothing absolute (status quo); (b) every audit writes its own
+  log; (c) only `/gate` — the merge point — appends one dated record per run under
+  `.attest/`, while the individual audits and all control documents stay untouched.
+- **Decision** — (c).
+- **Why** — write-nothing exists to protect the **control documents** from unattended edits;
+  a run record is not a document change, and stretching the rule over it confused two
+  different protections. (b) makes four artifacts per gate and burdens standalone audits,
+  which often run exploratorily. (c) writes at exactly the place the passes converge, once
+  per run, and the record is append-only by construction (one file per run, never edited).
+- **Consequences** — `.attest/` appears in gated repos and is meant to be committed with the
+  gated change ("the gate ran" becomes a fact in history). The record holds the verdict
+  summary only — never findings' full text, never a fact whose home is a control document —
+  or it would become a sixth document by the back door. The ladder's "writes nothing" line
+  now carries the one sanctioned exception explicitly.
+
