@@ -4,7 +4,7 @@ description: >-
   Creates, maintains and audits BUSINESS.md — the project's business context (why
   it exists, for whom, its value, scope and non-goals). Works like /init, but for
   BUSINESS.md: it first establishes the project's ARCHETYPE (library / CLI / service
-  / data-pipeline / AI-system), which selects a tailored template and a focused
+  / data-pipeline / AI-system / local-app), which selects a tailored template and a focused
   question set. Three modes: bootstrap (write the file in a new project),
   update (reconcile it against the project's state), and `audit` (check reality —
   code, commits, diff — against the declared non-goals and scope, read-only).
@@ -54,6 +54,7 @@ record only the archetype.
 | **service**        | network-facing app / web / API          | personal-data & auth surface. Non-goals often bound *whose* data and *how long*. |
 | **data-pipeline**  | ingests / stores data at scale          | source legality (robots/ToS), consent, retention, PII minimisation. Non-goals bound sources & scope. |
 | **ai-system**      | model-driven outputs or decisions       | automated-decision surface. Non-goals bound what stays under human control. |
+| **local-app**      | GUI/desktop/mobile app on the user's own device | local personal data & files; watch what **leaves** the device (telemetry, sync, crash reports). Value = privacy, offline-first. |
 
 Pick the closest single archetype (a repo can be a CLI *and* handle data — choose the one
 that carries the sharpest non-goals). If nothing fits, use a plain label of your own and say
@@ -66,7 +67,7 @@ Keep this section order:
 
 1. **Purpose** — what it is and what it does, in 2–4 sentences.
 2. **Archetype** — one line: the label above (`library | cli | service | data-pipeline |
-   ai-system`, or your own), plus a few words of why.
+   ai-system | local-app`, or your own), plus a few words of why.
 3. **Target user** — who it is for.
 4. **Value** — why it is worth it (speed, privacy, accuracy, cost, ...).
 5. **Scope (in-scope)** — what the project covers, including "Later:" items.
@@ -105,6 +106,8 @@ already answers; fill those in directly.
   retention/consent boundary?
 - **ai-system** — what is the **intended purpose**, and what decisions must a human keep? what
   automated use is explicitly a non-goal?
+- **local-app** — what does it store on the device, and does **any** of it leave (sync,
+  telemetry, crash reports)? what must never require an account or the network?
 
 ## Three modes
 

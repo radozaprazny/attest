@@ -22,7 +22,7 @@ How to use this file:
 
 ## Archetype
 
-**<library | cli | service | data-pipeline | ai-system>** — <a few words on why>
+**<library | cli | service | data-pipeline | ai-system | local-app>** — <a few words on why>
 
 > The archetype is only a **trigger** `/compliance` reads: it signals the EU AI Act *may*
 > apply and prompts the real classification — it does **not** determine the legal risk tier,

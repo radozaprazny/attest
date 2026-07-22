@@ -290,3 +290,23 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — the README now carries claims pinned to the devlog record; if the
   dogfood is ever re-run with different results, the README changes with it. GUIDE PART 1
   carries the gradient as canonical prose; the README table only labels it.
+
+## ADR-0014 — Add local-app as a sixth archetype · 2026-07-22 · Accepted
+
+- **Context** — the archetype table had five rows; a local GUI/desktop/mobile app — runtime
+  users, often local personal data, but neither a `cli` (a tool) nor a `service`
+  (network-facing) as the table defines them — fell through to the "plain label of your
+  own" escape hatch, forfeiting the tailored template and question set for a genuinely
+  common kind of software.
+- **Options** — (a) keep five rows and the escape hatch; (b) widen `cli`'s definition to
+  cover anything running on the user's machine; (c) add **local-app** as a sixth row with
+  its own question extensions.
+- **Decision** — (c).
+- **Why** — (a) forfeits the feature exactly where the sharpest questions exist (what data
+  stays on the device, what leaves via telemetry/sync/crash reports). (b) muddies `cli`'s
+  own sharpest probes — destructive operations on files the user names — with GUI-app data
+  concerns; one row cannot carry both well. The escape hatch stays for what still fits
+  nothing.
+- **Consequences** — the table, the question bank, the template's archetype line and GUIDE
+  3.1 each grow by one row; ADR-0001 is untouched — the archetype remains a trigger, never
+  the legal tier, for six labels as for five.

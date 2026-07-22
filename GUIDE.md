@@ -148,7 +148,8 @@ one output shape and one severity ladder so they read as a family:
 
 ### 3.1 `/business` — creates/maintains/audits `BUSINESS.md`
 - **How:** type `/business`. It first fixes the project's **archetype** (library / cli /
-  service / data-pipeline / ai-system), which picks a tailored template + question set. Three
+  service / data-pipeline / ai-system / local-app), which picks a tailored template +
+  question set. Three
   modes: **bootstrap** (file absent — or still the shipped `<placeholder>` skeleton), **update**
   (compare against project state), and
   **`/business audit`** (check reality — code, commits, diff — against the declared
