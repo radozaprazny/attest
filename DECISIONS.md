@@ -21,17 +21,8 @@ How to use this file:
   - IDs are sequential, zero-padded (ADR-0001, ADR-0002, …). Dates ISO YYYY-MM-DD.
 -->
 
-## ADR-0001 — Record architecture decisions in DECISIONS.md · 2026-01-01 · Accepted
-
-- **Context** — choices were being made in commits, with the rationale lost to git archaeology.
-- **Options** — nothing / a wiki page / an append-only ADR-lite log in-repo.
-- **Decision** — keep an append-only ADR-lite log, one entry per notable choice, in this file.
-- **Why** — in-repo is reviewable in the same diff; append-only means the reasoning is never
-  silently rewritten; lightweight keeps friction low enough to actually use.
-- **Consequences** — every notable choice costs one short entry; a reversal appends a
-  superseding entry rather than editing history.
-
-<!-- Delete the example above and add your first real entry with this shape:
+<!-- Your first real entry goes here, with this shape (IDs start at ADR-0001; the
+append-only rule above applies to real entries — this comment is not one):
 
 ## ADR-0001 — <short imperative title> · YYYY-MM-DD · Accepted
 
