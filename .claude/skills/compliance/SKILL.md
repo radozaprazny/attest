@@ -12,6 +12,7 @@ description: >-
   without it. Do NOT use it for status (PROGRESS.md), rules (CLAUDE.md), non-goals
   (BUSINESS.md) or decision rationale (DECISIONS.md).
 disable-model-invocation: true
+argument-hint: "[audit]"
 ---
 
 # /compliance — declared compliance posture (COMPLIANCE.md)

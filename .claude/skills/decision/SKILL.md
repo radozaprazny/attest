@@ -10,6 +10,7 @@ description: >-
   for live status (PROGRESS.md), rules/conventions (CLAUDE.md), product non-goals
   (BUSINESS.md) or regulatory obligations (COMPLIANCE.md).
 disable-model-invocation: true
+argument-hint: "[audit]"
 ---
 
 # /decision — why we chose X over Y (DECISIONS.md)
@@ -71,11 +72,18 @@ the other?"* If yes, record it; if no, leave it to the commit.
 
 ## Two modes
 
+> **A `DECISIONS.md` with no real entries — the shipped template's header and commented
+> example only — counts as empty.** The kit ships it as a skeleton: the entry shape lives in
+> an HTML comment, never as a visible entry. The first real entry is `ADR-0001`; never treat
+> the commented example as prior state, and if the file is absent, create it (header rules
+> included) before appending.
+
 ### Mode 1 — record (a decision was just made)
 
 1. **Confirm it clears the threshold** above. If it is really a non-goal / a rule / an
    obligation, route it to the right doc instead and say so.
-2. **Read `DECISIONS.md`** to find the next `ADR-NNNN` id and match the house tone.
+2. **Read `DECISIONS.md`** to find the next `ADR-NNNN` id and match the house tone (an
+   empty template has no entries — start at `ADR-0001`).
 3. **Append one entry** with the five fields. Capture the **Options** and **Why** honestly —
    the discarded alternatives are the point. If the decision is compliance-relevant, note the
    regulatory consequence in `COMPLIANCE.md` and cross-reference this ADR id (record the fact
@@ -90,7 +98,8 @@ Invoked as **`/decision audit`**. Read-only — it **reports**, it does not writ
 `/business audit` (non-goal/scope) or `/compliance audit` (regulated ground) — one hunk is
 flagged once.
 
-1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains).
+1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains; the
+   shipped template's commented example is not a recorded decision).
 2. **Survey reality** — `git log` / recent commits, the working diff, and especially the
    **dependency manifest** and **structural changes**: a newly added or swapped dependency, a
    new architectural pattern or protocol, a notable new threshold/default.

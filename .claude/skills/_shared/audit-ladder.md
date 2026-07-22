@@ -1,8 +1,9 @@
 # Shared audit ladder + ownership contract
 
-**The canonical source for every audit's severity vocabulary and its ground.** Four skills
+**The canonical source for every audit's severity vocabulary and its ground.** Five skills
 read this file at runtime — `/business audit`, `/decision audit`, `/compliance audit`,
-`/audit-history` — plus the `reviewer` subagent and `/gate`. It lives here, next to its
+`/audit-history`, and `/gate`, which merges the commit-time
+passes under this contract — plus the `reviewer` subagent. It lives here, next to its
 consumers, so that it installs with them and is never absent when an audit runs.
 
 > Not a skill — this directory has no `SKILL.md` and Claude Code ignores it for skill
@@ -36,7 +37,8 @@ a violated non-goal · a prohibited (EU AI Act Art 5) practice.
 
 `nit` is **not** on this ladder. It survives only in the `reviewer` subagent, which reviews
 *code* and so has legitimate cosmetic findings; a "does reality match the declaration" audit
-does not. Stale wording that would once have been a nit is **minor**. (ADR-0005.)
+does not. Stale wording that would once have been a nit is **minor**. (Attest ADR-0005 —
+the kit's own decision log, not your `DECISIONS.md`.)
 
 ---
 
@@ -59,7 +61,7 @@ yourself, even when you can see it clearly.
 
 ### The `/business` ↔ `/audit-history` edge: content vs behaviour
 
-The sharpest collision, and the one a real dogfood actually hit (ADR-0004):
+The sharpest collision, and the one a real dogfood actually hit (attest ADR-0004):
 
 - Code that **does** something a non-goal forbids → `/business audit`.
   *Example: a non-goal says "no network access" and new code opens a socket. This is

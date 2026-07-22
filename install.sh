@@ -43,15 +43,28 @@ copy_tree_if_absent() {
   while IFS= read -r -d '' src; do
     rel="${src#"$KIT"/}"   # quoted: $KIT is a literal here, not a glob
     copy_if_absent "$rel" "version"
-  done < <(find "$KIT/$dir" -type f -print0)
+  done < <(find "$KIT/$dir" -type f \
+      ! -name '*.pyc' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' \
+      ! -path '*/__pycache__/*' -print0)
 }
 
 # ensure_ignore <line> — append to .gitignore, never overwrite it
 ensure_ignore() {
   local line="$1"
+  # Never write through a symlinked .gitignore: touch would follow it (creating a file
+  # outside the project, or aborting the whole run on an unwritable path).
+  if [ -L "$TARGET/.gitignore" ]; then
+    note_skipped ".gitignore += $line" "your .gitignore is a symlink — append it yourself"
+    return 0
+  fi
   touch "$TARGET/.gitignore"
   if grep -qxF "$line" "$TARGET/.gitignore" 2>/dev/null; then
     return 0
+  fi
+  # If the file's last byte is not a newline, appending would glue our line onto the
+  # user's last rule — breaking theirs and losing ours. Complete their line first.
+  if [ -s "$TARGET/.gitignore" ] && [ -n "$(tail -c1 "$TARGET/.gitignore")" ]; then
+    echo >> "$TARGET/.gitignore"
   fi
   printf '%s\n' "$line" >> "$TARGET/.gitignore"
   note_installed ".gitignore += $line"
@@ -63,10 +76,21 @@ has_ruff_config() {
     grep -Eq '^[[:space:]]*\[tool\.("?)ruff\1' "$TARGET/pyproject.toml" 2>/dev/null
 }
 
+has_python_markers() {
+  # .claude/ excluded: the kit's own hooks are .py and would make every target "Python".
+  # -print -quit short-circuits on the first hit; vendor/VCS dirs pruned for speed.
+  [ -f "$TARGET/pyproject.toml" ] || [ -f "$TARGET/setup.py" ] || [ -f "$TARGET/setup.cfg" ] ||
+    [ -f "$TARGET/requirements.txt" ] ||
+    [ -n "$(find "$TARGET" \( -name .claude -o -name .git -o -name node_modules -o -name .venv \) \
+        -prune -o -name '*.py' -print -quit 2>/dev/null)" ]
+}
+
 echo "attest → $TARGET"
 echo
 
 # --- the five control documents (templates; yours win if they exist) -----------------
+CLAUDE_INSTALLED=0
+{ [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md COMPLIANCE.md; do
   copy_if_absent "$doc" "document"
 done
@@ -79,25 +103,47 @@ done
 if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
   note_installed "GUIDE.md"
+  # A leftover attest-GUIDE.md from an earlier dual-install would now shadow nothing —
+  # point it out (never delete it ourselves).
+  if [ -e "$TARGET/attest-GUIDE.md" ] || [ -L "$TARGET/attest-GUIDE.md" ]; then
+    note_skipped "attest-GUIDE.md" "leftover from an earlier install — GUIDE.md is now the kit's; delete it if you no longer keep your own guide"
+  fi
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
+  # A re-run: the GUIDE.md present is the kit's own prior install — not the user's.
+  note_skipped "GUIDE.md" "already the kit's version (re-run)"
+elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
+  # The kit's own manual from an older install — never clobber, but say what to do.
+  note_skipped "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
 elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
   note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
+  note_skipped "attest-GUIDE.md" "already the kit's version (re-run)"
 else
   note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs point at whichever is ours"
 fi
 
-# --- .claude/ — per file, so your own skills/commands/settings are never touched ------
+# --- .claude/ — per file, so your own skills/agents/hooks/settings are never touched --
 copy_tree_if_absent ".claude/skills"
 copy_tree_if_absent ".claude/agents"
 copy_tree_if_absent ".claude/hooks"
-copy_tree_if_absent ".claude/commands"
+# Warn about unwired hooks only when the kept settings.json actually differs from the
+# kit's (a byte-identical file — a re-run — has the hooks wired already). Same
+# present-predicate as copy_if_absent (-e or -L), so a dangling symlink still warns.
+SETTINGS_KEPT=0
+if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
+  cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_KEPT=1
+fi
 copy_if_absent ".claude/settings.json" "settings"
 
-# --- ruff: skip if the project already configures it ---------------------------------
+# --- ruff: only into Python projects, and never over an existing config ---------------
 # ruff resolves ruff.toml > .ruff.toml > pyproject.toml and does NOT merge, so copying ours
-# in would silently hijack an existing config while leaving it on disk as dead code.
+# in would silently hijack an existing config while leaving it on disk as dead code. And a
+# repo with no Python gets no Python residue (ADR-0015) — the format hook stays inert there.
 if has_ruff_config; then
   note_skipped "ruff.toml" "you already configure ruff (ours would silently override it)"
+elif ! has_python_markers; then
+  note_skipped "ruff.toml" "no Python detected — see GUIDE PART 2 to swap the formatter unit"
 else
   copy_if_absent "ruff.toml" "config"
 fi
@@ -107,7 +153,9 @@ copy_if_absent ".mcp.json.example" "example"
 
 # --- .gitignore: append the lines the kit needs, never replace the file ----------------
 ensure_ignore ".claude/settings.local.json"
-ensure_ignore ".ruff_cache/"
+if has_python_markers || [ -e "$TARGET/ruff.toml" ]; then
+  ensure_ignore ".ruff_cache/"
+fi
 
 # --- report ---------------------------------------------------------------------------
 echo "INSTALLED (${#INSTALLED[@]}):"
@@ -119,16 +167,39 @@ echo "SKIPPED (${#SKIPPED[@]}) — left untouched, merge by hand if you want the
 if [ ${#SKIPPED[@]} -eq 0 ]; then echo "  (nothing)"; fi
 for s in "${SKIPPED[@]:-}"; do [ -n "$s" ] && echo "  · $s"; done
 
-cat <<'EOF'
+# --- honesty about what will NOT run ---------------------------------------------------
+if [ "$SETTINGS_KEPT" = 1 ]; then
+  cat <<'EOF'
 
-NEXT
-  1. Restart Claude Code — .claude/ is a new top-level directory, so the skills only load
-     on a fresh session. Until then /business does not exist.
-  2. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill owns
-     it; `/init` is the fastest way.
-  3. /business   — declare intent + archetype (BUSINESS.md)
-     /compliance  — only if you are in regulated scope (COMPLIANCE.md)
-  4. Everything else: GUIDE.md PART 9 (the whole loop).
+⚠ Your .claude/settings.json was kept — so the kit's hooks are on disk but NOT wired:
+  none of them will run until you merge this stanza into your .claude/settings.json:
 
-Not installed on purpose: README.md and LICENSE describe attest, not your project.
 EOF
+  sed 's/^/    /' "$KIT/.claude/settings.json"
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  cat <<'EOF'
+
+⚠ python3 is not on PATH — the three hooks in .claude/hooks/ will fail on every matching
+  event until it is installed (or delete their entries from .claude/settings.json).
+EOF
+fi
+
+echo
+echo "NEXT"
+n=1
+echo "  $n. Restart Claude Code if .claude/ (or .claude/skills/) is new to this project —"
+echo "     skills only load on a fresh session. Until then /business does not exist."
+n=$((n+1))
+if [ "$CLAUDE_INSTALLED" = 1 ]; then
+  echo "  $n. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill"
+  echo "     owns it; /init is the fastest way."
+  n=$((n+1))
+fi
+echo "  $n. /business    — declare intent + archetype (BUSINESS.md)"
+echo "     /compliance  — only if you are in regulated scope (COMPLIANCE.md)"
+n=$((n+1))
+echo "  $n. Everything else: GUIDE.md PART 9 (the whole loop)."
+echo
+echo "Not installed on purpose: README.md and LICENSE describe attest, not your project."

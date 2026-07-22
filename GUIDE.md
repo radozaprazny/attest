@@ -1,7 +1,7 @@
 # GUIDE.md — reference guide
 
 What this dev-kit contains, **how to run it** and **what it is for**. The kit is reusable —
-copy `.claude/` plus the doc templates into a new project (see the end).
+install it into any project with `install.sh` (PART 8; never by hand-copying).
 
 > Sections are numbered **per PART** (1.1, 1.2, … then 3.1, 3.2, …) so a new skill can be
 > slotted in without renumbering the rest. PARTs are referenced by name ("see PART 6").
@@ -14,6 +14,13 @@ The kit runs on **five living documents**. Only `CLAUDE.md` is held in context e
 the other four are read **on demand** by their skills, so the system stays cheap no matter
 how much it holds. (This PART and the README table are the *only* two full enumerations —
 everywhere else carries the one-line router below.)
+
+**Adopt on a gradient.** The minimum viable attest is **three documents** — `CLAUDE.md` +
+`PROGRESS.md` + `BUSINESS.md`: rules, thread, boundary. `DECISIONS.md` earns its keep at
+team scale or on a long project, when *"why did we do it this way?"* outlives anyone's
+memory; `COMPLIANCE.md` only in regulated scope. Documents you have not adopted cost
+nothing — the skills read them on demand, and an audit degrades to a note ("nothing
+declared") when one is absent.
 
 ### 1.1 `CLAUDE.md` — project rules and conventions
 - **How:** a file in the repo root; loaded **automatically every turn**. Quick add: start a
@@ -82,7 +89,22 @@ everywhere else carries the one-line router below.)
   code that uses it exists. The rest of `[lint]` is yours to run — `ruff check .`.
 
   Swapping languages means replacing **both** — prettier + `.prettierrc`, rustfmt +
-  `rustfmt.toml`, gofmt, ... — and deleting `ruff.toml`.
+  `rustfmt.toml`, gofmt, ... — and deleting `ruff.toml`. (`install.sh` already lands
+  `ruff.toml` and the `.ruff_cache/` ignore line **only when the target shows Python
+  markers** — a JS/Rust repo gets no Python residue; attest ADR-0015.)
+
+  A worked JS/TS swap — replace the `PostToolUse` entry in `.claude/settings.json` with:
+
+  ```json
+  { "matcher": "Edit|Write",
+    "hooks": [ { "type": "command",
+      "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.js|*.jsx|*.ts|*.tsx) npx prettier --write \"$f\" >/dev/null 2>&1 || true;; esac; }" } ] }
+  ```
+
+  — the same shape as the Python pair: filter on extension, fail open (`|| true`), let
+  prettier's own `.prettierrc` supply the rules (this one needs `jq` and `npx` on `PATH` —
+  the same class of dependency as the shipped hooks' `python3`). Then delete the hook
+  file, `ruff.toml` and the `.ruff_cache/` line from `.gitignore`.
 
   **Two caveats the kit will not paper over.** (1) All three hooks are Python scripts run as
   `python3 …`, so **`python3` must be on `PATH`** — in a repo without it they fail on every
@@ -116,13 +138,17 @@ everywhere else carries the one-line router below.)
 
 Each **gate** skill both **writes** its document and **audits** reality against it —
 `/business`, `/decision`, `/compliance` (`/audit-history` audits without owning a document;
-`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All the audits share
+`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit; `/gate` owns no
+document either — it runs the commit-time audits together, see 3.6). All six are
+**manual-only** (`disable-model-invocation: true`): Claude never auto-offers them — you type
+the command; costs ~0 tokens when idle. All the audits share
 one output shape and one severity ladder so they read as a family:
 
 > **The ladder and the ownership contract live in
 > [`.claude/skills/_shared/audit-ladder.md`](.claude/skills/_shared/audit-ladder.md) — that
 > file is canonical, this is a summary.** It sits next to the skills because they **read it at
-> runtime**: it installs when they install, so an audit's severity is never undefined (ADR-0010).
+> runtime**: it installs when they install, so an audit's severity is never undefined (attest
+> ADR-0010 — the kit's own decision log, not your `DECISIONS.md`).
 >
 > **Ladder:** **blocker** (always the bare word) / **major (domain alias)** / **minor**.
 > Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented decision)*,
@@ -138,8 +164,10 @@ one output shape and one severity ladder so they read as a family:
 
 ### 3.1 `/business` — creates/maintains/audits `BUSINESS.md`
 - **How:** type `/business`. It first fixes the project's **archetype** (library / cli /
-  service / data-pipeline / ai-system), which picks a tailored template + question set. Three
-  modes: **bootstrap** (file absent), **update** (compare against project state), and
+  service / data-pipeline / ai-system / local-app), which picks a tailored template +
+  question set. Three
+  modes: **bootstrap** (file absent — or still the shipped `<placeholder>` skeleton), **update**
+  (compare against project state), and
   **`/business audit`** (check reality — code, commits, diff — against the declared
   non-goals/scope; read-only, reports a verdict, changes nothing).
 - **What for:** business context — like `/init` for CLAUDE.md, but for BUSINESS.md. The
@@ -147,7 +175,7 @@ one output shape and one severity ladder so they read as a family:
   is **not** the legal risk tier, which `/compliance` sets in COMPLIANCE.md.
 
 ### 3.2 `/checkpoint` — token/context hygiene
-- **How:** type `/checkpoint` (it has `disable-model-invocation` → manual only). Derives
+- **How:** type `/checkpoint`. Derives
   state from git, updates PROGRESS, advises `/clear` vs `/compact`.
 - **What for:** one word pours the session state into PROGRESS → then you can `/clear` safely.
 - **When:** before every `/clear`, or when the Stop hook warns you.
@@ -162,7 +190,7 @@ one output shape and one severity ladder so they read as a family:
 ### 3.4 `/audit-history` — the clean-history leak gate (no doc)
 - **How:** `/audit-history` scans the working tree + the diff about to be pushed;
   `/audit-history full` scans the **entire history** (all commits/branches). Read-only.
-- **What for:** the pre-ship gate — before code leaves the machine, catch secrets, personal
+- **What for:** the ship gate — before code leaves the machine, catch secrets, personal
   data (EU-first GDPR), client names and metadata leaks. It maintains **no document** (its
   record is the git history itself) and never rewrites history — it reports and recommends.
 
@@ -175,9 +203,20 @@ one output shape and one severity ladder so they read as a family:
   citing provisions by ID, **never a legal verdict**. Optionally verified live via an
   EU-AI-Act MCP (see PART 6); the core works offline.
 
-> **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT).
-> The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads;
-> a **new top-level directory** needs a restart.
+### 3.6 `/gate` — the commit-time gate, one command
+- **How:** type `/gate` before a commit. It scopes the diff, then runs the `reviewer`
+  subagent plus the three document audits in **parallel subagents** — it reads each skill's
+  audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
+  merges the findings under the shared ladder + ownership contract into **one** verdict.
+- **What for:** the whole per-change gate without four invocations. Read-only; writes
+  nothing; a missing document degrades to a note, never a failure.
+- **Not included:** `/audit-history` — that is the **ship** gate; run it before a push.
+
+> **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT)
+> — that applies to auto-invocable skills; this kit's are all manual-only, so their
+> descriptions are what you read in the picker. The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads
+> — live change detection covers `SKILL.md` text, and `/reload-skills` is the manual nudge
+> when it has not kicked in; a **new top-level directory** needs a restart.
 
 ---
 
@@ -304,11 +343,27 @@ refused outright if you configure ruff anywhere (it would silently override you 
 It prints an **INSTALLED** list and a **SKIPPED** list naming every file it refused to touch,
 so you can merge those by hand.
 
-It deliberately does **not** copy `README.md`, `LICENSE`, `docs/` or itself — those are
-*attest*, not your project. `GUIDE.md` is the one file it always lands, because the installed
-skills reference "GUIDE PART 1/2/3" at runtime and the shared audit ladder and the
-audit-ownership contract live only there; if you already have a `GUIDE.md` of your own, the
-kit's goes in beside it as `attest-GUIDE.md` rather than replacing yours.
+It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/`, `.github/`
+or itself — those are
+*attest*, not your project. `GUIDE.md` lands as the kit's reference manual: a copy the kit
+itself installed is recognized on re-runs (current → skipped, outdated → pointed out for a
+by-hand refresh); a guide of your own keeps its name and the kit's goes in beside it as
+`attest-GUIDE.md`; only with both names taken is it skipped. It is **not** a
+runtime dependency: the shared audit ladder and the ownership contract live in
+`.claude/skills/_shared/audit-ladder.md` and install with the skills that read them (attest
+ADR-0010), so a missing GUIDE costs a reader a lookup, not an audit its severity.
+
+**Upgrading** — pull the kit and re-run it; that is the whole procedure here too:
+
+```bash
+git -C /tmp/attest pull && /tmp/attest/install.sh <path-to-your-project>
+```
+
+Re-running is safe: copy-if-absent never touches your files, and a `GUIDE.md` the kit itself
+installed is recognized rather than duplicated (an outdated kit copy in the `GUIDE.md` slot
+is pointed out for a by-hand refresh, never overwritten). The SKIPPED list
+names every file left alone; where you want the kit's newer version of one, diff it against
+the kit checkout and merge by hand.
 
 Afterwards: **restart Claude Code** (`.claude/` is a new top-level directory, so the skills
 only load on a fresh session — until then `/business` does not exist), fill `CLAUDE.md`
@@ -332,13 +387,15 @@ single straight line.
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
 2. **Build.**
-3. **Gate, before the commit** — separate, cheap steps; each fires only when relevant:
+3. **Gate, before the commit — one command: `/gate`.** It runs the four passes in parallel
+   subagents and merges one verdict; each fires only when relevant:
    - the `reviewer` subagent — the code-level pass;
    - `/business audit` — did the work cross a non-goal / creep past scope?
    - `/decision audit` — a choice made in code but never recorded?
    - `/compliance audit` — did the diff touch regulated ground? (skips unless it did)
 
-   Each **owns** its own finding, so one hunk is flagged once.
+   Each **owns** its own finding, so one hunk is flagged once. (The pieces stay separately
+   runnable when you want just one.)
 4. **Commit** (`feat:` / `fix:` / `docs:` …) — one logical unit.
 5. **`/checkpoint`** — pour state into `PROGRESS.md`, then `/clear` between blocks.
 

@@ -2,7 +2,7 @@
 
 > Under **what rules** the project must operate. **EU-first.** Records THIS project's
 > *posture*, not the law — cite provisions by article/ID; never paste regulation text (look it
-> up live via the AI-Act MCP, or by ID). status → `PROGRESS.md` · why-it-exists →
+> up live via a connected AI-Act MCP, or by ID). status → `PROGRESS.md` · why-it-exists →
 > `BUSINESS.md` · rules → `CLAUDE.md` · why-we-chose-X-over-Y → `DECISIONS.md`.
 > (full table: GUIDE PART 1)
 
@@ -53,7 +53,7 @@ How to use this file:
   fundamental-rights impact assessment (FRIA, Art 27, for high-risk), conformity assessment,
   registration>.
 - **Dates:** <phase-in per obligation> — **VERIFY live** (Art 5 / GPAI / high-risk dates are
-  shifting post-Digital-Omnibus; confirm via the AI-Act MCP `check_deadlines` or the official
+  shifting post-Digital-Omnibus; confirm via a connected AI-Act MCP or the official
   text; do not hardcode).
 
 ## 6. GDPR posture (independent axis — fill if you process personal data of people in the EU)

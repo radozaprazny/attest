@@ -1,0 +1,99 @@
+# template-cleanup — runs ONCE in a repo generated from the attest template button and
+# removes everything that is attest's identity, not the user's project: docs/, install.sh,
+# scripts/, the CI example, attest's README and its LICENSE. Then it deletes itself.
+#
+# Guards: the two from attest ADR-0012, a fork check, and a content sentinel added by
+# the series review. is_template stays false in generated
+# repos but is one GitHub toggle away from false in attest itself — the hard repo-name
+# check is what actually protects attest's own README, docs/ and install.sh — and the
+# fork check keeps the workflow inert in forks of attest. A content sentinel inside the
+# step protects users whose first push comes AFTER they already cleaned up by hand:
+# once attest's README or install.sh is gone, the run only removes this workflow file.
+# workflow_dispatch is the fallback: repo-creation pushes do not reliably fire.
+
+name: template-cleanup
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    if: >-
+      github.event.repository.is_template == false &&
+      github.event.repository.fork == false &&
+      github.repository != 'radozaprazny/attest'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Remove attest's own files
+        run: |
+          # Content sentinel: destructive cleanup runs ONLY while the repo still looks
+          # like an untouched template (attest's README front page + its installer both
+          # present). If the user already cleaned up by hand — or wrote anything of
+          # their own here — this run removes only the workflow itself and stops.
+          if [ ! -f install.sh ] || ! grep -q '^# attest — a compliance-native kit' README.md; then
+            rm -f .github/workflows/template-cleanup.yml
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git diff --cached --quiet || { git commit -m "chore: remove template-cleanup workflow (repo already cleaned)"; git push; }
+            exit 0
+          fi
+
+          rm -rf docs scripts install.sh .github/workflows/ci.yml.example
+
+          cat > README.md <<'EOF'
+          # <your project>
+
+          Bootstrapped from the [attest](https://github.com/radozaprazny/attest) kit —
+          five living documents plus audit-gate skills that keep the project honest to
+          what it declares.
+
+          First steps (the kit's README calls this "First 5 minutes"):
+
+          1. Replace this file with your project's README.
+          2. Fill `LICENSE` (`<YEAR>`, `<YOUR NAME>`) — the cleanup left you an MIT skeleton.
+          3. Fill `CLAUDE.md` (`/init` is the fastest way), restart Claude Code.
+          4. Declare: `/business` · `/decision` as you choose · `/compliance` if in scope.
+          5. Everything else: `GUIDE.md` PART 9.
+          EOF
+
+          cat > LICENSE <<'EOF'
+          MIT License
+
+          Copyright (c) <YEAR> <YOUR NAME>
+
+          Permission is hereby granted, free of charge, to any person obtaining a copy
+          of this software and associated documentation files (the "Software"), to deal
+          in the Software without restriction, including without limitation the rights
+          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+          copies of the Software, and to permit persons to whom the Software is
+          furnished to do so, subject to the following conditions:
+
+          The above copyright notice and this permission notice shall be included in all
+          copies or substantial portions of the Software.
+
+          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+          SOFTWARE.
+          EOF
+
+          rm -f .github/workflows/template-cleanup.yml
+
+      - name: Commit the cleanup
+        run: |
+          # The sentinel path above commits its own removal and leaves nothing staged —
+          # never fail the run on an empty commit (README tells users to verify it ran).
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --quiet || { git commit -m "chore: template cleanup — remove attest's own identity files"; git push; }

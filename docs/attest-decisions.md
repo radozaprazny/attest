@@ -227,3 +227,107 @@ was created. That restraint is the same rule /decision applies.
   explicitly marked as a summary. `_shared/` relies on undocumented (though verified) Claude
   Code behaviour: if a future version starts warning about non-skill directories under
   `.claude/skills/`, the file moves and the four references change with it.
+
+## ADR-0011 — /gate delegates the commit-time audits to subagents · 2026-07-22 · Accepted
+
+- **Context** — GUIDE PART 9's per-change gate was four separate invocations (the reviewer
+  plus three doc audits) before every commit; nobody runs four commands per commit, so the
+  gate existed mostly on paper. A `/gate` command was reserved as the fix — but every kit
+  skill is `disable-model-invocation: true`, so a gate skill cannot model-invoke the others.
+- **Options** — (a) keep the loop manual and documented; (b) `/gate` restates the four
+  audits' instructions in its own body; (c) `/gate` reads each skill's audit section at
+  runtime and hands it to a subagent (the reviewer as itself + three general-purpose),
+  merging under `_shared/audit-ladder.md`.
+- **Decision** — (c).
+- **Why** — (a) is the status quo that made the gate theoretical. (b) is four copies of
+  runtime instructions hand-synced across files — the drift ADR-0002 and ADR-0010 exist to
+  prevent, and worst where a drifted copy silently changes what an audit checks. (c) adds
+  zero duplication, and subagents are the kit's own token-hygiene rule (GUIDE PART 4): four
+  audits inline would pull four SKILL.mds, three documents and the diff into the main
+  context. Scope is the commit-time gate only; `/audit-history` stays the separate ship
+  gate, so the two cadences (every commit vs leaving the machine) stay apart.
+- **Consequences** — the ladder's consumer list gains a real `/gate`; the gate inherits any
+  future change to a skill's audit section automatically (it reads, it does not copy); a
+  `/gate` run costs four subagent contexts, accepted as the price of one-command adoption.
+
+## ADR-0012 — Template cleanup runs in CI, double-guarded · 2026-07-22 · Accepted
+
+- **Context** — the "Use this template" button copies the whole tree, so every generated
+  repo starts with attest's README, LICENSE, docs/, scripts/ and install.sh, and the README
+  asks the user to delete them by hand ("First 5 minutes"). Humans skip steps; Phase 7
+  showed exactly this class of leftover shipping downstream.
+- **Options** — (a) manual steps only; (b) a cleanup workflow guarded by
+  `is_template == false`; (c) the same workflow guarded by **both** `is_template == false`
+  **and** `github.repository != 'radozaprazny/attest'`, with `workflow_dispatch` as a
+  manual fallback.
+- **Decision** — (c).
+- **Why** — (b) is one GitHub toggle away from deleting attest's own README, docs/ and
+  install.sh: un-check "Template repository" and the guard opens. The hard repo-name check
+  cannot be toggled off by accident. `workflow_dispatch` exists because repo-creation
+  pushes do not reliably fire the `push` event. The LICENSE is rewritten to a bare MIT
+  skeleton with `<YEAR>`/`<YOUR NAME>` and **no** warning header — the devlog records that
+  a header broke GitHub's licence detection and was reverted; the instruction lives in the
+  stub README instead.
+- **Consequences** — generated repos start clean without reading anything; the workflow
+  deletes itself after running; attest carries a workflow that must stay inert at home —
+  the double guard is load-bearing and must survive refactors. Users who disable Actions
+  fall back to the README's manual steps, which stay.
+
+## ADR-0013 — Lead the README with real audit results and an adoption gradient · 2026-07-22 · Accepted
+
+- **Context** — the README promised governance and showed nothing; a fresh-user audit read
+  it as "much promise, no evidence", and the five-document framing read as all-or-nothing.
+  The dogfood results existed, written down in the devlog.
+- **Options** — (a) leave it; (b) fabricate a terminal transcript as a demo; (c) lead with
+  the four real dogfood results, sourced strictly from `attest-devlog.md`, plus an explicit
+  adoption gradient (minimum viable attest = three documents).
+- **Decision** — (c).
+- **Why** — (b) is disqualifying: a compliance kit faking an audit output in its own public
+  README is the exact failure it exists to prevent. (a) leaves adoption to faith. The
+  gradient lowers the entry cost honestly — the three-document minimum is real (the skills
+  degrade to a note when a document is absent), and the Adopt column lives inside the
+  enumeration ADR-0002 already sanctions, so it opens no new duplication site.
+- **Consequences** — the README now carries claims pinned to the devlog record; if the
+  dogfood is ever re-run with different results, the README changes with it. GUIDE PART 1
+  carries the gradient as canonical prose; the README table only labels it.
+
+## ADR-0014 — Add local-app as a sixth archetype · 2026-07-22 · Accepted
+
+- **Context** — the archetype table had five rows; a local GUI/desktop/mobile app — runtime
+  users, often local personal data, but neither a `cli` (a tool) nor a `service`
+  (network-facing) as the table defines them — fell through to the "plain label of your
+  own" escape hatch, forfeiting the tailored template and question set for a genuinely
+  common kind of software.
+- **Options** — (a) keep five rows and the escape hatch; (b) widen `cli`'s definition to
+  cover anything running on the user's machine; (c) add **local-app** as a sixth row with
+  its own question extensions.
+- **Decision** — (c).
+- **Why** — (a) forfeits the feature exactly where the sharpest questions exist (what data
+  stays on the device, what leaves via telemetry/sync/crash reports). (b) muddies `cli`'s
+  own sharpest probes — destructive operations on files the user names — with GUI-app data
+  concerns; one row cannot carry both well. The escape hatch stays for what still fits
+  nothing.
+- **Consequences** — the table, the question bank, the template's archetype line and GUIDE
+  3.1 each grow by one row; ADR-0001 is untouched — the archetype remains a trigger, never
+  the legal tier, for six labels as for five.
+
+## ADR-0015 — Install Python tooling only into Python projects · 2026-07-22 · Accepted
+
+- **Context** — the kit claims to be language-agnostic, but `install.sh` unconditionally
+  landed `ruff.toml` and a `.ruff_cache/` gitignore line into every target — Python residue
+  in a JS or Rust repo, flagged by the fresh-user audit as the kit's one systematic
+  off-note.
+- **Options** — (a) keep copying always; (b) move the ruff pair out of the kit into an
+  `examples/` directory; (c) copy the Python tooling only when the target shows Python
+  markers (`pyproject.toml` / `setup.py` / `setup.cfg` / `requirements.txt` / any `*.py`
+  outside `.claude/`).
+- **Decision** — (c).
+- **Why** — (a) ships residue and undercuts the language-agnostic claim. (b) breaks the
+  working out-of-the-box Python experience and the documented "two files, one swappable
+  unit" story for no gain. (c) keeps both: a Python repo gets the working unit, everyone
+  else gets a SKIPPED line pointing at the GUIDE PART 2 swap instructions. The `.claude/`
+  exclusion in the marker scan matters — the kit's own hooks are `.py` and would otherwise
+  make every target look like Python.
+- **Consequences** — one more heuristic to keep honest as the kit grows; the format hook
+  still installs everywhere (its `.py` filter keeps it inert), so a project that later
+  gains Python only needs the config, not a reinstall.
