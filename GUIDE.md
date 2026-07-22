@@ -1,7 +1,7 @@
 # GUIDE.md — reference guide
 
 What this dev-kit contains, **how to run it** and **what it is for**. The kit is reusable —
-copy `.claude/` plus the doc templates into a new project (see the end).
+install it into any project with `install.sh` (PART 8; never by hand-copying).
 
 > Sections are numbered **per PART** (1.1, 1.2, … then 3.1, 3.2, …) so a new skill can be
 > slotted in without renumbering the rest. PARTs are referenced by name ("see PART 6").
@@ -311,10 +311,23 @@ It prints an **INSTALLED** list and a **SKIPPED** list naming every file it refu
 so you can merge those by hand.
 
 It deliberately does **not** copy `README.md`, `LICENSE`, `docs/` or itself — those are
-*attest*, not your project. `GUIDE.md` is the one file it always lands, because the installed
-skills reference "GUIDE PART 1/2/3" at runtime and the shared audit ladder and the
-audit-ownership contract live only there; if you already have a `GUIDE.md` of your own, the
-kit's goes in beside it as `attest-GUIDE.md` rather than replacing yours.
+*attest*, not your project. `GUIDE.md` lands as the kit's reference manual — beside your own
+as `attest-GUIDE.md` if that name is taken, skipped only when both names are. It is **not** a
+runtime dependency: the shared audit ladder and the ownership contract live in
+`.claude/skills/_shared/audit-ladder.md` and install with the skills that read them (attest
+ADR-0010), so a missing GUIDE costs a reader a lookup, not an audit its severity.
+
+**Upgrading** — pull the kit and re-run it; that is the whole procedure here too:
+
+```bash
+git -C /tmp/attest pull && /tmp/attest/install.sh <path-to-your-project>
+```
+
+Re-running is safe: copy-if-absent never touches your files, and a `GUIDE.md` the kit itself
+installed is recognized rather than duplicated (an outdated kit copy is pointed out for a
+by-hand refresh, never overwritten). The SKIPPED list
+names every file left alone; where you want the kit's newer version of one, diff it against
+the kit checkout and merge by hand.
 
 Afterwards: **restart Claude Code** (`.claude/` is a new top-level directory, so the skills
 only load on a fresh session — until then `/business` does not exist), fill `CLAUDE.md`

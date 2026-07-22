@@ -91,6 +91,9 @@ if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
 elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
   # A re-run: the GUIDE.md present is the kit's own prior install — not the user's.
   note_skipped "GUIDE.md" "already the kit's version (re-run)"
+elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
+  # The kit's own manual from an older install — never clobber, but say what to do.
+  note_skipped "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
 elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
   note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
