@@ -179,8 +179,17 @@ one output shape and one severity ladder so they read as a family:
   citing provisions by ID, **never a legal verdict**. Optionally verified live via an
   EU-AI-Act MCP (see PART 6); the core works offline.
 
+### 3.6 `/gate` — the commit-time gate, one command
+- **How:** type `/gate` before a commit. It scopes the diff, then runs the `reviewer`
+  subagent plus the three document audits in **parallel subagents** — it reads each skill's
+  audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
+  merges the findings under the shared ladder + ownership contract into **one** verdict.
+- **What for:** the whole per-change gate without four invocations. Read-only; writes
+  nothing; a missing document degrades to a note, never a failure.
+- **Not included:** `/audit-history` — that is the **ship** gate; run it before a push.
+
 > **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT)
-> — that applies to auto-invocable skills; this kit's five are all manual-only, so their
+> — that applies to auto-invocable skills; this kit's are all manual-only, so their
 > descriptions are what you read in the picker. The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads
 > — live change detection covers `SKILL.md` text, and `/reload-skills` is the manual nudge
 > when it has not kicked in; a **new top-level directory** needs a restart.
@@ -351,13 +360,15 @@ single straight line.
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
 2. **Build.**
-3. **Gate, before the commit** — separate, cheap steps; each fires only when relevant:
+3. **Gate, before the commit — one command: `/gate`.** It runs the four passes in parallel
+   subagents and merges one verdict; each fires only when relevant:
    - the `reviewer` subagent — the code-level pass;
    - `/business audit` — did the work cross a non-goal / creep past scope?
    - `/decision audit` — a choice made in code but never recorded?
    - `/compliance audit` — did the diff touch regulated ground? (skips unless it did)
 
-   Each **owns** its own finding, so one hunk is flagged once.
+   Each **owns** its own finding, so one hunk is flagged once. (The pieces stay separately
+   runnable when you want just one.)
 4. **Commit** (`feat:` / `fix:` / `docs:` …) — one logical unit.
 5. **`/checkpoint`** — pour state into `PROGRESS.md`, then `/clear` between blocks.
 

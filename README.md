@@ -41,10 +41,11 @@ keeps `PROGRESS.md`, but as a live snapshot, not an audit):
 - **`/audit-history`** — before the push leaves the machine: secrets, PII, client
   names, metadata leaks.
 
-Run together, their audit modes are a **pre-ship gate** — intent, decisions,
-regulation, and leakage checked in one pass. The `reviewer` subagent runs the
-code-level pass; it and the doc-audits form the commit-time gate as separate
-steps (the whole loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
+They compose into two gates. **`/gate`** is the **commit-time** gate as one command: the
+`reviewer` subagent's code-level pass plus the first three audits, run in parallel
+subagents and merged into one verdict under a shared severity ladder — one hunk is flagged
+once. `/audit-history` is the **ship** gate, before anything leaves the machine (the whole
+loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
 
 ## Not a kitchen sink
 
@@ -84,7 +85,8 @@ those two files)*:
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
    on a fresh session. Until you do, `/business` does not exist.
 5. **Declare:** `/business` (intent + archetype) · `/decision` as you choose · `/compliance`
-   if you're in scope · `/audit-history` before you push, `full` before a public release.
+   if you're in scope. Then **gate:** `/gate` before each commit · `/audit-history` before
+   you push, `full` before a public release.
 
 For a full, point-by-point guide to every piece, see [`GUIDE.md`](GUIDE.md) — PART 9 is the
 whole loop end to end.

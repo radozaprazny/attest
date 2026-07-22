@@ -227,3 +227,25 @@ was created. That restraint is the same rule /decision applies.
   explicitly marked as a summary. `_shared/` relies on undocumented (though verified) Claude
   Code behaviour: if a future version starts warning about non-skill directories under
   `.claude/skills/`, the file moves and the four references change with it.
+
+## ADR-0011 — /gate delegates the commit-time audits to subagents · 2026-07-22 · Accepted
+
+- **Context** — GUIDE PART 9's per-change gate was four separate invocations (the reviewer
+  plus three doc audits) before every commit; nobody runs four commands per commit, so the
+  gate existed mostly on paper. A `/gate` command was reserved as the fix — but every kit
+  skill is `disable-model-invocation: true`, so a gate skill cannot model-invoke the others.
+- **Options** — (a) keep the loop manual and documented; (b) `/gate` restates the four
+  audits' instructions in its own body; (c) `/gate` reads each skill's audit section at
+  runtime and hands it to a subagent (the reviewer as itself + three general-purpose),
+  merging under `_shared/audit-ladder.md`.
+- **Decision** — (c).
+- **Why** — (a) is the status quo that made the gate theoretical. (b) is four copies of
+  runtime instructions hand-synced across files — the drift ADR-0002 and ADR-0010 exist to
+  prevent, and worst where a drifted copy silently changes what an audit checks. (c) adds
+  zero duplication, and subagents are the kit's own token-hygiene rule (GUIDE PART 4): four
+  audits inline would pull four SKILL.mds, three documents and the diff into the main
+  context. Scope is the commit-time gate only; `/audit-history` stays the separate ship
+  gate, so the two cadences (every commit vs leaving the machine) stay apart.
+- **Consequences** — the ladder's consumer list gains a real `/gate`; the gate inherits any
+  future change to a skill's audit section automatically (it reads, it does not copy); a
+  `/gate` run costs four subagent contexts, accepted as the price of one-command adoption.
