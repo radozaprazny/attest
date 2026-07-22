@@ -1,0 +1,34 @@
+# ci.yml.example — opt-in CI for your project. Rename to ci.yml and adapt.
+#
+# Everything below is commented out on purpose: attest ships no live CI for your code —
+# what your project runs is your decision. This example mirrors the kit's own baseline
+# (ruff for Python, shellcheck for shell); swap the steps for your language's tools.
+# The template-cleanup workflow deletes this file in generated repos; install.sh never
+# copies .github/.
+#
+# name: ci
+# on:
+#   push:
+#     branches: [main]
+#   pull_request:
+#
+# jobs:
+#   lint:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       - uses: astral-sh/setup-uv@v5
+#
+#       # Python — drop if your project has none
+#       - run: uvx ruff check .
+#       - run: uvx ruff format --check .
+#
+#       # Shell — drop if your project has no scripts
+#       - run: |
+#           shopt -s nullglob globstar
+#           files=(**/*.sh)
+#           [ ${#files[@]} -eq 0 ] || uvx --from shellcheck-py shellcheck "${files[@]}"
+#         shell: bash
+#
+#       # Your tests go here — the kit does not guess your test runner
+#       # - run: <your test command>
