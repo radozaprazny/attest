@@ -74,6 +74,8 @@ echo "attest → $TARGET"
 echo
 
 # --- the five control documents (templates; yours win if they exist) -----------------
+CLAUDE_INSTALLED=0
+[ -e "$TARGET/CLAUDE.md" ] || CLAUDE_INSTALLED=1
 for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md COMPLIANCE.md; do
   copy_if_absent "$doc" "document"
 done
@@ -98,11 +100,12 @@ else
   note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs point at whichever is ours"
 fi
 
-# --- .claude/ — per file, so your own skills/commands/settings are never touched ------
+# --- .claude/ — per file, so your own skills/agents/hooks/settings are never touched --
 copy_tree_if_absent ".claude/skills"
 copy_tree_if_absent ".claude/agents"
 copy_tree_if_absent ".claude/hooks"
-copy_tree_if_absent ".claude/commands"
+SETTINGS_KEPT=0
+[ -e "$TARGET/.claude/settings.json" ] && SETTINGS_KEPT=1
 copy_if_absent ".claude/settings.json" "settings"
 
 # --- ruff: skip if the project already configures it ---------------------------------
@@ -131,16 +134,39 @@ echo "SKIPPED (${#SKIPPED[@]}) — left untouched, merge by hand if you want the
 if [ ${#SKIPPED[@]} -eq 0 ]; then echo "  (nothing)"; fi
 for s in "${SKIPPED[@]:-}"; do [ -n "$s" ] && echo "  · $s"; done
 
-cat <<'EOF'
+# --- honesty about what will NOT run ---------------------------------------------------
+if [ "$SETTINGS_KEPT" = 1 ]; then
+  cat <<'EOF'
 
-NEXT
-  1. Restart Claude Code — .claude/ is a new top-level directory, so the skills only load
-     on a fresh session. Until then /business does not exist.
-  2. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill owns
-     it; `/init` is the fastest way.
-  3. /business   — declare intent + archetype (BUSINESS.md)
-     /compliance  — only if you are in regulated scope (COMPLIANCE.md)
-  4. Everything else: GUIDE.md PART 9 (the whole loop).
+⚠ Your .claude/settings.json was kept — so the kit's hooks are on disk but NOT wired:
+  none of them will run until you merge this stanza into your .claude/settings.json:
 
-Not installed on purpose: README.md and LICENSE describe attest, not your project.
 EOF
+  sed 's/^/    /' "$KIT/.claude/settings.json"
+fi
+
+if ! command -v python3 >/dev/null 2>&1; then
+  cat <<'EOF'
+
+⚠ python3 is not on PATH — the three hooks in .claude/hooks/ will fail on every matching
+  event until it is installed (or delete their entries from .claude/settings.json).
+EOF
+fi
+
+echo
+echo "NEXT"
+n=1
+echo "  $n. Restart Claude Code if .claude/ (or .claude/skills/) is new to this project —"
+echo "     skills only load on a fresh session. Until then /business does not exist."
+n=$((n+1))
+if [ "$CLAUDE_INSTALLED" = 1 ]; then
+  echo "  $n. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill"
+  echo "     owns it; /init is the fastest way."
+  n=$((n+1))
+fi
+echo "  $n. /business    — declare intent + archetype (BUSINESS.md)"
+echo "     /compliance  — only if you are in regulated scope (COMPLIANCE.md)"
+n=$((n+1))
+echo "  $n. Everything else: GUIDE.md PART 9 (the whole loop)."
+echo
+echo "Not installed on purpose: README.md and LICENSE describe attest, not your project."
