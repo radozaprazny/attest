@@ -7,16 +7,17 @@
 
 ## Current state
 
-The post-audit fix series is **complete** — 20 commits on `fix/post-audit-series` (17
-planned + 3 closing the adversarial series review's 23 confirmed findings), landing on
-`main` via PR; once merged, `origin/main` carries the full series. It closed everything a
-66-agent adversarial audit confirmed (2026-07-22) plus
-the previously planned fixes: install.sh honesty (gitignore-newline corruption, idempotent
-re-runs, junk filter, inert-hooks warning, python3 preflight, dynamic NEXT), the `/business`
-half-filled dispatch gap, `/decision`'s missing template predicate and the `DECISIONS.md`
-example trap, **`/gate`** (ADR-0011), template-cleanup CI (ADR-0012), the README payoff +
-adoption gradient (ADR-0013), the **local-app** archetype (ADR-0014), Python-tooling-only-
-into-Python-projects (ADR-0015), a smoke test, and GUIDE PART 8 realigned with ADR-0010.
+The **enforcement series (phase 9)** is **complete** — 5 commits on
+`feat/enforcement-series`, awaiting a PR onto `main`.
+Trigger: an external analysis (2026-07-22) that confirmed the kit's facts nearly to the
+line and named the rhetoric-vs-enforcement gap as the main weakness. The series: `/gate`
+run record under `.attest/` (ADR-0016), the `doc-auditor` capability-restricted agent for
+the gate's document audits (ADR-0017), `Kit version:` in the shared ladder + install.sh
+identical-vs-DIFFERS drift notes (ADR-0018), live CI on attest itself (ADR-0019,
+`.github/workflows/ci.yml`), the PART 8 promotion carve-out for the audit family, the
+template-cleanup sentinel comment de-overclaimed + README reversibility note, honest
+README "gated" wording, and devlog corrections (phase-8 series was 21 commits; smoke is
+now 23 assertions). The phase-8 post-audit series itself is merged on `main` (PR #1).
 
 Repo is **private** on GitHub (`radozaprazny/attest`), template button on. Going public is
 a separate, deliberate step.
@@ -31,15 +32,23 @@ uvx --from shellcheck-py shellcheck install.sh scripts/smoke.sh
 
 ## Next
 
+- **Merge the enforcement series** — PR `feat/enforcement-series` → `main`, once the new
+  `ci` workflow reports green on it.
+- **Enable branch protection** on `main` once the `ci` workflow is green — without it the
+  CI reports but does not block (noted in ADR-0019).
 - **Decide on going public** — before flipping visibility: re-run `/audit-history full`,
   and consider a README demo GIF (open nice-to-have; never fabricate a transcript).
-- Dogfood `/gate` on the next real change to attest itself.
+- Dogfood `/gate` on the next real change to attest itself — it now writes its first
+  `.attest/` run record.
 
 ## Notes / standing constraints
 
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0015 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0019 stay
   byte-identical once landed.
+- **Cutting a release = bump the `Kit version:` line** in
+  `.claude/skills/_shared/audit-ladder.md` (ADR-0018 — the ladder is the version's one
+  home; there is no VERSION file).
 - **`init-tier` grep hits are deliberate** where they survive: the append-only ADR log
   (verbatim history, ADR-0009 narrates the rename) and the devlog's Phase 2 narrative.
   A hit there is correct, not a miss — do not "fix" them.

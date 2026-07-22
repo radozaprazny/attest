@@ -331,3 +331,93 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — one more heuristic to keep honest as the kit grows; the format hook
   still installs everywhere (its `.py` filter keeps it inert), so a project that later
   gains Python only needs the config, not a reinstall.
+
+## ADR-0016 — /gate appends a dated run record under .attest/ · 2026-07-22 · Accepted
+
+- **Context** — every audit is hard-coded "the audit writes nothing", and the rule was
+  carried over to the record of the run itself: a kit named *attest*, sold on "answer the
+  questions an auditor asks", produced no evidence that any audit ever ran — no dated
+  artifact, no SHA, no verdict on disk. The devlog itself notes audits vary on secondary
+  findings across runs, so an un-recorded run's actual output is simply gone. An external
+  analysis named this the kit's most important design hole.
+- **Options** — (a) keep write-nothing absolute (status quo); (b) every audit writes its own
+  log; (c) only `/gate` — the merge point — appends one dated record per run under
+  `.attest/`, while the individual audits and all control documents stay untouched.
+- **Decision** — (c).
+- **Why** — write-nothing exists to protect the **control documents** from unattended edits;
+  a run record is not a document change, and stretching the rule over it confused two
+  different protections. (b) makes four artifacts per gate and burdens standalone audits,
+  which often run exploratorily. (c) writes at exactly the place the passes converge, once
+  per run, and the record is append-only by construction (one file per run, never edited).
+- **Consequences** — `.attest/` appears in gated repos and is meant to be committed with the
+  gated change ("the gate ran" becomes a fact in history). The record holds the verdict
+  summary only — never findings' full text, never a fact whose home is a control document —
+  or it would become a sixth document by the back door. The ladder's "writes nothing" line
+  now carries the one sanctioned exception explicitly.
+
+## ADR-0017 — The gate's document audits run read-only by capability · 2026-07-22 · Accepted
+
+- **Context** — ADR-0011 ran the three document audits as **general-purpose** subagents
+  (full toolset, including Edit/Write and Bash) while `/gate` described them as "each
+  read-only" — a promise in prose, not a property. The reviewer already strips Edit/Write
+  but keeps Bash, which can write (`sed -i`, `git commit`). For a kit whose pitch includes
+  "the audit writes nothing", the guarantee was purely instructional.
+- **Options** — (a) keep general-purpose + instruction; (b) strip Bash from every audit
+  pass, reviewer included; (c) a dedicated `doc-auditor` agent (`Read, Grep, Glob` — no
+  Bash/Edit/Write) for the three document audits, with `/gate` writing the scoped git
+  material (diff, untracked list, log) to temp files the agent Reads; the reviewer keeps
+  Bash and says honestly that its read-only is a rule, not a capability.
+- **Decision** — (c).
+- **Why** — (a) is the rhetoric/enforcement gap itself. (b) breaks the reviewer's contract —
+  it must *run* the project's tests and lint, which is Bash by definition; a reviewer that
+  cannot execute verifies nothing. The document audits, by contrast, only ever *read* — the
+  one thing they needed Bash for was `git`, and the gate already scopes the diff in the main
+  context, so handing it over as files removes the last reason to arm them.
+- **Consequences** — `/gate` step 1 grows a material-preparation step (redirected to files,
+  so the diff still never enters the main context); a `doc-auditor` absent in an older
+  install degrades to the previous general-purpose path, stated in the verdict; the
+  standalone audit modes (run inline in the main context) still use git themselves.
+
+## ADR-0018 — Version the kit inside the audit ladder; install.sh reports drift · 2026-07-22 · Accepted
+
+- **Context** — the kit had no version identifier anywhere (no file, no tag, no field), and
+  `install.sh` is copy-if-absent: a project that installed v1 of a skill keeps it forever,
+  reported identically to a user-customized file — installs froze silently, and an adopter
+  could not say which version of the ladder audited them.
+- **Options** — (a) a `VERSION` file at the kit root; (b) git tags only; (c) a
+  `Kit version:` line inside `.claude/skills/_shared/audit-ladder.md`, plus `install.sh`
+  telling every skipped kit-owned file apart by content: *identical to the kit's* (re-run)
+  vs *DIFFERS — diff by hand to upgrade*.
+- **Decision** — (c).
+- **Why** — (a) is attest identity at the root: template-cleanup would have to delete it,
+  `install.sh` does not copy root files into targets, so installed projects would carry no
+  version at all — the one place it matters. (b) does not travel into installs either.
+  (c) rides the vehicle ADR-0010 already built: the ladder installs with every audit
+  consumer, so the version in a project is by construction the version its audits used, and
+  it can never desync from the contract it labels. The cmp-based drift note turns silent
+  staleness into a SKIPPED line that says so — no interactive `--upgrade` machinery, same
+  never-clobber covenant.
+- **Consequences** — bumping the version is part of cutting a release (a standing note in
+  `attest-progress.md`); `install.sh` prints the version and `/gate`'s run record cites it;
+  the user-owned document templates (`CLAUDE.md`, `BUSINESS.md`, …) keep the plain "your
+  document kept" message — differing there is normal life, not drift.
+
+## ADR-0019 — attest gates itself: a live CI on the kit's own repo · 2026-07-22 · Accepted
+
+- **Context** — the kit's thesis is "audits that gate", yet its own repo ran no automatic
+  check at all: `.github/workflows/` held only template-cleanup, `ci.yml.example` is
+  deliberately all-comments for adopters, and the baseline (`smoke.sh`, ruff, shellcheck)
+  lived in `attest-progress.md` as manual commands.
+- **Options** — (a) status quo, manual baseline; (b) activate `ci.yml.example` as-is;
+  (c) a separate live `ci.yml` — ruff + shellcheck + `scripts/smoke.sh` — hard-guarded with
+  `github.repository == 'radozaprazny/attest'` and deleted downstream by template-cleanup.
+- **Decision** — (c).
+- **Why** — (a) is the preach/practice gap. (b) fails twice: the example never ran
+  `smoke.sh` (it mirrors an *adopter's* baseline, and their project has no `scripts/`), and
+  un-commented it would run unguarded in every generated repo. (c) keeps "attest ships no
+  live CI *for your code*" true — the guard makes the job inert anywhere but attest, and
+  the cleanup removes the file — while attest itself finally has a blocking check.
+- **Consequences** — the cleanup's `rm` list and the README's manual-delete list grow by one
+  file; the CI is red/green on every push and PR, but *blocking a merge* additionally needs
+  branch protection, which is a GitHub setting, not repo content — enabling it is a standing
+  item in `attest-progress.md`.

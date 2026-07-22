@@ -4,10 +4,11 @@ description: >-
   The commit-time gate as one command. Runs the code-level reviewer subagent plus the three
   document audits — /business audit (non-goals/scope), /decision audit (unrecorded
   decisions), /compliance audit (regulated ground) — each in its own subagent, then merges
-  their findings under the shared audit ladder and ownership contract into ONE verdict.
-  Read-only — writes nothing, changes nothing. Does NOT include /audit-history (that is the
-  separate ship gate, run before a push/release). Generic — usable in any repo. Run it
-  before a commit; each sub-audit fires only where relevant.
+  their findings under the shared audit ladder and ownership contract into ONE verdict and
+  appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
+  control document and changes no code — the run record is its only write. Does NOT include
+  /audit-history (that is the separate ship gate, run before a push/release). Generic —
+  usable in any repo. Run it before a commit; each sub-audit fires only where relevant.
 disable-model-invocation: true
 ---
 
@@ -33,15 +34,23 @@ about the specific project.
 each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
 1. **Scope first, cheaply, in the main context** — `git status --porcelain`,
-   `git diff HEAD --stat`. If the tree is clean, gate the last commit (`git show HEAD`)
-   and say so in the verdict.
-2. **Launch four subagents in parallel**, each read-only, each returning only findings:
+   `git diff HEAD --stat`. Then write the material the document audits will read to a
+   temp dir, **redirected so it never enters this context**:
+   `M=$(mktemp -d)` · `git diff HEAD > "$M/diff.patch"` ·
+   `git status --porcelain > "$M/status.txt"` (the full porcelain status — untracked
+   files included) · `git log --oneline -n 20 > "$M/log.txt"`. If the tree is clean, gate the last commit
+   instead (`git show HEAD > "$M/diff.patch"`) and say so in the verdict.
+2. **Launch four subagents in parallel**, each returning only findings — the three
+   document audits read-only **by capability**, the reviewer read-only **by rule** (it
+   keeps Bash to run the tests; see its ground rules):
    - the **`reviewer` subagent** (`.claude/agents/reviewer.md`) — the code-level pass,
      run as itself;
-   - one **general-purpose subagent per document audit**, each given: the audit-mode
-     section of its skill (`.claude/skills/business/SKILL.md` Mode 3 ·
+   - one **`doc-auditor` subagent per document audit** (`.claude/agents/doc-auditor.md` —
+     tools `Read, Grep, Glob`: it cannot run git, edit or write; attest ADR-0017), each
+     given: the audit-mode section of its skill (`.claude/skills/business/SKILL.md` Mode 3 ·
      `.claude/skills/decision/SKILL.md` Mode 2 · `.claude/skills/compliance/SKILL.md`
-     Mode 3), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), and the
+     Mode 3), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), the `$M` paths
+     (its git material — the agent has no Bash), and the
      instruction to apply its skill's own skip/trigger rules (`/compliance audit` runs its
      cheap trigger check first and returns "out of scope" on no hit).
 
@@ -51,7 +60,9 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
    A missing piece **degrades, never fails**: no `BUSINESS.md` → note "nothing declared —
    run `/business`" and skip that pass; a document still the shipped skeleton → same; the
-   reviewer agent absent → say so and run the other three.
+   reviewer agent absent → say so and run the other three; the `doc-auditor` agent absent
+   (an older install) → fall back to general-purpose subagents with the same material and
+   say in the verdict that those passes were read-only by instruction only.
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
    owner. Order everything by the shared ladder, domain aliases intact.
@@ -62,6 +73,24 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - findings ordered by severity, each with its **owner**, **evidence** (`file:line` /
      commit / hunk) and a **severity** from the ladder;
    - each pass's recommended document update, if any — but **make none of them**.
+5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
+   if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
 
-**The gate writes nothing.** If a finding warrants a document change, that is the owning
+   ```markdown
+   # gate run — <UTC ISO timestamp>
+   - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
+   - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
+   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…>
+   - verdict: <✅ ready to commit | ⚠️ commit after changes>
+   - findings: <n> blocker · <n> major · <n> minor <(owner per finding, one line each)>
+   ```
+
+   The directory is append-only: never edit or delete a previous record. Recommend staging
+   the record **with the commit it gates** — that is what makes "the gate ran" a fact in
+   history rather than a memory. The record holds the verdict summary only: never the
+   findings' full text, and never a fact whose home is a control document (the router
+   stands).
+
+**The gate writes nothing to the control documents and nothing to code** — the run record
+above is its one artifact. If a finding warrants a document change, that is the owning
 skill's write mode, run by me afterwards — recording stays a separate, human-approved step.

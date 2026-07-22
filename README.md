@@ -47,8 +47,11 @@ keeps `PROGRESS.md`, but as a live snapshot, not an audit):
 They compose into two gates. **`/gate`** is the **commit-time** gate as one command: the
 `reviewer` subagent's code-level pass plus the first three audits, run in parallel
 subagents and merged into one verdict under a shared severity ladder — one hunk is flagged
-once. `/audit-history` is the **ship** gate, before anything leaves the machine (the whole
-loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
+once. Its document audits run in a subagent that **cannot** write or run commands
+(read-only by capability, not promise), and every run **appends a dated run record** under
+`.attest/` — HEAD SHA, kit version, which passes ran, the verdict — so *"the gate ran"* is
+a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before anything
+leaves the machine (the whole loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
 
 ## Does it hold up?
 
@@ -67,8 +70,9 @@ agents told nothing about them — **6/6 caught at the right severity, 0 false p
 ## Not a kitchen sink
 
 Every skill here (a) fits the spine and (b) does something a generic plugin can't —
-it's *integrated* (the docs cross-link), *gated* (audits that block, not just
-document), and *EU-first*. A generic `/deploy` or `/test` fails both tests; the
+it's *integrated* (the docs cross-link), *gated* (audits that return a verdict and leave
+a dated record — the mechanism attests, the discipline of honoring the verdict stays
+yours), and *EU-first*. A generic `/deploy` or `/test` fails both tests; the
 ecosystem does those better. Breadth isn't the point — a coherent, opinionated
 system is.
 
@@ -92,16 +96,21 @@ system is.
 The template hands you attest's own files next to your empty ones. **A generated repo cleans
 itself:** the `template-cleanup` workflow runs on your first push (or via *Actions → run
 workflow*), deletes attest's identity files (`docs/`, `scripts/`, `install.sh`, this README),
-leaves an MIT skeleton `LICENSE`, then deletes itself — verify it ran. With Actions disabled,
+leaves an MIT skeleton `LICENSE`, then deletes itself — verify it ran. The cleanup pushes an
+**ordinary commit**, never a history rewrite, so anything it removes is one `git revert`
+away. With Actions disabled,
 do steps 1–2 by hand *(they are the template/clone path only — `install.sh` never copies
 these files)*:
 
 1. **Replace `README.md`** — this one is attest's front page, not your project's.
 2. **Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-   Then delete **`docs/`**, **`scripts/`**, **`install.sh`** and
-   **`.github/workflows/template-cleanup.yml`** — attest's own history, tests, installer
-   and cleanup. (Once your README replaces attest's, a late workflow run only removes
-   itself — but delete it anyway.)
+   Then delete **`docs/`**, **`scripts/`**, **`install.sh`**,
+   **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
+   attest's own history, tests, installer, cleanup and CI. (A late workflow run only
+   removes itself **once** your README no longer contains attest's `# attest — …` heading
+   line or `install.sh` is gone; while both markers remain, it still deletes attest's
+   paths wholesale — including anything you added under `docs/` or `scripts/`. So if you
+   work with Actions disabled, delete the workflow **first**.)
 3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load

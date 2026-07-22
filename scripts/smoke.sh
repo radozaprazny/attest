@@ -62,6 +62,19 @@ if printf '%s' "$rerun_out" | grep -q 'NOT wired'; then
 else
   ok "re-run does not false-warn about unwired hooks"
 fi
+if printf '%s' "$rerun_out" | grep -q 'gate/SKILL.md — already exists (identical'; then
+  ok "re-run reports untouched kit files as identical, not as drift"
+else
+  fail "re-run reports untouched kit files as identical, not as drift"
+fi
+# A locally modified kit-owned file must be called out as drift, not skipped silently
+echo '# local modification' >> "$T1/.claude/skills/gate/SKILL.md"
+drift_out=$("$KIT/install.sh" "$T1")
+if printf '%s' "$drift_out" | grep -q 'gate/SKILL.md — already exists (your version kept — DIFFERS'; then
+  ok "a drifted kit file is called out as DIFFERS"
+else
+  fail "a drifted kit file is called out as DIFFERS"
+fi
 
 # --- 3. a .gitignore without a trailing newline survives intact ------------------------
 echo "install.sh — .gitignore:"
