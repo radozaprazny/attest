@@ -35,7 +35,10 @@ Write each fact in exactly one place. (full table: GUIDE PART 1)
 
 ## What PROGRESS.md holds
 
-A short **thread-carrier**, not a diary. Keep these sections (if the file already uses
+A short **thread-carrier**, not a diary. If the project's thread-carrier is **not**
+`PROGRESS.md` — the PreCompact hook honours `ATTEST_THREAD_CARRIER`, and `CLAUDE.md` may
+name one (e.g. `TIMESHEET.md`) — maintain **that** file instead: same sections, same
+brevity. Keep these sections (if the file already uses
 different names, adopt its order and tone):
 
 - **Current state** — 2–3 sentences: what is done and exactly where we are.

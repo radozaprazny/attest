@@ -116,13 +116,16 @@ everywhere else carries the one-line router below.)
 
 Each **gate** skill both **writes** its document and **audits** reality against it —
 `/business`, `/decision`, `/compliance` (`/audit-history` audits without owning a document;
-`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All the audits share
+`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All five are
+**manual-only** (`disable-model-invocation: true`): Claude never auto-offers them — you type
+the command; costs ~0 tokens when idle. All the audits share
 one output shape and one severity ladder so they read as a family:
 
 > **The ladder and the ownership contract live in
 > [`.claude/skills/_shared/audit-ladder.md`](.claude/skills/_shared/audit-ladder.md) — that
 > file is canonical, this is a summary.** It sits next to the skills because they **read it at
-> runtime**: it installs when they install, so an audit's severity is never undefined (ADR-0010).
+> runtime**: it installs when they install, so an audit's severity is never undefined (attest
+> ADR-0010 — the kit's own decision log, not your `DECISIONS.md`).
 >
 > **Ladder:** **blocker** (always the bare word) / **major (domain alias)** / **minor**.
 > Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented decision)*,
@@ -139,7 +142,8 @@ one output shape and one severity ladder so they read as a family:
 ### 3.1 `/business` — creates/maintains/audits `BUSINESS.md`
 - **How:** type `/business`. It first fixes the project's **archetype** (library / cli /
   service / data-pipeline / ai-system), which picks a tailored template + question set. Three
-  modes: **bootstrap** (file absent), **update** (compare against project state), and
+  modes: **bootstrap** (file absent — or still the shipped `<placeholder>` skeleton), **update**
+  (compare against project state), and
   **`/business audit`** (check reality — code, commits, diff — against the declared
   non-goals/scope; read-only, reports a verdict, changes nothing).
 - **What for:** business context — like `/init` for CLAUDE.md, but for BUSINESS.md. The
@@ -147,7 +151,7 @@ one output shape and one severity ladder so they read as a family:
   is **not** the legal risk tier, which `/compliance` sets in COMPLIANCE.md.
 
 ### 3.2 `/checkpoint` — token/context hygiene
-- **How:** type `/checkpoint` (it has `disable-model-invocation` → manual only). Derives
+- **How:** type `/checkpoint`. Derives
   state from git, updates PROGRESS, advises `/clear` vs `/compact`.
 - **What for:** one word pours the session state into PROGRESS → then you can `/clear` safely.
 - **When:** before every `/clear`, or when the Stop hook warns you.
@@ -175,8 +179,9 @@ one output shape and one severity ladder so they read as a family:
   citing provisions by ID, **never a legal verdict**. Optionally verified live via an
   EU-AI-Act MCP (see PART 6); the core works offline.
 
-> **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT).
-> The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads
+> **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT)
+> — that applies to auto-invocable skills; this kit's five are all manual-only, so their
+> descriptions are what you read in the picker. The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads
 > — live change detection covers `SKILL.md` text, and `/reload-skills` is the manual nudge
 > when it has not kicked in; a **new top-level directory** needs a restart.
 

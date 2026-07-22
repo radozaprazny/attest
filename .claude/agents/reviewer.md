@@ -28,6 +28,9 @@ your own context and return only a **summary of findings** — the main context 
   vague "consider refactoring".
 - **By severity.** Real bugs first, then convention violations, then details. Do not
   inflate nits into blockers.
+- **Shared vocabulary.** Severity terms come from the shared ladder in
+  `.claude/skills/_shared/audit-ladder.md`; `nit` is this reviewer's own extra rung (attest
+  ADR-0005) — a code review has legitimate cosmetic findings, a doc-audit does not.
 - **Generic.** Work with what you actually find in the repo. Assume no particular
   language, framework, or toolchain — discover them.
 

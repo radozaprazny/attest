@@ -4,6 +4,7 @@ between logical blocks (or /compact mid-task). Throttled by a per-session sentin
 
 import json
 import os
+import re
 import sys
 import tempfile
 
@@ -16,7 +17,8 @@ def main():
     except Exception:
         return
     tp = data.get("transcript_path", "")
-    sid = data.get("session_id", "unknown")
+    # The id becomes a filename below — never trust it to be path-safe.
+    sid = re.sub(r"[^A-Za-z0-9._-]", "_", str(data.get("session_id", "unknown")))
     try:
         with open(tp, encoding="utf-8") as f:
             lines = sum(1 for _ in f)
@@ -30,7 +32,9 @@ def main():
     try:
         open(sentinel, "w").close()
     except Exception:
-        pass
+        # No sentinel means no throttle — warning every Stop. Keep the
+        # once-per-session contract by staying silent instead.
+        return
     msg = (
         f"[context-hygiene] Long session (~{lines} transcript records). "
         "Between blocks: /checkpoint + /clear. Mid-task: /compact."

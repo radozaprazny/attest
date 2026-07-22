@@ -2,7 +2,7 @@
 name: audit-history
 description: >-
   The clean-history leak gate — before code leaves the machine (a push, or a public
-  republish), scan the git history and working tree for things that must not ship: secrets
+  release), scan the git history and working tree for things that must not ship: secrets
   and keys, personal data (EU-first: GDPR ordinary + special-category + national identifiers),
   client/customer names, internal hostnames/paths, metadata and stray large/data files.
   Read-only — it reports a severity-ranked verdict with remediation, it never rewrites
@@ -11,6 +11,7 @@ description: >-
   Generic — usable in any repo. This is the one skill that maintains NO document; its "record"
   is the git history itself.
 disable-model-invocation: true
+argument-hint: "[full]"
 ---
 
 # /audit-history — the clean-history leak gate (no doc)

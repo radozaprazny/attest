@@ -10,6 +10,7 @@ description: >-
   for live status (PROGRESS.md), rules/conventions (CLAUDE.md), product non-goals
   (BUSINESS.md) or regulatory obligations (COMPLIANCE.md).
 disable-model-invocation: true
+argument-hint: "[audit]"
 ---
 
 # /decision — why we chose X over Y (DECISIONS.md)
