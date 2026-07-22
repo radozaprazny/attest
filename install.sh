@@ -53,6 +53,11 @@ ensure_ignore() {
   if grep -qxF "$line" "$TARGET/.gitignore" 2>/dev/null; then
     return 0
   fi
+  # If the file's last byte is not a newline, appending would glue our line onto the
+  # user's last rule — breaking theirs and losing ours. Complete their line first.
+  if [ -s "$TARGET/.gitignore" ] && [ -n "$(tail -c1 "$TARGET/.gitignore")" ]; then
+    echo >> "$TARGET/.gitignore"
+  fi
   printf '%s\n' "$line" >> "$TARGET/.gitignore"
   note_installed ".gitignore += $line"
 }
