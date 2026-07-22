@@ -11,6 +11,7 @@ description: >-
   Generic — usable in any project. Do NOT use it for live status (that belongs in
   PROGRESS.md) or for rules/conventions (they belong in CLAUDE.md).
 disable-model-invocation: true
+argument-hint: "[audit]"
 ---
 
 # /business — business context + archetype (BUSINESS.md)
@@ -74,14 +75,19 @@ Keep this section order:
 
 Put a short blockquote at the top of the file with the doc router (status → `PROGRESS.md` ·
 rules → `CLAUDE.md` · why-we-chose-X → `DECISIONS.md` · posture → `COMPLIANCE.md`), matching
-the shipped `BUSINESS.md` header. If the repo already has a `BUSINESS.md` or another doc,
+the shipped `BUSINESS.md` header. When bootstrapping over the shipped skeleton, keep its
+router blockquote, its archetype trigger-note blockquote and its how-to HTML comment —
+replace only the section bodies. If the repo already has a `BUSINESS.md` or another doc,
 adopt its tone and format; otherwise: short bullets, **bold** keywords, and the same language
 as the rest of the repo (documentation, comments).
 
 ## Question bank
 
-Ask a **total of 2–4 questions** — the base ones plus a couple from the archetype row.
-Never ask what the repo already answers; fill those in directly.
+Ask **2–4 questions** when the repo pre-answers part of the base set; on a bare repo where
+nothing is derivable, up to **5**. When trimming, **non-goals and success are never
+dropped** — they are the two the repo can never answer. If the archetype itself had to be
+asked, its extension questions follow in a second, shorter round. Never ask what the repo
+already answers; fill those in directly.
 
 **Base (every project):**
 - Purpose / value — what pain does it solve, why is it worth doing?
@@ -102,11 +108,22 @@ Never ask what the repo already answers; fill those in directly.
 
 ## Three modes
 
+**Dispatch — pick the mode first:**
+
+- invoked as **`/business audit`** → **Mode 3**;
+- `BUSINESS.md` absent, or with **no user-written content** (every section still the shipped
+  `<placeholder>` text) → **Mode 1**;
+- anything else → **Mode 2**. A **half-filled** file is Mode 2, not Mode 1: sections a person
+  wrote are never rewritten wholesale; only sections still holding `<placeholder>` text are
+  filled in, with Mode 1's explore-then-ask care. "Bootstrap over it" licenses overwriting
+  the shipped skeleton — never hand-written text.
+
 ### Mode 1 — BUSINESS.md is absent, or still the shipped template (bootstrap)
 
 > **A file whose sections are still `<placeholder>` text counts as absent.** The kit ships
 > `BUSINESS.md` as a skeleton, so a fresh project *has* the file without having any content —
-> bootstrap over it, do not diff against it. Unfilled placeholders are the signal.
+> bootstrap over it, do not diff against it. Unfilled placeholders are the signal. (A file
+> where only *some* sections are placeholders is Mode 2 — see the dispatch above.)
 
 Proceed like `/init` — **explore, determine the archetype, then ask, then write**:
 
@@ -122,8 +139,9 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
 3. **Ask me 2–4 targeted questions** from the question bank — the base ones plus the
    archetype's sharpest extensions. Do not ask about things already readable from the repo.
 4. **Write `BUSINESS.md`** following the structure above (archetype line included): combine
-   the derived facts with my answers. Where something is missing, mark it as open rather
-   than guessing.
+   the derived facts with my answers. Where something is missing, mark it as open with an
+   `Open:` bullet rather than guessing — never with `<angle-bracket>` text, which the
+   dispatch above reads as "still the shipped skeleton".
 
 ### Mode 2 — BUSINESS.md exists and is filled in (update)
 
@@ -141,7 +159,8 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
 
 ### Mode 3 — `audit` (check reality against the declared intent)
 
-Invoked as **`/business audit`**. This is one of the kit's pre-ship "gate" checks: it does
+Invoked as **`/business audit`**. This is one of the kit's **commit-time gate** checks (the
+ship gate is `/audit-history`): it does
 not touch the document, it **reports** whether what the repo is *doing* still matches what
 `BUSINESS.md` *declares*. It owns **non-goal / scope** drift only — an undocumented decision
 (a new dependency, a new pattern) is `/decision audit`'s finding and regulated ground is
@@ -150,9 +169,11 @@ not touch the document, it **reports** whether what the repo is *doing* still ma
 *behaviour* non-goal ("no network access") is yours, even if it looks like a leak risk.
 
 1. **Read `BUSINESS.md`** — focus on **Non-goals** and **Scope**; note the archetype.
-2. **Survey reality** — `git log` / recent commits, the working diff (`git diff` and
-   `git diff --staged`), and the code/dependency structure. For an AI-system also note new
-   models/automated decisions; for a service/pipeline note new data flows or sources.
+2. **Survey reality** — the working diff (`git diff` and `git diff --staged`), the commits
+   since the last audit or the last `BUSINESS.md` edit (not the whole history — repeated
+   gate runs must not re-flag the same old drift), and the code/dependency structure. For an
+   AI-system also note new models/automated decisions; for a service/pipeline note new data
+   flows or sources.
 3. **Check each declared non-goal** — is the repo now doing the thing it said it would not?
    **Check scope** — is work landing *outside* the stated scope (creep), and are any
    "Later:" items now actually done (stale plan)? Sanity-check the **archetype** still fits.

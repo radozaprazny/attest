@@ -22,10 +22,11 @@ How to use this file:
 
 ## Archetype
 
-**<library | cli | service | data-pipeline | ai-system>** — <a few words on why; this
-archetype is only a **trigger** `/compliance` reads: it signals the EU AI Act *may* apply and
-prompts the real classification — it does **not** determine the legal risk tier, which
-`/compliance` sets in `COMPLIANCE.md` from the intended purpose and the Annexes>
+**<library | cli | service | data-pipeline | ai-system>** — <a few words on why>
+
+> The archetype is only a **trigger** `/compliance` reads: it signals the EU AI Act *may*
+> apply and prompts the real classification — it does **not** determine the legal risk tier,
+> which `/compliance` sets in `COMPLIANCE.md` from the intended purpose and the Annexes.
 
 ## Target user
 
