@@ -44,7 +44,10 @@ against it. This log records how it got there and, more usefully, what was wrong
 - **7 — the kit/template boundary.** The interesting one; see below.
 - **8 — the audit series.** A 66-agent adversarial audit (five dimensions, two independent
   verifiers per finding, a completeness critic) confirmed 28 findings plus 6 from the
-  critic; a 17-commit series closed them all. Highlights: install.sh had never been
+  critic; a 20-commit series closed them all — the last three closing what a second,
+  28-agent adversarial review of the series' own diff confirmed (23 findings, none
+  refuted; among them a template-cleanup timing hole that would have destroyed a user's
+  own README, and a false re-run warning). Highlights: install.sh had never been
   re-runnable (idempotency, `.gitignore`-newline corruption, junk filter, an inert-hooks
   warning for projects with their own `settings.json`); `/business` had a half-filled
   dispatch gap that licensed overwriting hand-written sections — the Phase 7 bug class,
@@ -53,7 +56,7 @@ against it. This log records how it got there and, more usefully, what was wrong
   visible example entry its own append-only rule forbade deleting; **`/gate`** shipped
   (ADR-0011), making the ladder's consumer list true; template-cleanup CI (ADR-0012),
   README payoff (ADR-0013), Python-only ruff install (ADR-0015). *Test: `scripts/smoke.sh`
-  — 20 assertions over the hooks and every install.sh defect class found — green.*
+  — 21 assertions over the hooks and every install.sh defect class found — green.*
 
 ## Phase 7 — what the first real install found
 

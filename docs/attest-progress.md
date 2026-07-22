@@ -7,8 +7,10 @@
 
 ## Current state
 
-The post-audit fix series is **complete** — 17 commits on `fix/post-audit-series`, landed on
-`main` via PR. It closed everything a 66-agent adversarial audit confirmed (2026-07-22) plus
+The post-audit fix series is **complete** — 20 commits on `fix/post-audit-series` (17
+planned + 3 closing the adversarial series review's 23 confirmed findings), landing on
+`main` via PR; once merged, `origin/main` carries the full series. It closed everything a
+66-agent adversarial audit confirmed (2026-07-22) plus
 the previously planned fixes: install.sh honesty (gitignore-newline corruption, idempotent
 re-runs, junk filter, inert-hooks warning, python3 preflight, dynamic NEXT), the `/business`
 half-filled dispatch gap, `/decision`'s missing template predicate and the `DECISIONS.md`
@@ -16,8 +18,8 @@ example trap, **`/gate`** (ADR-0011), template-cleanup CI (ADR-0012), the README
 adoption gradient (ADR-0013), the **local-app** archetype (ADR-0014), Python-tooling-only-
 into-Python-projects (ADR-0015), a smoke test, and GUIDE PART 8 realigned with ADR-0010.
 
-Repo is **private** on GitHub (`radozaprazny/attest`), template button on, `origin/main`
-current. Going public is a separate, deliberate step.
+Repo is **private** on GitHub (`radozaprazny/attest`), template button on. Going public is
+a separate, deliberate step.
 
 Baseline stays green — neither tool is on `PATH`, use `uvx`:
 

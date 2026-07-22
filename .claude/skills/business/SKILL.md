@@ -139,8 +139,9 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
    - `git log` — what is actually being built, and in which direction.
 2. **Determine the archetype** from what you found (see the table). If the repo is
    genuinely ambiguous, make it one of your questions.
-3. **Ask me 2–4 targeted questions** from the question bank — the base ones plus the
-   archetype's sharpest extensions. Do not ask about things already readable from the repo.
+3. **Ask me the questions the bank yields** — 2–4 when the repo pre-answers part of the
+   base set, up to 5 on a bare repo, per the bank's trimming and second-round rules. Do
+   not ask about things already readable from the repo.
 4. **Write `BUSINESS.md`** following the structure above (archetype line included): combine
    the derived facts with my answers. Where something is missing, mark it as open with an
    `Open:` bullet rather than guessing — never with `<angle-bracket>` text, which the

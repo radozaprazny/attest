@@ -2,7 +2,7 @@
 
 > Under **what rules** the project must operate. **EU-first.** Records THIS project's
 > *posture*, not the law — cite provisions by article/ID; never paste regulation text (look it
-> up live via the AI-Act MCP, or by ID). status → `PROGRESS.md` · why-it-exists →
+> up live via a connected AI-Act MCP, or by ID). status → `PROGRESS.md` · why-it-exists →
 > `BUSINESS.md` · rules → `CLAUDE.md` · why-we-chose-X-over-Y → `DECISIONS.md`.
 > (full table: GUIDE PART 1)
 

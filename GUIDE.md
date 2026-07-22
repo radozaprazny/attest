@@ -137,7 +137,8 @@ declared") when one is absent.
 
 Each **gate** skill both **writes** its document and **audits** reality against it —
 `/business`, `/decision`, `/compliance` (`/audit-history` audits without owning a document;
-`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit). All five are
+`/checkpoint` maintains `PROGRESS.md` as a live snapshot, not an audit; `/gate` owns no
+document either — it runs the commit-time audits together, see 3.6). All six are
 **manual-only** (`disable-model-invocation: true`): Claude never auto-offers them — you type
 the command; costs ~0 tokens when idle. All the audits share
 one output shape and one severity ladder so they read as a family:
@@ -188,7 +189,7 @@ one output shape and one severity ladder so they read as a family:
 ### 3.4 `/audit-history` — the clean-history leak gate (no doc)
 - **How:** `/audit-history` scans the working tree + the diff about to be pushed;
   `/audit-history full` scans the **entire history** (all commits/branches). Read-only.
-- **What for:** the pre-ship gate — before code leaves the machine, catch secrets, personal
+- **What for:** the ship gate — before code leaves the machine, catch secrets, personal
   data (EU-first GDPR), client names and metadata leaks. It maintains **no document** (its
   record is the git history itself) and never rewrites history — it reports and recommends.
 
@@ -341,9 +342,12 @@ refused outright if you configure ruff anywhere (it would silently override you 
 It prints an **INSTALLED** list and a **SKIPPED** list naming every file it refused to touch,
 so you can merge those by hand.
 
-It deliberately does **not** copy `README.md`, `LICENSE`, `docs/` or itself — those are
-*attest*, not your project. `GUIDE.md` lands as the kit's reference manual — beside your own
-as `attest-GUIDE.md` if that name is taken, skipped only when both names are. It is **not** a
+It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/`, `.github/`
+or itself — those are
+*attest*, not your project. `GUIDE.md` lands as the kit's reference manual: a copy the kit
+itself installed is recognized on re-runs (current → skipped, outdated → pointed out for a
+by-hand refresh); a guide of your own keeps its name and the kit's goes in beside it as
+`attest-GUIDE.md`; only with both names taken is it skipped. It is **not** a
 runtime dependency: the shared audit ladder and the ownership contract live in
 `.claude/skills/_shared/audit-ladder.md` and install with the skills that read them (attest
 ADR-0010), so a missing GUIDE costs a reader a lookup, not an audit its severity.
@@ -355,8 +359,8 @@ git -C /tmp/attest pull && /tmp/attest/install.sh <path-to-your-project>
 ```
 
 Re-running is safe: copy-if-absent never touches your files, and a `GUIDE.md` the kit itself
-installed is recognized rather than duplicated (an outdated kit copy is pointed out for a
-by-hand refresh, never overwritten). The SKIPPED list
+installed is recognized rather than duplicated (an outdated kit copy in the `GUIDE.md` slot
+is pointed out for a by-hand refresh, never overwritten). The SKIPPED list
 names every file left alone; where you want the kit's newer version of one, diff it against
 the kit checkout and merge by hand.
 

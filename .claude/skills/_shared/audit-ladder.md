@@ -1,9 +1,9 @@
 # Shared audit ladder + ownership contract
 
-**The canonical source for every audit's severity vocabulary and its ground.** Four skills
+**The canonical source for every audit's severity vocabulary and its ground.** Five skills
 read this file at runtime — `/business audit`, `/decision audit`, `/compliance audit`,
-`/audit-history` — plus the `reviewer` subagent and `/gate`, which merges the commit-time
-passes under this contract. It lives here, next to its
+`/audit-history`, and `/gate`, which merges the commit-time
+passes under this contract — plus the `reviewer` subagent. It lives here, next to its
 consumers, so that it installs with them and is never absent when an audit runs.
 
 > Not a skill — this directory has no `SKILL.md` and Claude Code ignores it for skill
