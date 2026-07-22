@@ -378,3 +378,27 @@ was created. That restraint is the same rule /decision applies.
   install degrades to the previous general-purpose path, stated in the verdict; the
   standalone audit modes (run inline in the main context) still use git themselves.
 
+## ADR-0018 — Version the kit inside the audit ladder; install.sh reports drift · 2026-07-22 · Accepted
+
+- **Context** — the kit had no version identifier anywhere (no file, no tag, no field), and
+  `install.sh` is copy-if-absent: a project that installed v1 of a skill keeps it forever,
+  reported identically to a user-customized file — installs froze silently, and an adopter
+  could not say which version of the ladder audited them.
+- **Options** — (a) a `VERSION` file at the kit root; (b) git tags only; (c) a
+  `Kit version:` line inside `.claude/skills/_shared/audit-ladder.md`, plus `install.sh`
+  telling every skipped kit-owned file apart by content: *identical to the kit's* (re-run)
+  vs *DIFFERS — diff by hand to upgrade*.
+- **Decision** — (c).
+- **Why** — (a) is attest identity at the root: template-cleanup would have to delete it,
+  `install.sh` does not copy root files into targets, so installed projects would carry no
+  version at all — the one place it matters. (b) does not travel into installs either.
+  (c) rides the vehicle ADR-0010 already built: the ladder installs with every audit
+  consumer, so the version in a project is by construction the version its audits used, and
+  it can never desync from the contract it labels. The cmp-based drift note turns silent
+  staleness into a SKIPPED line that says so — no interactive `--upgrade` machinery, same
+  never-clobber covenant.
+- **Consequences** — bumping the version is part of cutting a release (a standing note in
+  `attest-progress.md`); `install.sh` prints the version and `/gate`'s run record cites it;
+  the user-owned document templates (`CLAUDE.md`, `BUSINESS.md`, …) keep the plain "your
+  document kept" message — differing there is normal life, not drift.
+

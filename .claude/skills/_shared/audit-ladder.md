@@ -9,6 +9,11 @@ consumers, so that it installs with them and is never absent when an audit runs.
 > Not a skill — this directory has no `SKILL.md` and Claude Code ignores it for skill
 > discovery. It is reference material the skills `Read` when they need it.
 
+Kit version: 0.1.0 (the kit's one version marker — it lives in this file because the ladder
+installs with every audit consumer, so the version travels with the kit and can never desync
+from the contract; attest ADR-0018. `install.sh` prints it; a `/gate` run record cites it.
+Bump it when cutting a release.)
+
 ---
 
 ## The ladder

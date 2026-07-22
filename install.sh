@@ -28,7 +28,15 @@ copy_if_absent() {
   local rel="$1" what="${2:-file}"
   # -L too: a dangling symlink is not -e, but cp must not write through it either
   if [ -e "$TARGET/$rel" ] || [ -L "$TARGET/$rel" ]; then
-    note_skipped "$rel" "already exists (your $what kept)"
+    if cmp -s "$KIT/$rel" "$TARGET/$rel" 2>/dev/null; then
+      note_skipped "$rel" "already exists (identical to the kit's — a re-run, nothing to merge)"
+    elif [ "$what" = "version" ]; then
+      # Kit-owned trees (skills/hooks/agents): a silently stale copy is how installs
+      # freeze — say that it drifted and where the fresh copy sits (ADR-0018).
+      note_skipped "$rel" "already exists (your version kept — DIFFERS from the kit's; diff against $KIT/$rel to upgrade)"
+    else
+      note_skipped "$rel" "already exists (your $what kept)"
+    fi
   else
     mkdir -p "$(dirname "$TARGET/$rel")"
     cp "$KIT/$rel" "$TARGET/$rel"
@@ -85,7 +93,10 @@ has_python_markers() {
         -prune -o -name '*.py' -print -quit 2>/dev/null)" ]
 }
 
-echo "attest → $TARGET"
+# The kit's one version marker lives inside the shared ladder, so it travels with every
+# install (ADR-0018) — there is no separate VERSION file to copy or clean up.
+KIT_VERSION="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/_shared/audit-ladder.md" 2>/dev/null || true)"
+echo "attest${KIT_VERSION:+ $KIT_VERSION} → $TARGET"
 echo
 
 # --- the five control documents (templates; yours win if they exist) -----------------
