@@ -310,3 +310,24 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — the table, the question bank, the template's archetype line and GUIDE
   3.1 each grow by one row; ADR-0001 is untouched — the archetype remains a trigger, never
   the legal tier, for six labels as for five.
+
+## ADR-0015 — Install Python tooling only into Python projects · 2026-07-22 · Accepted
+
+- **Context** — the kit claims to be language-agnostic, but `install.sh` unconditionally
+  landed `ruff.toml` and a `.ruff_cache/` gitignore line into every target — Python residue
+  in a JS or Rust repo, flagged by the fresh-user audit as the kit's one systematic
+  off-note.
+- **Options** — (a) keep copying always; (b) move the ruff pair out of the kit into an
+  `examples/` directory; (c) copy the Python tooling only when the target shows Python
+  markers (`pyproject.toml` / `setup.py` / `setup.cfg` / `requirements.txt` / any `*.py`
+  outside `.claude/`).
+- **Decision** — (c).
+- **Why** — (a) ships residue and undercuts the language-agnostic claim. (b) breaks the
+  working out-of-the-box Python experience and the documented "two files, one swappable
+  unit" story for no gain. (c) keeps both: a Python repo gets the working unit, everyone
+  else gets a SKIPPED line pointing at the GUIDE PART 2 swap instructions. The `.claude/`
+  exclusion in the marker scan matters — the kit's own hooks are `.py` and would otherwise
+  make every target look like Python.
+- **Consequences** — one more heuristic to keep honest as the kit grows; the format hook
+  still installs everywhere (its `.py` filter keeps it inert), so a project that later
+  gains Python only needs the config, not a reinstall.

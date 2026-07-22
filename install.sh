@@ -70,6 +70,13 @@ has_ruff_config() {
     grep -Eq '^[[:space:]]*\[tool\.("?)ruff\1' "$TARGET/pyproject.toml" 2>/dev/null
 }
 
+has_python_markers() {
+  # .claude/ excluded: the kit's own hooks are .py and would make every target "Python"
+  [ -f "$TARGET/pyproject.toml" ] || [ -f "$TARGET/setup.py" ] || [ -f "$TARGET/setup.cfg" ] ||
+    [ -f "$TARGET/requirements.txt" ] ||
+    [ -n "$(find "$TARGET" -maxdepth 2 -name '*.py' -not -path "$TARGET/.claude/*" -print -quit 2>/dev/null)" ]
+}
+
 echo "attest → $TARGET"
 echo
 
@@ -111,11 +118,14 @@ SETTINGS_KEPT=0
 [ -e "$TARGET/.claude/settings.json" ] && SETTINGS_KEPT=1
 copy_if_absent ".claude/settings.json" "settings"
 
-# --- ruff: skip if the project already configures it ---------------------------------
+# --- ruff: only into Python projects, and never over an existing config ---------------
 # ruff resolves ruff.toml > .ruff.toml > pyproject.toml and does NOT merge, so copying ours
-# in would silently hijack an existing config while leaving it on disk as dead code.
+# in would silently hijack an existing config while leaving it on disk as dead code. And a
+# repo with no Python gets no Python residue (ADR-0015) — the format hook stays inert there.
 if has_ruff_config; then
   note_skipped "ruff.toml" "you already configure ruff (ours would silently override it)"
+elif ! has_python_markers; then
+  note_skipped "ruff.toml" "no Python detected — see GUIDE PART 2 to swap the formatter unit"
 else
   copy_if_absent "ruff.toml" "config"
 fi
@@ -125,7 +135,9 @@ copy_if_absent ".mcp.json.example" "example"
 
 # --- .gitignore: append the lines the kit needs, never replace the file ----------------
 ensure_ignore ".claude/settings.local.json"
-ensure_ignore ".ruff_cache/"
+if has_python_markers || [ -e "$TARGET/ruff.toml" ]; then
+  ensure_ignore ".ruff_cache/"
+fi
 
 # --- report ---------------------------------------------------------------------------
 echo "INSTALLED (${#INSTALLED[@]}):"

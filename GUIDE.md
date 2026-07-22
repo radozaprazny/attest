@@ -89,7 +89,21 @@ declared") when one is absent.
   code that uses it exists. The rest of `[lint]` is yours to run — `ruff check .`.
 
   Swapping languages means replacing **both** — prettier + `.prettierrc`, rustfmt +
-  `rustfmt.toml`, gofmt, ... — and deleting `ruff.toml`.
+  `rustfmt.toml`, gofmt, ... — and deleting `ruff.toml`. (`install.sh` already lands
+  `ruff.toml` and the `.ruff_cache/` ignore line **only when the target shows Python
+  markers** — a JS/Rust repo gets no Python residue; attest ADR-0015.)
+
+  A worked JS/TS swap — replace the `PostToolUse` entry in `.claude/settings.json` with:
+
+  ```json
+  { "matcher": "Edit|Write",
+    "hooks": [ { "type": "command",
+      "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.js|*.jsx|*.ts|*.tsx) npx prettier --write \"$f\" >/dev/null 2>&1 || true;; esac; }" } ] }
+  ```
+
+  — the same shape as the Python pair: filter on extension, fail open (`|| true`), let
+  prettier's own `.prettierrc` supply the rules. Then delete the hook file, `ruff.toml`
+  and the `.ruff_cache/` line from `.gitignore`.
 
   **Two caveats the kit will not paper over.** (1) All three hooks are Python scripts run as
   `python3 …`, so **`python3` must be on `PATH`** — in a repo without it they fail on every
