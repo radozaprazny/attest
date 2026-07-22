@@ -1,6 +1,7 @@
 # template-cleanup — runs ONCE in a repo generated from the attest template button and
 # removes everything that is attest's identity, not the user's project: docs/, install.sh,
-# scripts/, the CI example, attest's README and its LICENSE. Then it deletes itself.
+# scripts/, the CI example, attest's own CI, attest's README and its LICENSE. Then it
+# deletes itself.
 #
 # Guards: the two from attest ADR-0012, a fork check, and a content sentinel added by
 # the series review. is_template stays false in generated
@@ -45,7 +46,7 @@ jobs:
             exit 0
           fi
 
-          rm -rf docs scripts install.sh .github/workflows/ci.yml.example
+          rm -rf docs scripts install.sh .github/workflows/ci.yml.example .github/workflows/ci.yml
 
           cat > README.md <<'EOF'
           # <your project>

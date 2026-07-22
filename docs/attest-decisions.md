@@ -402,3 +402,22 @@ was created. That restraint is the same rule /decision applies.
   the user-owned document templates (`CLAUDE.md`, `BUSINESS.md`, …) keep the plain "your
   document kept" message — differing there is normal life, not drift.
 
+## ADR-0019 — attest gates itself: a live CI on the kit's own repo · 2026-07-22 · Accepted
+
+- **Context** — the kit's thesis is "audits that gate", yet its own repo ran no automatic
+  check at all: `.github/workflows/` held only template-cleanup, `ci.yml.example` is
+  deliberately all-comments for adopters, and the baseline (`smoke.sh`, ruff, shellcheck)
+  lived in `attest-progress.md` as manual commands.
+- **Options** — (a) status quo, manual baseline; (b) activate `ci.yml.example` as-is;
+  (c) a separate live `ci.yml` — ruff + shellcheck + `scripts/smoke.sh` — hard-guarded with
+  `github.repository == 'radozaprazny/attest'` and deleted downstream by template-cleanup.
+- **Decision** — (c).
+- **Why** — (a) is the preach/practice gap. (b) fails twice: the example never ran
+  `smoke.sh` (it mirrors an *adopter's* baseline, and their project has no `scripts/`), and
+  un-commented it would run unguarded in every generated repo. (c) keeps "attest ships no
+  live CI *for your code*" true — the guard makes the job inert anywhere but attest, and
+  the cleanup removes the file — while attest itself finally has a blocking check.
+- **Consequences** — the cleanup's `rm` list and the README's manual-delete list grow by one
+  file; the CI is red/green on every push and PR, but *blocking a merge* additionally needs
+  branch protection, which is a GitHub setting, not repo content — enabling it is a standing
+  item in `attest-progress.md`.
