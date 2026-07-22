@@ -44,10 +44,11 @@ against it. This log records how it got there and, more usefully, what was wrong
 - **7 — the kit/template boundary.** The interesting one; see below.
 - **8 — the audit series.** A 66-agent adversarial audit (five dimensions, two independent
   verifiers per finding, a completeness critic) confirmed 28 findings plus 6 from the
-  critic; a 20-commit series closed them all — the last three closing what a second,
+  critic; a 21-commit series closed them all — three commits closing what a second,
   28-agent adversarial review of the series' own diff confirmed (23 findings, none
   refuted; among them a template-cleanup timing hole that would have destroyed a user's
-  own README, and a false re-run warning). Highlights: install.sh had never been
+  own README, and a false re-run warning), and a final one closing the pre-merge
+  reviewer's findings. Highlights: install.sh had never been
   re-runnable (idempotency, `.gitignore`-newline corruption, junk filter, an inert-hooks
   warning for projects with their own `settings.json`); `/business` had a half-filled
   dispatch gap that licensed overwriting hand-written sections — the Phase 7 bug class,
@@ -57,6 +58,27 @@ against it. This log records how it got there and, more usefully, what was wrong
   (ADR-0011), making the ladder's consumer list true; template-cleanup CI (ADR-0012),
   README payoff (ADR-0013), Python-only ruff install (ADR-0015). *Test: `scripts/smoke.sh`
   — 21 assertions over the hooks and every install.sh defect class found — green.*
+- **9 — enforcement over rhetoric.** An external analysis verified the kit's claims almost
+  to the line — and named the real gap: "gate", "block" and the name *attest* promised
+  **mechanism**, the kit delivered **discipline**. The series that followed closed the
+  distance where it could and renamed it where it could not: `/gate` now appends a dated
+  **run record** under `.attest/` — SHA, kit version, passes, verdict — so an audit leaves
+  evidence, not assurance (ADR-0016); the gate's three document audits run in a new
+  `doc-auditor` agent with no Bash/Edit/Write — "the audit writes nothing" became a
+  capability, not a promise (ADR-0017), while the reviewer keeps Bash for tests and now
+  says so honestly; the kit carries a `Kit version:` inside the shared ladder and
+  `install.sh` tells every skipped kit file apart — *identical* vs **DIFFERS** — so stale
+  installs stopped being silent (ADR-0018); attest gates itself in a live CI — ruff,
+  shellcheck, smoke on every push (ADR-0019); PART 8's promote-globally advice now carves
+  out the audit family (a promoted copy loses the project-relative ladder exactly where
+  promotion aims); template-cleanup's sentinel comment stopped claiming more than the two
+  markers it checks, and the README states plainly that the cleanup is an ordinary,
+  revertible commit and that README's "gated" means *verdict + record*, with the
+  discipline of honoring it left named as the user's. Corrections to this log: the
+  phase-8 series was **21** commits, not 20 (written before the final reviewer fix
+  landed), and its second review's findings were closed by three commits plus that one.
+  *Test: `scripts/smoke.sh` grew to 23 assertions (identical-vs-DIFFERS re-run signals) —
+  green.*
 
 ## Phase 7 — what the first real install found
 

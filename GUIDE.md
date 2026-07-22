@@ -208,8 +208,12 @@ one output shape and one severity ladder so they read as a family:
   subagent plus the three document audits in **parallel subagents** — it reads each skill's
   audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
   merges the findings under the shared ladder + ownership contract into **one** verdict.
-- **What for:** the whole per-change gate without four invocations. Read-only; writes
-  nothing; a missing document degrades to a note, never a failure.
+- **What for:** the whole per-change gate without four invocations. Touches no document and
+  no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
+  passes, verdict — the attestation that the gate ran (attest ADR-0016; stage it with the
+  commit it gates). The document audits run in the `doc-auditor` agent — no Bash/Edit/Write,
+  read-only **by capability** (attest ADR-0017; see 4.2). A missing piece degrades to a
+  note, never a failure.
 - **Not included:** `/audit-history` — that is the **ship** gate; run it before a push.
 
 > **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT)
@@ -220,14 +224,24 @@ one output shape and one severity ladder so they read as a family:
 
 ---
 
-## PART 4 — Subagent (`.claude/agents/reviewer.md`)
+## PART 4 — Subagents (`.claude/agents/`)
 
 ### 4.1 `reviewer` subagent — pre-commit code review
 - **How:** ask for it — "use the reviewer subagent to review the diff" — or `@`-mention it
-  (`@"reviewer (agent)"`) to guarantee it runs. Read-only.
+  (`@"reviewer (agent)"`) to guarantee it runs. Read-only — by capability for Edit/Write
+  (they are stripped from its tools), **by rule** for Bash, which it keeps because it must
+  run `git`, your tests and your lint.
 - **What for:** walks the diff + conventions + tests → returns a **short verdict**
   (blocker/major/minor/nit) in **its own context** → your main context stays clean.
 - **When:** before committing a larger change.
+
+### 4.2 `doc-auditor` subagent — the gate's capability-restricted audit pass
+- **How:** not usually invoked by hand — `/gate` launches one per document audit, handing
+  it the skill's audit-mode section, the shared ladder and pre-scoped git material written
+  to files (the agent cannot run `git` itself).
+- **What for:** enforcement instead of promise. Its toolset is `Read, Grep, Glob` — no
+  Bash, no Edit, no Write — so "the audit writes nothing" is a **property of the agent**,
+  not a sentence it was asked to honor (attest ADR-0017).
 
 > **Subagent vs skill:** a subagent has its **own context window** and returns only the
 > conclusion = token hygiene — which is what keeps a long autonomous run affordable.
@@ -362,13 +376,23 @@ git -C /tmp/attest pull && /tmp/attest/install.sh <path-to-your-project>
 Re-running is safe: copy-if-absent never touches your files, and a `GUIDE.md` the kit itself
 installed is recognized rather than duplicated (an outdated kit copy in the `GUIDE.md` slot
 is pointed out for a by-hand refresh, never overwritten). The SKIPPED list
-names every file left alone; where you want the kit's newer version of one, diff it against
-the kit checkout and merge by hand.
+names every file left alone — and says of each kit-owned skill/hook/agent file whether it
+is **identical to the kit's** (a re-run, nothing to do) or **DIFFERS** (yours or stale —
+diff it against the kit checkout and merge by hand), so a stale install is never silent
+(attest ADR-0018). The
+kit's version is the `Kit version:` line in `.claude/skills/_shared/audit-ladder.md` — it
+travels inside the ladder, so the installed version is always the one your audits actually
+used, and `/gate`'s run record cites it.
 
 Afterwards: **restart Claude Code** (`.claude/` is a new top-level directory, so the skills
 only load on a fresh session — until then `/business` does not exist), fill `CLAUDE.md`
 (`/init`), then declare with `/business`, `/decision` and `/compliance`. Promote mature skills
-into **`~/.claude/skills/`** → available globally, in every project.
+into **`~/.claude/skills/`** → available globally, in every project — **but not the audit
+family** (`/business`, `/decision`, `/compliance`, `/audit-history`, `/gate`): those read
+`.claude/skills/_shared/audit-ladder.md` and `.claude/agents/` by **project-relative** path,
+so a promoted copy silently loses its ladder exactly in the projects promotion is meant to
+serve — the ones without the kit. The audit family travels by `install.sh`, never by
+promotion (attest ADR-0010: the contract installs with its consumers).
 
 ---
 
@@ -388,7 +412,9 @@ single straight line.
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
 2. **Build.**
 3. **Gate, before the commit — one command: `/gate`.** It runs the four passes in parallel
-   subagents and merges one verdict; each fires only when relevant:
+   subagents, merges one verdict, and appends a dated **run record** under `.attest/`
+   (stage it with the commit — that is the attestation the gate ran); each pass fires only
+   when relevant:
    - the `reviewer` subagent — the code-level pass;
    - `/business audit` — did the work cross a non-goal / creep past scope?
    - `/decision audit` — a choice made in code but never recorded?
