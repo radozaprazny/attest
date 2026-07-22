@@ -46,7 +46,8 @@ uvx --from shellcheck-py shellcheck install.sh scripts/smoke.sh
 - `_shared/` relies on verified-but-undocumented behaviour: a dir under `.claude/skills/`
   with no `SKILL.md` is silently ignored by skill discovery. If that changes, move the file
   and update the references.
-- **`template-cleanup.yml` must stay inert in attest** — the double guard (`is_template` +
-  hard repo-name check) is load-bearing; never simplify it (ADR-0012).
+- **`template-cleanup.yml` must stay inert in attest** — the guards (`is_template` + hard
+  repo-name check per ADR-0012, plus the fork check) and the content sentinel are all
+  load-bearing; never simplify any of them.
 - The repo is a **template**: the root docs are the product; attest's own records live in
   `docs/` and `scripts/` and are deleted downstream by the cleanup workflow.

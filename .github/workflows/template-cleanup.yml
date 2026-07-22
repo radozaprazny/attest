@@ -2,7 +2,8 @@
 # removes everything that is attest's identity, not the user's project: docs/, install.sh,
 # scripts/, the CI example, attest's README and its LICENSE. Then it deletes itself.
 #
-# Three job-level guards (see attest ADR-0012): is_template stays false in generated
+# Guards: the two from attest ADR-0012, a fork check, and a content sentinel added by
+# the series review. is_template stays false in generated
 # repos but is one GitHub toggle away from false in attest itself — the hard repo-name
 # check is what actually protects attest's own README, docs/ and install.sh — and the
 # fork check keeps the workflow inert in forks of attest. A content sentinel inside the
@@ -90,8 +91,9 @@ jobs:
 
       - name: Commit the cleanup
         run: |
+          # The sentinel path above commits its own removal and leaves nothing staged —
+          # never fail the run on an empty commit (README tells users to verify it ran).
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "chore: template cleanup — remove attest's own identity files"
-          git push
+          git diff --cached --quiet || { git commit -m "chore: template cleanup — remove attest's own identity files"; git push; }

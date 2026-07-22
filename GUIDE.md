@@ -102,8 +102,9 @@ declared") when one is absent.
   ```
 
   — the same shape as the Python pair: filter on extension, fail open (`|| true`), let
-  prettier's own `.prettierrc` supply the rules. Then delete the hook file, `ruff.toml`
-  and the `.ruff_cache/` line from `.gitignore`.
+  prettier's own `.prettierrc` supply the rules (this one needs `jq` and `npx` on `PATH` —
+  the same class of dependency as the shipped hooks' `python3`). Then delete the hook
+  file, `ruff.toml` and the `.ruff_cache/` line from `.gitignore`.
 
   **Two caveats the kit will not paper over.** (1) All three hooks are Python scripts run as
   `python3 …`, so **`python3` must be on `PATH`** — in a repo without it they fail on every

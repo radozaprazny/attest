@@ -29,7 +29,8 @@ demand.
 > **Note — the shipped example is Python.** This template comes with a `ruff` PostToolUse
 > hook (`.claude/hooks/format_py.py` — sorts imports, then formats) plus `ruff.toml` for its
 > rules (`install.sh` lands `ruff.toml` only into projects with Python markers — a
-> non-Python repo will not have it). The two are one swappable unit: replace both with your language's equivalent
+> non-Python repo will not have it). The two are one swappable unit: replace both with
+> your language's equivalent
 > (prettier + `.prettierrc`, rustfmt + `rustfmt.toml`, gofmt, ...) and delete `ruff.toml`.
 > The hook filters on `.py`, so it is **inert** elsewhere — but it still needs `python3` on
 > `PATH`; if you are not using it, delete its entry from `.claude/settings.json` rather than

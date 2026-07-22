@@ -81,9 +81,8 @@ has_python_markers() {
   # -print -quit short-circuits on the first hit; vendor/VCS dirs pruned for speed.
   [ -f "$TARGET/pyproject.toml" ] || [ -f "$TARGET/setup.py" ] || [ -f "$TARGET/setup.cfg" ] ||
     [ -f "$TARGET/requirements.txt" ] ||
-    [ -n "$(find "$TARGET" -name '*.py' -not -path "$TARGET/.claude/*" \
-        -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/.venv/*' \
-        -print -quit 2>/dev/null)" ]
+    [ -n "$(find "$TARGET" \( -name .claude -o -name .git -o -name node_modules -o -name .venv \) \
+        -prune -o -name '*.py' -print -quit 2>/dev/null)" ]
 }
 
 echo "attest → $TARGET"
@@ -91,7 +90,7 @@ echo
 
 # --- the five control documents (templates; yours win if they exist) -----------------
 CLAUDE_INSTALLED=0
-[ -e "$TARGET/CLAUDE.md" ] || CLAUDE_INSTALLED=1
+{ [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md COMPLIANCE.md; do
   copy_if_absent "$doc" "document"
 done
