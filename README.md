@@ -98,8 +98,10 @@ these files)*:
 
 1. **Replace `README.md`** — this one is attest's front page, not your project's.
 2. **Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-   Then delete **`docs/`**, **`scripts/`** and **`install.sh`** — they are attest's own
-   history, tests and installer, not yours.
+   Then delete **`docs/`**, **`scripts/`**, **`install.sh`** and
+   **`.github/workflows/template-cleanup.yml`** — attest's own history, tests, installer
+   and cleanup. (Once your README replaces attest's, a late workflow run only removes
+   itself — but delete it anyway.)
 3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load

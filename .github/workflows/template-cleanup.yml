@@ -2,9 +2,12 @@
 # removes everything that is attest's identity, not the user's project: docs/, install.sh,
 # scripts/, the CI example, attest's README and its LICENSE. Then it deletes itself.
 #
-# Two guards, both required (see attest ADR-0012): is_template stays false in generated
+# Three job-level guards (see attest ADR-0012): is_template stays false in generated
 # repos but is one GitHub toggle away from false in attest itself — the hard repo-name
-# check is what actually protects attest's own README, docs/ and install.sh.
+# check is what actually protects attest's own README, docs/ and install.sh — and the
+# fork check keeps the workflow inert in forks of attest. A content sentinel inside the
+# step protects users whose first push comes AFTER they already cleaned up by hand:
+# once attest's README or install.sh is gone, the run only removes this workflow file.
 # workflow_dispatch is the fallback: repo-creation pushes do not reliably fire.
 
 name: template-cleanup
@@ -18,20 +21,37 @@ permissions:
 
 jobs:
   cleanup:
-    if: github.event.repository.is_template == false && github.repository != 'radozaprazny/attest'
+    if: >-
+      github.event.repository.is_template == false &&
+      github.event.repository.fork == false &&
+      github.repository != 'radozaprazny/attest'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - name: Remove attest's own files
         run: |
+          # Content sentinel: destructive cleanup runs ONLY while the repo still looks
+          # like an untouched template (attest's README front page + its installer both
+          # present). If the user already cleaned up by hand — or wrote anything of
+          # their own here — this run removes only the workflow itself and stops.
+          if [ ! -f install.sh ] || ! grep -q '^# attest — a compliance-native kit' README.md; then
+            rm -f .github/workflows/template-cleanup.yml
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add -A
+            git diff --cached --quiet || { git commit -m "chore: remove template-cleanup workflow (repo already cleaned)"; git push; }
+            exit 0
+          fi
+
           rm -rf docs scripts install.sh .github/workflows/ci.yml.example
 
           cat > README.md <<'EOF'
           # <your project>
 
           Bootstrapped from the [attest](https://github.com/radozaprazny/attest) kit —
-          five living documents, each owned by a skill that audits reality against it.
+          five living documents plus audit-gate skills that keep the project honest to
+          what it declares.
 
           First steps (the kit's README calls this "First 5 minutes"):
 
