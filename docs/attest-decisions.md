@@ -355,3 +355,26 @@ was created. That restraint is the same rule /decision applies.
   or it would become a sixth document by the back door. The ladder's "writes nothing" line
   now carries the one sanctioned exception explicitly.
 
+## ADR-0017 — The gate's document audits run read-only by capability · 2026-07-22 · Accepted
+
+- **Context** — ADR-0011 ran the three document audits as **general-purpose** subagents
+  (full toolset, including Edit/Write and Bash) while `/gate` described them as "each
+  read-only" — a promise in prose, not a property. The reviewer already strips Edit/Write
+  but keeps Bash, which can write (`sed -i`, `git commit`). For a kit whose pitch includes
+  "the audit writes nothing", the guarantee was purely instructional.
+- **Options** — (a) keep general-purpose + instruction; (b) strip Bash from every audit
+  pass, reviewer included; (c) a dedicated `doc-auditor` agent (`Read, Grep, Glob` — no
+  Bash/Edit/Write) for the three document audits, with `/gate` writing the scoped git
+  material (diff, untracked list, log) to temp files the agent Reads; the reviewer keeps
+  Bash and says honestly that its read-only is a rule, not a capability.
+- **Decision** — (c).
+- **Why** — (a) is the rhetoric/enforcement gap itself. (b) breaks the reviewer's contract —
+  it must *run* the project's tests and lint, which is Bash by definition; a reviewer that
+  cannot execute verifies nothing. The document audits, by contrast, only ever *read* — the
+  one thing they needed Bash for was `git`, and the gate already scopes the diff in the main
+  context, so handing it over as files removes the last reason to arm them.
+- **Consequences** — `/gate` step 1 grows a material-preparation step (redirected to files,
+  so the diff still never enters the main context); a `doc-auditor` absent in an older
+  install degrades to the previous general-purpose path, stated in the verdict; the
+  standalone audit modes (run inline in the main context) still use git themselves.
+

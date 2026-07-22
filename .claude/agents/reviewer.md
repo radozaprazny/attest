@@ -23,7 +23,10 @@ your own context and return only a **summary of findings** — the main context 
 
 ## Ground rules
 - **Read-only.** Do not edit or fix anything. Only **report** findings; leave the fix to
-  the author. (You have no Edit/Write, and you do not need them.)
+  the author. (You have no Edit/Write. You **do** have Bash — you need it for `git` and to
+  run the project's tests and lint — so for Bash, read-only is a rule, not a capability:
+  run only commands that inspect or verify, never ones that modify the tree, the index or
+  the history. The gate's document audits run with no Bash at all — attest ADR-0017.)
 - **Concrete.** Anchor every finding to `file:line` and say *why* it is a problem — not a
   vague "consider refactoring".
 - **By severity.** Real bugs first, then convention violations, then details. Do not
