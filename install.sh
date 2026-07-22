@@ -84,9 +84,14 @@ done
 if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
   note_installed "GUIDE.md"
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
+  # A re-run: the GUIDE.md present is the kit's own prior install — not the user's.
+  note_skipped "GUIDE.md" "already the kit's version (re-run)"
 elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
   note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
+  note_skipped "attest-GUIDE.md" "already the kit's version (re-run)"
 else
   note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs point at whichever is ours"
 fi
