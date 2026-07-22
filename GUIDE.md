@@ -176,8 +176,9 @@ one output shape and one severity ladder so they read as a family:
   EU-AI-Act MCP (see PART 6); the core works offline.
 
 > **The skill pattern:** `description` is the brain (when Claude offers it — and when NOT).
-> The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads;
-> a **new top-level directory** needs a restart.
+> The body is the instructions. A new skill under an existing `.claude/skills/` hot-reloads
+> — live change detection covers `SKILL.md` text, and `/reload-skills` is the manual nudge
+> when it has not kicked in; a **new top-level directory** needs a restart.
 
 ---
 
