@@ -272,3 +272,21 @@ was created. That restraint is the same rule /decision applies.
   deletes itself after running; attest carries a workflow that must stay inert at home —
   the double guard is load-bearing and must survive refactors. Users who disable Actions
   fall back to the README's manual steps, which stay.
+
+## ADR-0013 — Lead the README with real audit results and an adoption gradient · 2026-07-22 · Accepted
+
+- **Context** — the README promised governance and showed nothing; a fresh-user audit read
+  it as "much promise, no evidence", and the five-document framing read as all-or-nothing.
+  The dogfood results existed, written down in the devlog.
+- **Options** — (a) leave it; (b) fabricate a terminal transcript as a demo; (c) lead with
+  the four real dogfood results, sourced strictly from `attest-devlog.md`, plus an explicit
+  adoption gradient (minimum viable attest = three documents).
+- **Decision** — (c).
+- **Why** — (b) is disqualifying: a compliance kit faking an audit output in its own public
+  README is the exact failure it exists to prevent. (a) leaves adoption to faith. The
+  gradient lowers the entry cost honestly — the three-document minimum is real (the skills
+  degrade to a note when a document is absent), and the Adopt column lives inside the
+  enumeration ADR-0002 already sanctions, so it opens no new duplication site.
+- **Consequences** — the README now carries claims pinned to the devlog record; if the
+  dogfood is ever re-run with different results, the README changes with it. GUIDE PART 1
+  carries the gradient as canonical prose; the README table only labels it.

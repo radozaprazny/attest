@@ -15,6 +15,13 @@ the other four are read **on demand** by their skills, so the system stays cheap
 how much it holds. (This PART and the README table are the *only* two full enumerations —
 everywhere else carries the one-line router below.)
 
+**Adopt on a gradient.** The minimum viable attest is **three documents** — `CLAUDE.md` +
+`PROGRESS.md` + `BUSINESS.md`: rules, thread, boundary. `DECISIONS.md` earns its keep at
+team scale or on a long project, when *"why did we do it this way?"* outlives anyone's
+memory; `COMPLIANCE.md` only in regulated scope. Documents you have not adopted cost
+nothing — the skills read them on demand, and an audit degrades to a note ("nothing
+declared") when one is absent.
+
 ### 1.1 `CLAUDE.md` — project rules and conventions
 - **How:** a file in the repo root; loaded **automatically every turn**. Quick add: start a
   prompt with `#` and Claude appends the line for you.

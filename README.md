@@ -16,15 +16,18 @@ ones a compiler does*.
 Five living documents. Only `CLAUDE.md` is ever held in context; the rest are read
 on demand — so the system stays cheap no matter how much it holds.
 
-| Document | Answers | Maintained by |
-|----------|---------|---------------|
-| `CLAUDE.md` | the rules / conventions | edited directly |
-| `PROGRESS.md` | where we are (thread-carrier across `/clear`) | `/checkpoint` |
-| `BUSINESS.md` | **why** it exists — purpose, archetype, non-goals | `/business` |
-| `DECISIONS.md` | **why we chose X over Y** (ADR-lite, append-only) | `/decision` |
-| `COMPLIANCE.md` | **under what rules** it must operate | `/compliance` |
+| Document | Answers | Maintained by | Adopt |
+|----------|---------|---------------|-------|
+| `CLAUDE.md` | the rules / conventions | edited directly | always — the minimum three |
+| `PROGRESS.md` | where we are (thread-carrier across `/clear`) | `/checkpoint` | always — the minimum three |
+| `BUSINESS.md` | **why** it exists — purpose, archetype, non-goals | `/business` | always — the minimum three |
+| `DECISIONS.md` | **why we chose X over Y** (ADR-lite, append-only) | `/decision` | team / long project |
+| `COMPLIANCE.md` | **under what rules** it must operate | `/compliance` | regulated scope |
 
-> Anti-duplication: each fact in exactly one place.
+> Anti-duplication: each fact in exactly one place. **Adopt on a gradient** — the minimum
+> viable attest is the three documents marked above; un-adopted ones cost nothing (skills
+> read them on demand and degrade to a note when one is absent). Canonical prose: GUIDE
+> PART 1.
 
 ## The gate
 
@@ -46,6 +49,20 @@ They compose into two gates. **`/gate`** is the **commit-time** gate as one comm
 subagents and merged into one verdict under a shared severity ladder — one hunk is flagged
 once. `/audit-history` is the **ship** gate, before anything leaves the machine (the whole
 loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
+
+## Does it hold up?
+
+Dogfooded before shipping: two sandboxes seeded with **known planted faults**, audited by
+agents told nothing about them — **6/6 caught at the right severity, 0 false positives**
+([the record](docs/attest-devlog.md)). The four results that matter:
+
+- `/business` derived the archetype **`service`, not `ai-system`** — the project had no
+  server-side model. The tailoring restrains itself.
+- A **planted false non-goal was caught**; the true ones cleared.
+- `/decision audit` found **four real unrecorded decisions** — and correctly did *not*
+  re-flag the one already recorded.
+- `/audit-history full` caught a **secret alive only in history** — planted in an old
+  commit, deleted at HEAD. Which is the whole reason `full` exists.
 
 ## Not a kitchen sink
 
