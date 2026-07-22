@@ -33,7 +33,9 @@ check "format hook no-ops on a non-.py file" \
   sh -c "echo '{\"tool_input\":{\"file_path\":\"/tmp/x.txt\"}}' | python3 '$KIT/.claude/hooks/format_py.py'"
 
 carrier_dir="$WORK/carrier"; mkdir -p "$carrier_dir"
-touch -d '30 minutes ago' "$carrier_dir/PROGRESS.md"
+# python3 for the backdated mtime — GNU touch -d 'relative' is not portable to BSD/macOS
+python3 -c "import os,time,sys; p=sys.argv[1]; open(p,'a').close(); t=time.time()-1800; os.utime(p,(t,t))" \
+  "$carrier_dir/PROGRESS.md"
 out=$(echo '{"trigger":"auto"}' | CLAUDE_PROJECT_DIR="$carrier_dir" \
   python3 "$KIT/.claude/hooks/precompact_checkpoint_nudge.py")
 if printf '%s' "$out" | grep -q systemMessage; then
@@ -55,6 +57,11 @@ else
   fail "second run installs nothing"
 fi
 check "second run minted no attest-GUIDE.md" test ! -e "$T1/attest-GUIDE.md"
+if printf '%s' "$rerun_out" | grep -q 'NOT wired'; then
+  fail "re-run does not false-warn about unwired hooks"
+else
+  ok "re-run does not false-warn about unwired hooks"
+fi
 
 # --- 3. a .gitignore without a trailing newline survives intact ------------------------
 echo "install.sh — .gitignore:"

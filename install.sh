@@ -51,6 +51,12 @@ copy_tree_if_absent() {
 # ensure_ignore <line> — append to .gitignore, never overwrite it
 ensure_ignore() {
   local line="$1"
+  # Never write through a symlinked .gitignore: touch would follow it (creating a file
+  # outside the project, or aborting the whole run on an unwritable path).
+  if [ -L "$TARGET/.gitignore" ]; then
+    note_skipped ".gitignore += $line" "your .gitignore is a symlink — append it yourself"
+    return 0
+  fi
   touch "$TARGET/.gitignore"
   if grep -qxF "$line" "$TARGET/.gitignore" 2>/dev/null; then
     return 0
@@ -71,10 +77,13 @@ has_ruff_config() {
 }
 
 has_python_markers() {
-  # .claude/ excluded: the kit's own hooks are .py and would make every target "Python"
+  # .claude/ excluded: the kit's own hooks are .py and would make every target "Python".
+  # -print -quit short-circuits on the first hit; vendor/VCS dirs pruned for speed.
   [ -f "$TARGET/pyproject.toml" ] || [ -f "$TARGET/setup.py" ] || [ -f "$TARGET/setup.cfg" ] ||
     [ -f "$TARGET/requirements.txt" ] ||
-    [ -n "$(find "$TARGET" -maxdepth 2 -name '*.py' -not -path "$TARGET/.claude/*" -print -quit 2>/dev/null)" ]
+    [ -n "$(find "$TARGET" -name '*.py' -not -path "$TARGET/.claude/*" \
+        -not -path '*/.git/*' -not -path '*/node_modules/*' -not -path '*/.venv/*' \
+        -print -quit 2>/dev/null)" ]
 }
 
 echo "attest → $TARGET"
@@ -95,6 +104,11 @@ done
 if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
   note_installed "GUIDE.md"
+  # A leftover attest-GUIDE.md from an earlier dual-install would now shadow nothing —
+  # point it out (never delete it ourselves).
+  if [ -e "$TARGET/attest-GUIDE.md" ] || [ -L "$TARGET/attest-GUIDE.md" ]; then
+    note_skipped "attest-GUIDE.md" "leftover from an earlier install — GUIDE.md is now the kit's; delete it if you no longer keep your own guide"
+  fi
 elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
   # A re-run: the GUIDE.md present is the kit's own prior install — not the user's.
   note_skipped "GUIDE.md" "already the kit's version (re-run)"
@@ -114,8 +128,13 @@ fi
 copy_tree_if_absent ".claude/skills"
 copy_tree_if_absent ".claude/agents"
 copy_tree_if_absent ".claude/hooks"
+# Warn about unwired hooks only when the kept settings.json actually differs from the
+# kit's (a byte-identical file — a re-run — has the hooks wired already). Same
+# present-predicate as copy_if_absent (-e or -L), so a dangling symlink still warns.
 SETTINGS_KEPT=0
-[ -e "$TARGET/.claude/settings.json" ] && SETTINGS_KEPT=1
+if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
+  cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_KEPT=1
+fi
 copy_if_absent ".claude/settings.json" "settings"
 
 # --- ruff: only into Python projects, and never over an existing config ---------------
