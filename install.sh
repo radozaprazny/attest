@@ -43,7 +43,9 @@ copy_tree_if_absent() {
   while IFS= read -r -d '' src; do
     rel="${src#"$KIT"/}"   # quoted: $KIT is a literal here, not a glob
     copy_if_absent "$rel" "version"
-  done < <(find "$KIT/$dir" -type f -print0)
+  done < <(find "$KIT/$dir" -type f \
+      ! -name '*.pyc' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' \
+      ! -path '*/__pycache__/*' -print0)
 }
 
 # ensure_ignore <line> — append to .gitignore, never overwrite it
