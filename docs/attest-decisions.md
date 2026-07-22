@@ -249,3 +249,26 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — the ladder's consumer list gains a real `/gate`; the gate inherits any
   future change to a skill's audit section automatically (it reads, it does not copy); a
   `/gate` run costs four subagent contexts, accepted as the price of one-command adoption.
+
+## ADR-0012 — Template cleanup runs in CI, double-guarded · 2026-07-22 · Accepted
+
+- **Context** — the "Use this template" button copies the whole tree, so every generated
+  repo starts with attest's README, LICENSE, docs/, scripts/ and install.sh, and the README
+  asks the user to delete them by hand ("First 5 minutes"). Humans skip steps; Phase 7
+  showed exactly this class of leftover shipping downstream.
+- **Options** — (a) manual steps only; (b) a cleanup workflow guarded by
+  `is_template == false`; (c) the same workflow guarded by **both** `is_template == false`
+  **and** `github.repository != 'radozaprazny/attest'`, with `workflow_dispatch` as a
+  manual fallback.
+- **Decision** — (c).
+- **Why** — (b) is one GitHub toggle away from deleting attest's own README, docs/ and
+  install.sh: un-check "Template repository" and the guard opens. The hard repo-name check
+  cannot be toggled off by accident. `workflow_dispatch` exists because repo-creation
+  pushes do not reliably fire the `push` event. The LICENSE is rewritten to a bare MIT
+  skeleton with `<YEAR>`/`<YOUR NAME>` and **no** warning header — the devlog records that
+  a header broke GitHub's licence detection and was reverted; the instruction lives in the
+  stub README instead.
+- **Consequences** — generated repos start clean without reading anything; the workflow
+  deletes itself after running; attest carries a workflow that must stay inert at home —
+  the double guard is load-bearing and must survive refactors. Users who disable Actions
+  fall back to the README's manual steps, which stay.

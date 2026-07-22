@@ -72,14 +72,17 @@ system is.
 
 ## First 5 minutes
 
-The template hands you attest's own files next to your empty ones. Straighten that out before
-you commit anything *(steps 1–2 are the template/clone path only — `install.sh` never copies
-those two files)*:
+The template hands you attest's own files next to your empty ones. **A generated repo cleans
+itself:** the `template-cleanup` workflow runs on your first push (or via *Actions → run
+workflow*), deletes attest's identity files (`docs/`, `scripts/`, `install.sh`, this README),
+leaves an MIT skeleton `LICENSE`, then deletes itself — verify it ran. With Actions disabled,
+do steps 1–2 by hand *(they are the template/clone path only — `install.sh` never copies
+these files)*:
 
 1. **Replace `README.md`** — this one is attest's front page, not your project's.
 2. **Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-   Then delete **`docs/`** and **`install.sh`** — they are attest's own history and installer,
-   not yours. (`install.sh` never copies these three; the template button copies everything.)
+   Then delete **`docs/`**, **`scripts/`** and **`install.sh`** — they are attest's own
+   history, tests and installer, not yours.
 3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
