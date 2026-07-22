@@ -42,6 +42,18 @@ against it. This log records how it got there and, more usefully, what was wrong
   duplication resolved. A whole-kit adversarial consistency audit ran: EU-legal lens clean,
   two majors fixed.
 - **7 — the kit/template boundary.** The interesting one; see below.
+- **8 — the audit series.** A 66-agent adversarial audit (five dimensions, two independent
+  verifiers per finding, a completeness critic) confirmed 28 findings plus 6 from the
+  critic; a 17-commit series closed them all. Highlights: install.sh had never been
+  re-runnable (idempotency, `.gitignore`-newline corruption, junk filter, an inert-hooks
+  warning for projects with their own `settings.json`); `/business` had a half-filled
+  dispatch gap that licensed overwriting hand-written sections — the Phase 7 bug class,
+  finished — and gained a sixth archetype (`local-app`, ADR-0014); `/decision` was the one
+  sibling without the Phase 7 template predicate, and the shipped `DECISIONS.md` carried a
+  visible example entry its own append-only rule forbade deleting; **`/gate`** shipped
+  (ADR-0011), making the ladder's consumer list true; template-cleanup CI (ADR-0012),
+  README payoff (ADR-0013), Python-only ruff install (ADR-0015). *Test: `scripts/smoke.sh`
+  — 20 assertions over the hooks and every install.sh defect class found — green.*
 
 ## Phase 7 — what the first real install found
 
@@ -106,6 +118,6 @@ them:
 - `disable-model-invocation: true` skills cost ~0 when idle — the description is not preloaded.
 - The audits are deterministic on their **primary** finding and vary on secondary ones across
   runs; treat a blocker as reliable and a minor as advisory.
-- Open: whether to rewrite this repo's history before a wider release. It conflicts with the
-  kit's own rule — *"one commit = one logical unit; history should tell the truth"* — so it is
-  a decision that deserves an ADR either way, not a quiet `--force`.
+- Resolved: the history question got its ADR and its answer — squashed to a single root
+  commit at first release (ADR-0008); the phase-by-phase record survives in prose, here and
+  in the decision log.
