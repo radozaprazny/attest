@@ -1,16 +1,19 @@
 # template-cleanup — runs ONCE in a repo generated from the attest template button and
-# removes everything that is attest's identity, not the user's project: docs/, install.sh,
-# scripts/, the CI example, attest's own CI, attest's README and its LICENSE. Then it
-# deletes itself.
+# removes everything that is attest's identity, not the user's project: attest's own docs,
+# its smoke test, install.sh, attest's CI, its README and its LICENSE. Then it deletes the
+# cleanup script and itself. `.github/workflows/ci.yml.example` stays — that one is written
+# for YOU (attest ADR-0021).
 #
-# Guards: the two from attest ADR-0012, a fork check, and a content sentinel added by
-# the series review. is_template stays false in generated
-# repos but is one GitHub toggle away from false in attest itself — the hard repo-name
-# check is what actually protects attest's own README, docs/ and install.sh — and the
-# fork check keeps the workflow inert in forks of attest. A content sentinel inside the
-# step protects users whose first push comes AFTER they already cleaned up by hand:
-# once attest's README or install.sh is gone, the run only removes this workflow file.
-# workflow_dispatch is the fallback: repo-creation pushes do not reliably fire.
+# The work lives in scripts/template-cleanup.sh, not inline here, so that the only
+# destructive code in the repo is shellcheck'd by CI and exercised by scripts/smoke.sh
+# before it ever runs in someone's repo (attest ADR-0022). Each destructive act in it is
+# guarded by a content check on its own target, so a late run cannot take your files with it.
+#
+# Job guards: the two from attest ADR-0012, a fork check, and a null check on the payload —
+# is_template stays false in generated repos but is one GitHub toggle away from false in
+# attest itself, so the hard repo-name check is what actually protects attest's own files,
+# and the fork check keeps the workflow inert in forks. workflow_dispatch is the fallback:
+# repo-creation pushes do not reliably fire.
 
 name: template-cleanup
 on:
@@ -21,84 +24,53 @@ on:
 permissions:
   contents: write
 
+# Two quick pushes must not race each other into a rejected push. Queue, never cancel: a
+# cancelled run could leave the cleanup half-committed.
+concurrency:
+  group: template-cleanup-${{ github.repository }}
+  cancel-in-progress: false
+
 jobs:
   cleanup:
     if: >-
+      github.repository != 'radozaprazny/attest' &&
+      github.event.repository != null &&
       github.event.repository.is_template == false &&
-      github.event.repository.fork == false &&
-      github.repository != 'radozaprazny/attest'
+      github.event.repository.fork == false
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      # Pinned by commit SHA, not by tag: this is the workflow that carries a write token
+      # and pushes a commit into someone else's repo, so a mutable tag is the last thing it
+      # should resolve through.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Remove attest's own files
         run: |
-          # Content sentinel: destructive cleanup runs ONLY while the repo still looks
-          # like an untouched template (attest's README front page + its installer both
-          # present). If either marker is gone — the user cleaned up by hand — this run
-          # removes only the workflow itself and stops. The sentinel sees ONLY those two
-          # markers: files you added elsewhere (your own docs/, scripts/) do not trip it
-          # and are removed below together with attest's paths. Recoverable either way:
-          # the cleanup pushes an ordinary commit, never a history rewrite — `git revert`
-          # brings anything back.
-          if [ ! -f install.sh ] || ! grep -q '^# attest — a compliance-native kit' README.md; then
-            rm -f .github/workflows/template-cleanup.yml
-            git config user.name "github-actions[bot]"
-            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git add -A
-            git diff --cached --quiet || { git commit -m "chore: remove template-cleanup workflow (repo already cleaned)"; git push; }
-            exit 0
+          # The script may already be gone — README tells users they may delete scripts/ by
+          # hand, and a workflow that only fires on their first push can arrive after that.
+          # Without this guard the step exits 127, the commit step below never runs, and the
+          # workflow can never delete itself: it would fail on every push forever (ADR-0022).
+          if [ -f scripts/template-cleanup.sh ]; then
+            bash scripts/template-cleanup.sh
+          else
+            echo "cleanup script already removed — this run only deletes the workflow"
           fi
 
-          rm -rf docs scripts install.sh .github/workflows/ci.yml.example .github/workflows/ci.yml
-
-          cat > README.md <<'EOF'
-          # <your project>
-
-          Bootstrapped from the [attest](https://github.com/radozaprazny/attest) kit —
-          five living documents plus audit-gate skills that keep the project honest to
-          what it declares.
-
-          First steps (the kit's README calls this "First 5 minutes"):
-
-          1. Replace this file with your project's README.
-          2. Fill `LICENSE` (`<YEAR>`, `<YOUR NAME>`) — the cleanup left you an MIT skeleton.
-          3. Fill `CLAUDE.md` (`/init` is the fastest way), restart Claude Code.
-          4. Declare: `/business` · `/decision` as you choose · `/compliance` if in scope.
-          5. Everything else: `GUIDE.md` PART 9.
-          EOF
-
-          cat > LICENSE <<'EOF'
-          MIT License
-
-          Copyright (c) <YEAR> <YOUR NAME>
-
-          Permission is hereby granted, free of charge, to any person obtaining a copy
-          of this software and associated documentation files (the "Software"), to deal
-          in the Software without restriction, including without limitation the rights
-          to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-          copies of the Software, and to permit persons to whom the Software is
-          furnished to do so, subject to the following conditions:
-
-          The above copyright notice and this permission notice shall be included in all
-          copies or substantial portions of the Software.
-
-          THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-          IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-          FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-          AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-          LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-          OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-          SOFTWARE.
-          EOF
-
-          rm -f .github/workflows/template-cleanup.yml
-
-      - name: Commit the cleanup
+      - name: Remove the cleanup itself, then commit
         run: |
-          # The sentinel path above commits its own removal and leaves nothing staged —
-          # never fail the run on an empty commit (README tells users to verify it ran).
+          # Deleted here rather than by the script: a script that unlinks itself while bash
+          # is still reading it is not something to rely on.
+          rm -f scripts/template-cleanup.sh .github/workflows/template-cleanup.yml
+          rmdir scripts 2>/dev/null || true
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git diff --cached --quiet || { git commit -m "chore: template cleanup — remove attest's own identity files"; git push; }
+          if git diff --cached --quiet; then
+            echo "nothing to commit — the cleanup had already run"
+            exit 0
+          fi
+          git commit -m "chore: template cleanup — remove attest's own identity files"
+          # A queued second run committed on top of an older checkout: rebase rather than
+          # fail the run red on a non-fast-forward push.
+          git pull --rebase --autostash origin "${GITHUB_REF_NAME}"
+          git push
