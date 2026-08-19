@@ -35,11 +35,32 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
 1. **Scope first, cheaply, in the main context** — `git status --porcelain`,
    `git diff HEAD --stat`. Then write the material the document audits will read to a
-   temp dir, **redirected so it never enters this context**:
-   `M=$(mktemp -d)` · `git diff HEAD > "$M/diff.patch"` ·
-   `git status --porcelain > "$M/status.txt"` (the full porcelain status — untracked
-   files included) · `git log --oneline -n 20 > "$M/log.txt"`. If the tree is clean, gate the last commit
-   instead (`git show HEAD > "$M/diff.patch"`) and say so in the verdict.
+   temp dir, **redirected so it never enters this context**. Run it as **one** Bash
+   invocation — shell state does not survive between calls, and a split run would leave `$M`
+   empty and redirect to `/diff.patch`:
+
+   `$DOCS` below is the control documents **as this repo actually keeps them** — usually
+   `BUSINESS.md DECISIONS.md COMPLIANCE.md` at the root, but a repo that ships those as
+   templates keeps its live ones elsewhere (attest's own are `docs/attest-*.md`). Use what
+   scoping just showed you; a hardcoded list would log the skeletons and miss the real log.
+   The clean-tree case is a branch **inside** the same invocation — never a second command:
+
+   ```bash
+   M=$(mktemp -d) && DOCS="BUSINESS.md DECISIONS.md COMPLIANCE.md" &&
+   { git diff --quiet HEAD && git show HEAD || git diff HEAD; } > "$M/diff.patch" &&
+   git status --porcelain > "$M/status.txt" &&
+   git log -n 20 --date=short --format='%h %ad %s' > "$M/log.txt" &&
+   git log -n 5 --date=short --format='%h %ad %s' -- $DOCS > "$M/log-docs.txt" &&
+   ls -1 .attest 2>/dev/null | grep -v '^tmp$' | tail -n 3 > "$M/gate-records.txt"; echo "$M"
+   ```
+
+   `status.txt` is the full porcelain status, untracked files included. `log.txt` is **dated**
+   and `log-docs.txt` holds the commits that last touched each control document — together
+   with the newest `.attest/` record names (each carries the HEAD sha it gated) they are what
+   lets an audit scope itself to *"since the last audit"* without git of its own. If the tree
+   was clean the diff is `git show HEAD` — **say so in the verdict**, you gated the last
+   commit, not pending work. **Echo `$M` and hand the absolute paths on** — step 2's
+   subagents cannot expand a variable from your shell.
 2. **Launch four subagents in parallel**, each returning only findings — the three
    document audits read-only **by capability**, the reviewer read-only **by rule** (it
    keeps Bash to run the tests; see its ground rules):
@@ -62,16 +83,22 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    run `/business`" and skip that pass; a document still the shipped skeleton → same; the
    reviewer agent absent → say so and run the other three; the `doc-auditor` agent absent
    (an older install) → fall back to general-purpose subagents with the same material and
-   say in the verdict that those passes were read-only by instruction only.
+   say in the verdict that those passes were read-only by instruction only. If a subagent
+   reports it **cannot read `$M`** (a temp dir is outside the project, and a harness may
+   refuse it), re-write the same material under `.attest/tmp/` inside the repo, re-run that
+   pass, and delete the directory afterwards — it is scratch, never a record.
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
-   owner. Order everything by the shared ladder, domain aliases intact.
+   owner, including for the two edges it resolves explicitly. Order everything by the shared
+   ladder, domain aliases intact. Reviewer `nit`s stay nits and sort last; they never change
+   the verdict line.
 4. **Return ONE verdict:**
    - one line overall — ✅ *ready to commit* / ⚠️ *commit after changes* — plus a one-liner
      per pass, including the clean and skipped ones (a short clean gate is a correct
      result);
    - findings ordered by severity, each with its **owner**, **evidence** (`file:line` /
-     commit / hunk) and a **severity** from the ladder;
+     commit / hunk) and a **severity** from the ladder — plus the reviewer's `nit`s last,
+     if any;
    - each pass's recommended document update, if any — but **make none of them**.
 5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
    if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
@@ -82,10 +109,12 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
    - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
-   - findings: <n> blocker · <n> major · <n> minor <(owner per finding, one line each)>
+   - findings: <n> blocker · <n> major · <n> minor · <n> nit <(owner per finding, one line each)>
    ```
 
-   The directory is append-only: never edit or delete a previous record. Recommend staging
+   The directory is append-only: never edit or delete a previous record. Its one exception
+   is the `.attest/tmp/` scratch of step 2, which is ignored by git and deleted by the run
+   that made it (attest ADR-0026) — a record is never written there. Recommend staging
    the record **with the commit it gates** — that is what makes "the gate ran" a fact in
    history rather than a memory. The record holds the verdict summary only: never the
    findings' full text, and never a fact whose home is a control document (the router
