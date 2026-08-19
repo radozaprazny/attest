@@ -95,22 +95,23 @@ system is.
 
 The template hands you attest's own files next to your empty ones. **A generated repo cleans
 itself:** the `template-cleanup` workflow runs on your first push (or via *Actions → run
-workflow*), deletes attest's identity files (`docs/`, `scripts/`, `install.sh`, this README),
-leaves an MIT skeleton `LICENSE`, then deletes itself — verify it ran. The cleanup pushes an
-**ordinary commit**, never a history rewrite, so anything it removes is one `git revert`
-away. With Actions disabled,
-do steps 1–2 by hand *(they are the template/clone path only — `install.sh` never copies
-these files)*:
+workflow*), removes attest's identity files **by name** (its `docs/attest-*.md`, its smoke
+test, `install.sh`, its own `ci.yml`) and rewrites this README and its `LICENSE` down to
+stubs for you to fill, then deletes itself —
+verify it ran. It is safe to run late: it never removes a directory wholesale, so your own
+`docs/` and `scripts/` survive, and every file it rewrites or removes under a name you might
+also use — `README`, `LICENSE`, `ci.yml`, `scripts/smoke.sh` — is checked for attest's own
+content first. `.github/workflows/ci.yml.example` stays — that one is yours. The cleanup
+pushes an **ordinary commit**, never a history rewrite, so anything it removes is one
+`git revert` away. With Actions disabled, do steps 1–2 by hand *(they are the template/clone
+path only — `install.sh` never copies these files)*:
 
 1. **Replace `README.md`** — this one is attest's front page, not your project's.
 2. **Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-   Then delete **`docs/`**, **`scripts/`**, **`install.sh`**,
+   Then delete **`docs/attest-*.md`**, **`scripts/`**, **`install.sh`**,
    **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
-   attest's own history, tests, installer, cleanup and CI. (A late workflow run only
-   removes itself **once** your README no longer contains attest's `# attest — …` heading
-   line or `install.sh` is gone; while both markers remain, it still deletes attest's
-   paths wholesale — including anything you added under `docs/` or `scripts/`. So if you
-   work with Actions disabled, delete the workflow **first**.)
+   attest's own history, tests, installer, cleanup and CI. Keep
+   `.github/workflows/ci.yml.example` if you want a starting point for your own CI.
 3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load

@@ -10,3 +10,6 @@ __pycache__/
 
 # Claude Code — local settings (permission allowlist)
 .claude/settings.local.json
+
+# /gate scratch — the run records beside it ARE committed (attest ADR-0016, ADR-0026)
+.attest/tmp/
