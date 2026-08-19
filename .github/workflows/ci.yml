@@ -4,8 +4,13 @@
 #
 # Hard-guarded to attest itself (github.repository), so in template-generated repos the
 # job never runs — and template-cleanup deletes this file there anyway. ci.yml.example
-# (all comments) stays the opt-in example for YOUR project's CI; install.sh never
-# copies .github/.
+# (all comments) stays the opt-in example for YOUR project's CI; install.sh copies that
+# one file and nothing else from .github/ (ADR-0021).
+#
+# Actions are pinned by commit SHA, not by tag: a tag is mutable, so `@v4` is a promise that
+# whoever controls the tag runs arbitrary code in this job. The trailing comment names the
+# version each SHA is. (The workflow that really needs this is template-cleanup, which holds
+# a write token — but a gate that lints the kit is not a place for a moving dependency either.)
 
 name: ci
 on:
@@ -13,19 +18,23 @@ on:
     branches: [main]
   pull_request:
 
+# Read-only by default — no step here needs to write to the repo.
+permissions:
+  contents: read
+
 jobs:
   check:
     if: github.repository == 'radozaprazny/attest'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: ruff — lint + format check
         run: uvx ruff@0.15.21 check . && uvx ruff@0.15.21 format --check .
 
-      - name: shellcheck — installer + smoke test
-        run: uvx --from shellcheck-py shellcheck install.sh scripts/smoke.sh
+      - name: shellcheck — installer, smoke test, template cleanup
+        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh
 
-      - name: smoke — hooks + every install.sh defect class found
+      - name: smoke — hooks, install.sh and the template cleanup
         run: ./scripts/smoke.sh

@@ -95,8 +95,23 @@ never as a verdict for either side. Cite which findings were MCP-verified in §9
 ### Mode 3 — `audit` (does the diff touch regulated ground?)
 
 Invoked as **`/compliance audit`**. Read-only. It **owns regulated ground** — a scope/non-goal
-question is `/business audit`'s and a plain undocumented decision is `/decision audit`'s, so
-one hunk is flagged once. Run a **cheap trigger check first**; only do the full pass on a hit.
+question is `/business audit`'s and an undocumented decision that lands on no regulated ground
+is `/decision audit`'s (the ladder's `/decision` ↔ `/compliance` edge settles the overlap), so
+one hunk is flagged once.
+
+**The trigger check — do this first, and only this.** Read the **diff alone**: no
+`COMPLIANCE.md`, no MCP call, no other document. Look for any of —
+
+- a new or renamed **field, column, parameter or log line** that can hold personal data (name,
+  email, phone, address, IP, device or account identifier, location, or anything
+  special-category under Art 9 — health, biometrics, ethnicity, beliefs, sex life);
+- a new **model, inference call, score, ranking or automated decision** about people;
+- a new **data source, export, third-party SDK, or cross-border transfer**;
+- anything resembling a **prohibited (Art 5)** practice.
+
+**No hit → return exactly `out of scope — nothing in this diff touches regulated ground` and
+stop.** That is the whole audit; it is the common case and it is a correct result. One hit →
+the full pass:
 
 1. **Read `COMPLIANCE.md`** — the declared posture.
 2. **Scan the diff for regulated ground** — a new **personal-data field**, a new **model or
@@ -111,10 +126,14 @@ one hunk is flagged once. Run a **cheap trigger check first**; only do the full 
      handled with no lawful basis in the posture;
    - **major (posture gap)** — regulated ground the declared posture does not cover;
    - **minor** — a stale citation, a missing **Last reviewed**, an un-cited obligation.
+
+   If the hunk is also an **unrecorded decision** (a new dependency, a swapped library), it is
+   still yours alone under the ladder's `/decision` ↔ `/compliance` edge — name the missing ADR
+   in one clause of your finding rather than leaving it to a second one.
    Phrase findings as *"this diff may bear on Art X — re-check the classification"*, **never**
    *"this is now high-risk / non-compliant"* (that is for a human/DPO). End with a recommended
-   `COMPLIANCE.md` update — but **do not** make it. If nothing touches regulated ground, say so
-   in one line. **The audit writes nothing.**
+   `COMPLIANCE.md` update — but **do not** make it. If the full pass finds the posture already
+   covers everything the trigger caught, say so in one line. **The audit writes nothing.**
 
 ## After editing
 

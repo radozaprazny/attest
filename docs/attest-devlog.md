@@ -79,6 +79,32 @@ against it. This log records how it got there and, more usefully, what was wrong
   landed), and its second review's findings were closed by three commits plus that one.
   *Test: `scripts/smoke.sh` grew to 23 assertions (identical-vs-DIFFERS re-run signals) —
   green.*
+- **Phase 10 — the audit fix series** (2026-08-11). A full multi-agent audit of the repo
+  (six finder lenses over shell, hooks/config, CI, skills, docs and end-to-end installation;
+  every finding then handed to an adversarial verifier that had to re-derive it from the
+  file or refute it) returned **two majors and ~22 minors** — one finding refuted, none
+  critical. Both majors were the same failure of imagination: *code that judged a file by a
+  predicate its own earlier run had made true*. `install.sh` asked "does this project
+  configure ruff?" of a `ruff.toml` **it had installed**, so every re-run into a Python
+  project called the kit's own file the user's and quietly exempted it from the ADR-0018
+  drift ladder (ADR-0020). And `template-cleanup` asked whether the repo still *looked* like
+  an untouched template, then acted wholesale — `rm -rf docs scripts`, `cat > LICENSE` —
+  which is only safe on the day the repo is generated; repo-creation pushes do not reliably
+  fire, so a user's own files could be in those directories by the time it ran, and the
+  in-file comment said so rather than preventing it (ADR-0022). The fix in both cases was to
+  ask the *target's* bytes: `cmp` before a message, a content check before every `rm` or
+  rewrite, attest's files removed by name and never a directory wholesale. The cleanup also
+  moved out of the YAML into `scripts/template-cleanup.sh` — until then the one destructive
+  thing in the repo was the one thing neither shellcheck nor smoke ever touched, first
+  executing for real in a stranger's repository. The rest of the series: the format hook
+  stopped reformatting files outside the project (ADR-0024), `ci.yml.example` finally
+  reaches the consumers it addresses (ADR-0021), the ownership contract settled the
+  `/decision` ↔ `/compliance` collision it had used as its own motivating example
+  (ADR-0023), and `/gate` began handing its document audits enough git material to scope
+  themselves to "since the last audit" — the anti-re-flag rule had been unenforceable in
+  the gate path since the doc-auditor lost Bash.
+  *Test: `scripts/smoke.sh` grew from 23 to **61** assertions — the new ones cover exactly
+  the branches the defects sat in, including fourteen on the cleanup — green.*
 
 ## Phase 7 — what the first real install found
 

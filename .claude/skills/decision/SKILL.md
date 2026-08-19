@@ -94,9 +94,13 @@ the other?"* If yes, record it; if no, leave it to the commit.
 ### Mode 2 — `audit` (decisions made in code but never recorded)
 
 Invoked as **`/decision audit`**. Read-only — it **reports**, it does not write entries. It
-**owns** the "undocumented decision" finding, so a new dependency is flagged here, not by
-`/business audit` (non-goal/scope) or `/compliance audit` (regulated ground) — one hunk is
-flagged once.
+**owns** the "undocumented decision" finding, so a new dependency is flagged here and not by
+`/business audit`, whose ground is non-goals and scope — one hunk is flagged once.
+
+**The one exception is the `/decision` ↔ `/compliance` edge** (`_shared/audit-ladder.md`): a
+choice that lands on **regulated ground** — personal data, a model or automated decision, a
+new data source/transfer, an Art 5 practice — belongs to `/compliance audit` alone, which
+names the missing ADR inside its own finding. Everything else that is a decision is yours.
 
 1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains; the
    shipped template's commented example is not a recorded decision).

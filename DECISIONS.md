@@ -1,7 +1,9 @@
 # DECISIONS.md — decision log (ADR-lite, append-only)
 
 > **Why we chose X over Y.** Append-only — never edit or delete a past entry (except flipping
-> its `Status` line when superseded); to reverse one, **append** a new entry that supersedes it. why-it-exists → `BUSINESS.md` · rules →
+> its `Status` line when superseded); to reverse one, **append** a new entry that supersedes it.
+>
+> **Router (this doc owns decisions only):** why-it-exists → `BUSINESS.md` · rules →
 > `CLAUDE.md` · status → `PROGRESS.md` · posture → `COMPLIANCE.md`. (full table: GUIDE PART 1)
 
 <!--

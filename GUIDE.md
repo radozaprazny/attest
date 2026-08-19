@@ -93,6 +93,13 @@ declared") when one is absent.
   `ruff.toml` and the `.ruff_cache/` ignore line **only when the target shows Python
   markers** — a JS/Rust repo gets no Python residue; attest ADR-0015.)
 
+  **If Python arrives later**, that detection has already happened: the hook is wired but
+  its rules never landed, so it would format with ruff's defaults instead of the kit's.
+  **Re-run `install.sh`** — it is copy-if-absent, so it adds exactly the two missing pieces
+  (`ruff.toml`, the `.ruff_cache/` ignore line) and touches nothing else. Until you do, the
+  hook still cannot litter the repo: it runs ruff with `--no-cache`, so no unignored
+  `.ruff_cache/` appears (attest ADR-0024).
+
   A worked JS/TS swap — replace the `PostToolUse` entry in `.claude/settings.json` with:
 
   ```json
@@ -353,13 +360,18 @@ one output shape and one severity ladder so they read as a family:
 That is the whole procedure — do **not** hand-copy the files. The script is **copy-if-absent**:
 every doc, skill, hook, `settings.json` and `ruff.toml` is installed only if the target does
 not already have it, `.gitignore` is **appended to** rather than replaced, and `ruff.toml` is
-refused outright if you configure ruff anywhere (it would silently override you — see PART 2).
+refused outright if you configure ruff in `.ruff.toml` or `pyproject.toml` (it would silently
+override you — see PART 2). A `ruff.toml` that is already there is judged like any other
+kit-owned file: identical on a re-run, otherwise reported as drifted.
 It prints an **INSTALLED** list and a **SKIPPED** list naming every file it refused to touch,
 so you can merge those by hand.
 
-It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/`, `.github/`
-or itself — those are
-*attest*, not your project. `GUIDE.md` lands as the kit's reference manual: a copy the kit
+It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/` or itself —
+those are *attest*, not your project. From `.github/` it copies exactly one file,
+`workflows/ci.yml.example`: a fully commented-out CI starting point written for you, inert
+until you rename it (attest ADR-0021). Attest's own `ci.yml` stays behind.
+
+`GUIDE.md` lands as the kit's reference manual: a copy the kit
 itself installed is recognized on re-runs (current → skipped, outdated → pointed out for a
 by-hand refresh); a guide of your own keeps its name and the kit's goes in beside it as
 `attest-GUIDE.md`; only with both names taken is it skipped. It is **not** a

@@ -178,6 +178,12 @@ not touch the document, it **reports** whether what the repo is *doing* still ma
    gate runs must not re-flag the same old drift), and the code/dependency structure. For an
    AI-system also note new models/automated decisions; for a service/pipeline note new data
    flows or sources.
+   *Run as a `/gate` pass you have no git at all* — scope from the material handed to you
+   instead: `diff.patch` is the change under audit, `log-docs.txt` dates the last
+   `BUSINESS.md` edit, and the newest name in `gate-records.txt` carries the sha of the last
+   gated commit; take the later of those two as the window's start. If neither file reached
+   you, audit the diff alone and **say so in the verdict** — an unscoped pass may re-flag
+   drift a previous run already reported.
 3. **Check each declared non-goal** — is the repo now doing the thing it said it would not?
    **Check scope** — is work landing *outside* the stated scope (creep), and are any
    "Later:" items now actually done (stale plan)? Sanity-check the **archetype** still fits.

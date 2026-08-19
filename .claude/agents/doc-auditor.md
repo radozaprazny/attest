@@ -26,10 +26,14 @@ run tests; you must not, so you do not have it).
   skill's `SKILL.md`; apply its own skip/trigger rules (e.g. `/compliance audit` runs its
   cheap trigger check first and returns "out of scope" on no hit).
 - **Git material comes as files.** You cannot run `git`. The caller gives you paths to
-  the scoped diff, the porcelain status (staged, unstaged and untracked entries together)
-  and the recent commit log — `Read` those
-  instead of the commands the skill text names. If a path is missing, say which part of
-  your pass is degraded and audit what you can reach — degrade, never fail.
+  the scoped diff, the porcelain status (staged, unstaged and untracked entries together),
+  the recent dated commit log, the commits that last touched each control document, and the
+  newest `.attest/` run-record names — `Read` those instead of the commands the skill text
+  names, and use the last two to scope yourself to *"since the last audit"* where your
+  section asks for it. If a path is missing **or holds less than your section needs**, say
+  which part of your pass is degraded and audit what you can reach — degrade, never fail.
+  If you cannot read a path at all (the material may sit outside the project), say exactly
+  that: the caller has an in-repo fallback and can re-run your pass.
 - **The ladder and the ownership contract** are in
   `.claude/skills/_shared/audit-ladder.md` — read it, use its output shape, flag only
   your own ground, and name the owning skill for anything else you notice.

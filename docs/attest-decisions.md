@@ -421,3 +421,176 @@ was created. That restraint is the same rule /decision applies.
   file; the CI is red/green on every push and PR, but *blocking a merge* additionally needs
   branch protection, which is a GitHub setting, not repo content — enabling it is a standing
   item in `attest-progress.md`.
+
+## ADR-0020 — an installed kit file is judged by content, never by a predicate that its own presence satisfies · 2026-08-11 · Accepted
+
+- **Context** — a full audit of the kit found two messages that were false on a re-run.
+  `install.sh` decided `ruff.toml` with `has_ruff_config`, which is true whenever
+  `$TARGET/ruff.toml` exists — including the copy the kit itself had installed. Every re-run
+  into a Python project reported the kit's own byte-identical file as *"you already configure
+  ruff"*, and the ADR-0018 identical/DIFFERS ladder was unreachable for it, so a changed
+  upstream `ruff.toml` could never be reported as drifted. The `settings.json` warning had the
+  same shape: it fired on any byte difference and claimed *"hooks are on disk but NOT wired"*,
+  which is untrue for an older kit stanza that registers all three hooks.
+- **Options** — (a) leave it, document the quirk; (b) special-case a re-run by remembering
+  what we installed (a manifest); (c) ask the file itself: judge a present file by content,
+  and only then fall back to predicates.
+- **Decision** — (c). `ruff.toml` present → `cmp` against the kit's (identical → re-run,
+  otherwise → DIFFERS, with the override warning kept in the message); only if it is absent do
+  `.ruff.toml`/`pyproject.toml` decide. `settings.json` → grep the kept file for each hook
+  filename; warn only about hooks it really leaves unregistered, and otherwise say plainly
+  that it differs but is wired.
+- **Why** — (b) adds state the kit deliberately does not keep (no manifest, no lockfile: the
+  never-clobber covenant is stateless by design). (c) needs nothing but the bytes already on
+  disk, and it restores the property ADR-0018 was written for: every kit-owned file, without
+  exception, reports identical-or-drifted on a re-run. A warning that is false in the common
+  case is worse than no warning — it teaches the reader to skip the report.
+- **Consequences** — `has_ruff_config` no longer answers "is there a ruff.toml"; its name now
+  means *"configured somewhere other than ruff.toml"*, and its regex lost the `\1`
+  backreference (a GNU extension, undefined in POSIX ERE — it also matched `[tool.ruffle]`).
+  Four new smoke assertions cover the re-run, the drift, the two pyproject forms, and the
+  wired-but-differing settings case.
+
+## ADR-0021 — `ci.yml.example` ships to consumers; it is the one file under `.github/` that is theirs · 2026-08-11 · Accepted
+
+- **Context** — the file says *"opt-in CI for your project. Rename to `ci.yml` and adapt"*,
+  but neither adoption path delivered it: `install.sh` copies nothing from `.github/`, and
+  template-cleanup deleted it as attest identity. It existed only for people browsing attest's
+  own repo — an instruction addressed to a reader who does not have the file.
+- **Options** — (a) delete it and put the example in GUIDE PART 8 as a fenced block;
+  (b) keep it where it is and document that it is browse-only; (c) ship it through both paths.
+- **Decision** — (c): `install.sh` copies exactly `.github/workflows/ci.yml.example`, and the
+  cleanup leaves it in place.
+- **Why** — (a) loses the property that makes it useful: a file you rename beats a block you
+  retype, and being *inert as shipped* (100% comments) is what makes shipping it safe — a
+  consumer's Actions do nothing until they act. (b) is the status quo with a nicer name.
+  The "never copy `.github/`" rule was a proxy for "never install attest's own CI", and that
+  rule is preserved exactly: `ci.yml` stays behind, the example travels.
+- **Consequences** — GUIDE PART 8's install list and README's manual-cleanup list both change;
+  the example now also demonstrates the two habits attest's own CI follows (pin the tool
+  version, pin actions by SHA), since an unpinned example teaches an unpinned gate.
+
+## ADR-0022 — the template cleanup removes attest's files by name, from a script that CI lints and smoke tests · 2026-08-11 · Accepted
+
+- **Context** — the cleanup ran `rm -rf docs scripts` and `cat > LICENSE` unconditionally,
+  behind a sentinel that only checked attest's README heading and `install.sh`. Repo-creation
+  pushes do not reliably fire, so a user's first pushes can land before the workflow ever
+  runs: their own `docs/`, `scripts/` and `LICENSE` were then deleted or overwritten. The
+  in-file comment acknowledged this rather than preventing it. The same block was also the
+  only destructive code in the repo that nothing linted and nothing tested — it first executes
+  for real in a stranger's repository.
+- **Options** — (a) keep the wholesale `rm -rf`, warn harder in the README; (b) require an
+  explicit `workflow_dispatch` so it never fires unattended; (c) remove attest's paths by
+  name, guard each rewrite with a content check on its own target, and move the logic into
+  `scripts/template-cleanup.sh` so CI shellchecks it and `smoke.sh` runs it in a sandbox.
+- **Decision** — (c).
+- **Why** — (a) documents a hazard instead of removing it, and the README paragraph it needed
+  was longer than the fix. (b) breaks the promise that a generated repo cleans *itself*.
+  (c) makes lateness harmless, which is the real property wanted: attest's own files are a
+  known, finite list, and `rmdir` (never `rm -rf`) leaves any directory that still holds
+  something of yours. The identity marker also moves from the README to `install.sh`'s own
+  header — replacing the README first is a normal first step and must not be what disables
+  cleanup, which was the second half of the same bug.
+- **Consequences** — a generated repo carries `scripts/template-cleanup.sh` until the workflow
+  removes it together with itself (a script that unlinks itself mid-read is not something to
+  rely on). Fourteen smoke assertions now cover the cleanup, including the case that motivated
+  the ADR: user files present, workflow fires late, nothing of theirs is touched — not their
+  `docs/` or `scripts/`, not their `LICENSE`, and not a `ci.yml` or `smoke.sh` of their own
+  (both are names the kit itself invites, so both are removed only on a content match). The cleanup
+  also drops `ruff.toml` in a repo with no Python, which is ADR-0015 parity the template path
+  never had. A queued second run rebases before pushing rather than failing red.
+
+## ADR-0023 — the ownership contract resolves both of its own collisions, and `nit` survives the merge · 2026-08-11 · Accepted
+
+- **Context** — the contract's stated purpose is that one hunk is flagged once, and its
+  motivating example is *one new dependency* — but the table gives "a new dependency" to
+  `/decision` and "a new model / data source" to `/compliance`, with a tiebreak written only
+  for the `/business` ↔ `/audit-history` edge. Two doc-auditors handed only their own section
+  plus the ladder would both claim an analytics SDK, or both defer. Separately, the reviewer
+  legitimately emits `nit`, the ladder excludes `nit`, and `/gate` requires every merged
+  finding to carry a ladder severity — so the gate's merge step had no defined move.
+- **Options** — (a) give the dependency wholly to `/decision`; (b) split by aspect and accept
+  two findings on one hunk; (c) regulated ground wins when both conditions hold, and the
+  losing audit's point becomes one clause of the winner's finding.
+- **Decision** — (c) for the edge; and `nit` passes through `/gate` unchanged — listed last,
+  counted in its own column of the run record, never able to move the verdict line.
+- **Why** — (a) hides the larger consequence behind the smaller one. (b) is the noise the
+  contract exists to prevent. (c) keeps exactly one owner because the two conditions are
+  mutually exclusive by construction, and loses no information. Promoting a nit to minor would
+  inflate the ladder the kit tells other people not to inflate; dropping it silently would
+  discard a real (if cosmetic) reviewer finding.
+- **Relates to** — completes ADR-0004's ownership table (which resolved only the
+  `/business` ↔ `/audit-history` edge and left this one open) and extends ADR-0005's nit rule
+  from "not on the ladder" to "and here is what happens to one at the merge point". Neither is
+  reversed, so neither flips `Status`; this entry is where a reader of either should land.
+- **Consequences** — the ladder gains a second edge section and a nit rule; the gate's record
+  template gains a `nit` count. Both `/compliance audit`'s and `/decision audit`'s
+  carve-outs are restated in terms of the edge, so no skill's own text can contradict the
+  contract the gate merges under.
+
+## ADR-0024 — hooks act only inside the project, and never leave cache behind · 2026-08-11 · Accepted
+
+- **Context** — the format hook filtered on `.py` alone. Claude edits files outside the repo
+  (another checkout, a script in `$HOME`), and ruff resolves config by walking up from the
+  target, so those files were silently reformatted under ruff's defaults or a foreign
+  project's rules — invisibly, since the hook drops all output. And because Python detection
+  happens at install time only, a repo that gained Python later ran the wired hook with no
+  `ruff.toml` and minted a `.ruff_cache/` its `.gitignore` had no line for.
+- **Options** — (a) document both as known edges; (b) make the hook refuse to run without a
+  resolvable `ruff.toml`; (c) contain it to `CLAUDE_PROJECT_DIR` and pass `--no-cache`.
+- **Decision** — (c). Unset `CLAUDE_PROJECT_DIR` still fails open, like every other branch of
+  this hook.
+- **Why** — (b) would break the legitimate `pyproject.toml`-configured project, which is the
+  configuration `install.sh` explicitly respects. (c) fixes both symptoms where they start:
+  a hook that reformats files in a project nobody asked about is a trust problem, not a
+  cosmetic one, and a per-edit run of a single file gains nothing from a cache worth writing.
+- **Supersedes in part** — ADR-0015's closing clause, *"a project that later gains Python
+  only needs the config, not a reinstall"*. That was true of the config alone and false of the
+  `.gitignore` line the same repo also lacks, so the honest instruction is the re-run. ADR-0015
+  otherwise stands in full: Python tooling still installs only into Python projects.
+- **Consequences** — GUIDE PART 2 now states that adding Python later calls for a re-run of
+  `install.sh` (copy-if-absent, so it adds exactly the two missing pieces); manual
+  `ruff check .` still caches normally. Smoke asserts all three properties with a fake `ruff`
+  on `PATH`, so the assertion needs no real ruff and no network.
+
+## ADR-0025 — GitHub Actions are pinned by commit SHA, in the kit's CI and in the example it ships · 2026-08-19 · Accepted
+
+- **Context** — every workflow used `@v4` / `@v5`. A tag is a mutable pointer: whoever
+  controls it can change what runs, and `template-cleanup.yml` runs with `contents: write` and
+  pushes a commit into someone else's repository. The audit rated this info-level, which is
+  fair for a private kit — but `ci.yml.example` is *teaching material*, and an unpinned example
+  propagates the habit into every repo that adopts it.
+- **Options** — (a) tags everywhere, note the risk in a comment; (b) SHA-pin the write-token
+  workflow only; (c) SHA-pin all three, with the version as a trailing comment.
+- **Decision** — (c).
+- **Why** — (b) is where the concrete risk is, but it leaves the kit teaching one thing and
+  doing another two files away, and the example is the file most likely to be copied. (c)
+  costs a lookup when bumping a version and buys a build that cannot change under us. The
+  trailing `# v4` comment is what keeps it maintainable: the SHA is the contract, the comment
+  is for humans reading the diff.
+- **Consequences** — bumping an action is now a two-step (resolve the tag to a SHA, update the
+  comment) and belongs to the same release ritual as the `Kit version:` bump; nothing verifies
+  the pins automatically, so a stale pin is a maintenance debt, not a failure. The example
+  states the reason inline so an adopter who prefers tags is making a choice rather than
+  inheriting one.
+
+## ADR-0026 — `.attest/` holds append-only records plus one ignored scratch directory · 2026-08-19 · Accepted
+
+- **Context** — ADR-0016 scoped `.attest/` as an append-only log of run records, meant to be
+  committed with the change it gates. The gate's new degrade path needs somewhere inside the
+  repo to write git material when a subagent cannot read an out-of-tree temp dir — and it
+  reached for `.attest/tmp/`, silently giving the directory a second, contradictory purpose:
+  the kit's own `/gate` run flagged this against its own ladder ("the gate's only write").
+- **Options** — (a) drop the in-repo fallback and let the pass degrade when `/tmp` is
+  unreadable; (b) write the scratch somewhere else in the repo; (c) keep `.attest/tmp/`, name
+  the carve-out, ignore it in git, and require the run that creates it to delete it.
+- **Decision** — (c).
+- **Why** — (a) loses a pass for an environment reason, which is exactly what "degrade, never
+  fail" exists to avoid. (b) needs a second directory and a second `.gitignore` line for one
+  transient use. (c) keeps one directory for one concept — *everything this gate produced* —
+  and the distinction that matters (a record is committed, scratch never is) is enforced by
+  `.gitignore` rather than by discipline. `install.sh` now lands the ignore line in every
+  install, so a consumer cannot commit scratch even on the first run.
+- **Consequences** — "the gate's only write" is no longer literally true and the ladder says
+  so precisely; readers of `.attest/` must know one subdirectory is not a record. The rule is
+  stated in both the ladder and the gate's step 5 so a doc-auditor handed either sees it.
