@@ -7,7 +7,7 @@
 #
 #   ./install.sh <path-to-your-project>
 
-set -euo pipefail
+set -Eeuo pipefail   # -E: the ERR trap below must fire from inside functions too
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET="${1:-}"
@@ -15,10 +15,41 @@ TARGET="${1:-}"
 [ -n "$TARGET" ] || { echo "usage: ./install.sh <path-to-your-project>" >&2; exit 2; }
 [ -d "$TARGET" ] || { echo "install.sh: no such directory: $TARGET" >&2; exit 2; }
 TARGET="$(cd "$TARGET" && pwd -P)"   # -P: resolve symlinks, so the self-install guard holds
-[ "$TARGET" != "$KIT" ] || { echo "install.sh: refusing to install the kit into itself" >&2; exit 2; }
+# Ancestry, not just equality: installing into a subdirectory of the kit (a mistyped
+# tab-completion) or into a directory that contains it would litter the checkout with a
+# second copy. The trailing slashes make the prefix test exact — and TARGET == KIT is the
+# degenerate case of the first pattern.
+# Both sides carry exactly one trailing slash, so the prefix test is exact and "/" (where
+# pwd -P leaves no trailing component) behaves like any other directory. The prefixes are
+# built as variables first: "${VAR%/}"/* would put a *quoted null* in the pattern, which bash
+# matches literally — the guard would then silently never fire for TARGET=/.
+KIT_P="${KIT%/}/"
+TARGET_P="${TARGET%/}/"
+case "$TARGET_P" in "$KIT_P"*)
+  echo "install.sh: refusing to install the kit into itself (or into a directory inside it)" >&2; exit 2 ;;
+esac
+case "$KIT_P" in "$TARGET_P"*)
+  echo "install.sh: refusing to install the kit into a directory that contains it" >&2; exit 2 ;;
+esac
 
 INSTALLED=()
 SKIPPED=()
+
+# An abort mid-run (unwritable path, .claude present as a regular file, disk full) leaves a
+# partial install and skips the report below — so say what landed and that a re-run is safe.
+on_abort() {
+  local code=$?
+  echo >&2
+  echo "install.sh: ABORTED (exit $code) — this install is PARTIAL." >&2
+  if [ "${#INSTALLED[@]}" -gt 0 ]; then
+    echo "  landed before the failure:" >&2
+    for i in "${INSTALLED[@]}"; do echo "    + $i" >&2; done
+  else
+    echo "  nothing had been written yet." >&2
+  fi
+  echo "  Fix the cause and re-run: every write is copy-if-absent, so a re-run resumes safely." >&2
+}
+trap on_abort ERR
 
 note_installed() { INSTALLED+=("$1"); }
 note_skipped()   { SKIPPED+=("$1 — $2"); }
@@ -26,6 +57,9 @@ note_skipped()   { SKIPPED+=("$1 — $2"); }
 # copy_if_absent <relative-path> [reason-noun]
 copy_if_absent() {
   local rel="$1" what="${2:-file}"
+  # A file this kit checkout does not have is not an error to abort on — an older kit, or a
+  # partial copy, simply has nothing to install here.
+  [ -e "$KIT/$rel" ] || return 0
   # -L too: a dangling symlink is not -e, but cp must not write through it either
   if [ -e "$TARGET/$rel" ] || [ -L "$TARGET/$rel" ]; then
     if cmp -s "$KIT/$rel" "$TARGET/$rel" 2>/dev/null; then
@@ -79,9 +113,11 @@ ensure_ignore() {
 }
 
 has_ruff_config() {
-  # matches [tool.ruff], indented, and the quoted [tool."ruff"] form — all valid TOML
-  [ -f "$TARGET/ruff.toml" ] || [ -f "$TARGET/.ruff.toml" ] ||
-    grep -Eq '^[[:space:]]*\[tool\.("?)ruff\1' "$TARGET/pyproject.toml" 2>/dev/null
+  # matches [tool.ruff] and [tool.ruff.lint], indented, and the quoted [tool."ruff"] forms —
+  # all valid TOML. The trailing [].] class is what keeps [tool.ruffle] out; the alternation
+  # replaces a \1 backreference, which is a GNU extension and undefined in POSIX ERE (BSD).
+  [ -f "$TARGET/.ruff.toml" ] ||
+    grep -Eq '^[[:space:]]*\[tool\.(ruff|"ruff")[].]' "$TARGET/pyproject.toml" 2>/dev/null
 }
 
 has_python_markers() {
@@ -111,6 +147,7 @@ done
 # the ownership contract live in .claude/skills/_shared/audit-ladder.md, which installs with the
 # skills that read it (ADR-0010). The "GUIDE PART N" references in the skills are documentation
 # pointers — a dangling one costs a reader a lookup, not an audit its severity.
+GUIDE_REF="GUIDE.md"   # which file the kit's manual ended up in — the NEXT steps cite it
 if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
   note_installed "GUIDE.md"
@@ -127,23 +164,38 @@ elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — referenc
   note_skipped "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
 elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
   cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
+  GUIDE_REF="attest-GUIDE.md"
   note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
 elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
+  GUIDE_REF="attest-GUIDE.md"
   note_skipped "attest-GUIDE.md" "already the kit's version (re-run)"
 else
-  note_skipped "GUIDE.md" "both GUIDE.md and attest-GUIDE.md exist — the skills' \"GUIDE PART N\" refs point at whichever is ours"
+  # Your own GUIDE.md plus an attest-GUIDE.md that is neither current nor yours: it is the
+  # kit's manual from an older install. Same refresh hint the GUIDE.md branch gets — without
+  # it this path is the one place a stale manual can never be noticed (ADR-0018).
+  GUIDE_REF="attest-GUIDE.md"
+  note_skipped "attest-GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh (your own GUIDE.md is untouched; the skills' \"GUIDE PART N\" refs mean attest-GUIDE.md)"
 fi
 
 # --- .claude/ — per file, so your own skills/agents/hooks/settings are never touched --
 copy_tree_if_absent ".claude/skills"
 copy_tree_if_absent ".claude/agents"
 copy_tree_if_absent ".claude/hooks"
-# Warn about unwired hooks only when the kept settings.json actually differs from the
-# kit's (a byte-identical file — a re-run — has the hooks wired already). Same
-# present-predicate as copy_if_absent (-e or -L), so a dangling symlink still warns.
-SETTINGS_KEPT=0
+# Warn about unwired hooks only when the kept settings.json really leaves a hook unwired.
+# "Differs from the kit's" is not the same question: an older kit stanza — or yours with the
+# kit's hooks merged in — registers all three already, and the categorical warning would be
+# false (ADR-0020). So ask the file which hooks it names. Same present-predicate as
+# copy_if_absent (-e or -L): a dangling symlink names nothing and warns.
+SETTINGS_STATE="absent"
 if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
-  cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_KEPT=1
+  if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
+    SETTINGS_STATE="identical"
+  else
+    SETTINGS_STATE="wired"
+    for hook in format_py.py precompact_checkpoint_nudge.py stop_session_length_warn.py; do
+      grep -qF "$hook" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_STATE="unwired"
+    done
+  fi
 fi
 copy_if_absent ".claude/settings.json" "settings"
 
@@ -151,19 +203,37 @@ copy_if_absent ".claude/settings.json" "settings"
 # ruff resolves ruff.toml > .ruff.toml > pyproject.toml and does NOT merge, so copying ours
 # in would silently hijack an existing config while leaving it on disk as dead code. And a
 # repo with no Python gets no Python residue (ADR-0015) — the format hook stays inert there.
-if has_ruff_config; then
-  note_skipped "ruff.toml" "you already configure ruff (ours would silently override it)"
+#
+# An existing ruff.toml is judged FIRST and by content, not by the has_ruff_config predicate:
+# after one install that file is usually the kit's own, and reporting it as "you already
+# configure ruff" would both lie and exempt it from the identical-vs-DIFFERS drift ladder
+# every other kit file gets (ADR-0018, ADR-0020).
+if [ -e "$TARGET/ruff.toml" ] || [ -L "$TARGET/ruff.toml" ]; then
+  if cmp -s "$KIT/ruff.toml" "$TARGET/ruff.toml" 2>/dev/null; then
+    note_skipped "ruff.toml" "already exists (identical to the kit's — a re-run, nothing to merge)"
+  else
+    note_skipped "ruff.toml" "your ruff config kept — DIFFERS from the kit's (ours would have overridden it; diff against $KIT/ruff.toml to see what the kit ships)"
+  fi
+elif has_ruff_config; then
+  note_skipped "ruff.toml" "you already configure ruff elsewhere (ours would silently override it)"
 elif ! has_python_markers; then
   note_skipped "ruff.toml" "no Python detected — see GUIDE PART 2 to swap the formatter unit"
 else
   copy_if_absent "ruff.toml" "config"
 fi
 
-# --- optional MCP example -------------------------------------------------------------
-copy_if_absent ".mcp.json.example" "example"
+# --- optional examples: yours to rename and adapt, never live as shipped ---------------
+# "version" noun: both are kit-owned files, so an upstream change must show as DIFFERS
+# rather than as a silent "your example kept" (ADR-0018).
+copy_if_absent ".mcp.json.example" "version"
+# The one file in .github/ written FOR the consumer. Everything else under .github/ is
+# attest's own CI and stays behind (ADR-0021).
+copy_if_absent ".github/workflows/ci.yml.example" "version"
 
 # --- .gitignore: append the lines the kit needs, never replace the file ----------------
 ensure_ignore ".claude/settings.local.json"
+# The gate's run records under .attest/ are meant to be committed; only its scratch is not.
+ensure_ignore ".attest/tmp/"
 if has_python_markers || [ -e "$TARGET/ruff.toml" ]; then
   ensure_ignore ".ruff_cache/"
 fi
@@ -179,14 +249,22 @@ if [ ${#SKIPPED[@]} -eq 0 ]; then echo "  (nothing)"; fi
 for s in "${SKIPPED[@]:-}"; do [ -n "$s" ] && echo "  · $s"; done
 
 # --- honesty about what will NOT run ---------------------------------------------------
-if [ "$SETTINGS_KEPT" = 1 ]; then
+if [ "$SETTINGS_STATE" = "unwired" ]; then
   cat <<'EOF'
 
-⚠ Your .claude/settings.json was kept — so the kit's hooks are on disk but NOT wired:
-  none of them will run until you merge this stanza into your .claude/settings.json:
+⚠ Your .claude/settings.json was kept and does not register all of the kit's hooks — the
+  ones it leaves out are on disk but NOT wired, and will not run until you merge this
+  stanza into your .claude/settings.json:
 
 EOF
   sed 's/^/    /' "$KIT/.claude/settings.json"
+elif [ "$SETTINGS_STATE" = "wired" ]; then
+  cat <<EOF
+
+· Your .claude/settings.json was kept. It differs from the kit's but registers all three
+  hooks, so they will run. Diff it against $KIT/.claude/settings.json if you want the
+  kit's current stanza.
+EOF
 fi
 
 if ! command -v python3 >/dev/null 2>&1; then
@@ -211,6 +289,6 @@ fi
 echo "  $n. /business    — declare intent + archetype (BUSINESS.md)"
 echo "     /compliance  — only if you are in regulated scope (COMPLIANCE.md)"
 n=$((n+1))
-echo "  $n. Everything else: GUIDE.md PART 9 (the whole loop)."
+echo "  $n. Everything else: $GUIDE_REF PART 9 (the whole loop)."
 echo
 echo "Not installed on purpose: README.md and LICENSE describe attest, not your project."
