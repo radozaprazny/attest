@@ -64,7 +64,7 @@ GPAI and high-risk phase-in; the Digital Omnibus is adopted-but-not-in-force and
 If an **EU-AI-Act MCP** is connected (an account connector or a project `.mcp.json` — see
 GUIDE PART 6), use it to *enrich and verify*: look up a provision, classify a description,
 list obligations for a role/risk, check a deadline, check a document for gaps. Where the live
-result and the offline checklist **diverge**, report it as a **posture gap — verify** (major),
+result and the offline checklist **diverge**, report it as **major** ("posture gap — verify"),
 never as a verdict for either side. Cite which findings were MCP-verified in §9.
 
 ## Three modes
@@ -99,8 +99,38 @@ question is `/business audit`'s and an undocumented decision that lands on no re
 is `/decision audit`'s (the ladder's `/decision` ↔ `/compliance` edge settles the overlap), so
 one hunk is flagged once.
 
-**The trigger check — do this first, and only this.** Read the **diff alone**: no
-`COMPLIANCE.md`, no MCP call, no other document. Look for any of —
+### Step 0 — the posture check, before anything else
+
+**You are installed, so this project's posture is your ground whether or not the diff touches
+it.** Before the trigger, ask one question: **is a posture declared at all?** *No posture
+declared* means either `COMPLIANCE.md` is **absent**, or it exists with its sections still
+`<placeholder>` text — the same rule Modes 1 and 2 apply. Both count, and keying this on the
+file merely *existing* is how the state comes back: a user told to "delete it" would land in a
+repo where this skill still owns regulated ground and nothing ever speaks.
+
+If no posture is declared, say so in **one line**, a **minor**, which never moves the verdict
+on its own:
+
+> *"no posture declared (`COMPLIANCE.md` absent / still placeholders) while `/compliance` is
+> installed — run `/compliance` to fill it, or remove **both** `COMPLIANCE.md` and
+> `.claude/skills/compliance/` and record in one sentence why the project is out of scope."*
+
+Removing **both** is what the rest of the kit says (README, GUIDE PART 9, the template-cleanup
+stub README) and it is the only remedy that leaves a consistent state: with the skill gone, the
+ladder re-assigns this ground to another audit; with the skill present and the file gone,
+nobody owns it. Never advise deleting the file alone.
+
+**One escape.** If the project *ships* `COMPLIANCE.md` as a template for someone else and keeps
+its own posture elsewhere — the kit's own repo is the case, and `/gate`'s `$DOCS` and the
+declaration hook's `ATTEST_BUSINESS` handle the same ADR-0006 tension — then a posture recorded
+in that other place satisfies this check. Say where you found it and move on.
+
+Report this once, here. Do **not** repeat it in step 1 of the full pass.
+
+### The trigger check
+
+**Do this on the diff and nothing else** (step 0 above has already run): no `COMPLIANCE.md`, no
+MCP call, no other document. Look for any of —
 
 - a new or renamed **field, column, parameter or log line** that can hold personal data (name,
   email, phone, address, IP, device or account identifier, location, or anything
@@ -109,11 +139,12 @@ one hunk is flagged once.
 - a new **data source, export, third-party SDK, or cross-border transfer**;
 - anything resembling a **prohibited (Art 5)** practice.
 
-**No hit → return exactly `out of scope — nothing in this diff touches regulated ground` and
-stop.** That is the whole audit; it is the common case and it is a correct result. One hit →
-the full pass:
+**No hit → return step 0's line, if it applied, plus exactly `out of scope — nothing in this
+diff touches regulated ground`, and stop.** That is the whole audit; it is the common case and
+it is a correct result. One hit → the full pass:
 
-1. **Read `COMPLIANCE.md`** — the declared posture.
+1. **Read `COMPLIANCE.md`** — the declared posture. If step 0 already found none, carry that
+   forward and do not compare the diff against an empty file; do not file the finding twice.
 2. **Scan the diff for regulated ground** — a new **personal-data field**, a new **model or
    automated decision**, a new **data source / transfer**, a feature touching a **prohibited
    (Art 5)** practice (biometric categorisation, emotion recognition, scraping, scoring →
@@ -122,9 +153,11 @@ the full pass:
    gaps if present.
 4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (`file:line` / commit), and a severity —
-   - **blocker** — a new feature bearing on a **prohibited (Art 5)** practice, or personal data
-     handled with no lawful basis in the posture;
-   - **major (posture gap)** — regulated ground the declared posture does not cover;
+   - **blocker** — a new feature bearing on a **prohibited (Art 5)** practice, personal data
+     handled with no lawful basis in the posture, or any **special-category (Art 9) or
+     national-ID** field: the ladder's floor is absolute and applies here first, before this
+     list;
+   - **major** — regulated ground the declared posture does not cover;
    - **minor** — a stale citation, a missing **Last reviewed**, an un-cited obligation.
 
    If the hunk is also an **unrecorded decision** (a new dependency, a swapped library), it is

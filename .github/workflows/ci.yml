@@ -1,11 +1,12 @@
 # ci.yml — attest's OWN gate: the kit that preaches gating gates itself (ADR-0019).
 # Runs the same baseline docs/attest-progress.md documents as manual commands:
-# ruff, shellcheck, and scripts/smoke.sh.
+# shellcheck and scripts/smoke.sh. There is no linter step for another language because the
+# kit no longer contains one: both installed hooks are POSIX sh, and install.sh plus scripts/*.sh
+# are bash that runs once at the author's keyboard — shellcheck covers all of them (ADR-0027).
 #
 # Hard-guarded to attest itself (github.repository), so in template-generated repos the
-# job never runs — and template-cleanup deletes this file there anyway. ci.yml.example
-# (all comments) stays the opt-in example for YOUR project's CI; install.sh copies that
-# one file and nothing else from .github/ (ADR-0021).
+# job never runs — and template-cleanup deletes this file there anyway. install.sh copies
+# nothing at all from .github/: none of it is written for the consumer (ADR-0031).
 #
 # Actions are pinned by commit SHA, not by tag: a tag is mutable, so `@v4` is a promise that
 # whoever controls the tag runs arbitrary code in this job. The trailing comment names the
@@ -30,11 +31,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
-      - name: ruff — lint + format check
-        run: uvx ruff@0.15.21 check . && uvx ruff@0.15.21 format --check .
-
-      - name: shellcheck — installer, smoke test, template cleanup
-        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh
+      - name: shellcheck — installer, hooks, smoke test, template cleanup
+        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh
 
       - name: smoke — hooks, install.sh and the template cleanup
         run: ./scripts/smoke.sh

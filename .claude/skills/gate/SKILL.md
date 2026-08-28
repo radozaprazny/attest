@@ -1,9 +1,10 @@
 ---
 name: gate
 description: >-
-  The commit-time gate as one command. Runs the code-level reviewer subagent plus the three
-  document audits — /business audit (non-goals/scope), /decision audit (unrecorded
-  decisions), /compliance audit (regulated ground) — each in its own subagent, then merges
+  The commit-time gate as one command. Runs the code-level reviewer subagent plus the
+  document audits installed in this project — /business audit (non-goals/scope),
+  /decision audit (unrecorded decisions) and, where the opt-in /compliance skill is
+  installed, /compliance audit (regulated ground) — each in its own subagent, then merges
   their findings under the shared audit ladder and ownership contract into ONE verdict and
   appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
   control document and changes no code — the run record is its only write. Does NOT include
@@ -14,9 +15,9 @@ disable-model-invocation: true
 
 # /gate — the commit-time gate, one command
 
-One command instead of four. `/gate` runs the **commit-time** half of GUIDE PART 9's loop —
-the `reviewer` subagent (code-level) plus the three document audits — and returns **one**
-merged verdict. The **ship** gate stays separate: run `/audit-history` before a push and
+One command instead of several. `/gate` runs the **commit-time** half of GUIDE PART 9's loop —
+the `reviewer` subagent (code-level) plus every document audit this project installed — and
+returns **one** merged verdict. The **ship** gate stays separate: run `/audit-history` before a push and
 `/audit-history full` before a public release; `/gate` deliberately excludes it so the two
 cadences (every commit vs. leaving the machine) stay distinct.
 
@@ -27,7 +28,7 @@ about the specific project.
 > why-it-exists → `BUSINESS.md` · why-we-chose-X-over-Y → `DECISIONS.md` · under-what-rules →
 > `COMPLIANCE.md`. (full table: GUIDE PART 1)
 
-## How to run the four passes
+## How to run the passes
 
 **Do not invoke the audit skills as skills.** Every skill in this kit is
 `disable-model-invocation: true` — they cannot be model-invoked from here. Instead, **read
@@ -61,23 +62,28 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    was clean the diff is `git show HEAD` — **say so in the verdict**, you gated the last
    commit, not pending work. **Echo `$M` and hand the absolute paths on** — step 2's
    subagents cannot expand a variable from your shell.
-2. **Launch four subagents in parallel**, each returning only findings — the three
-   document audits read-only **by capability**, the reviewer read-only **by rule** (it
-   keeps Bash to run the tests; see its ground rules):
+2. **Launch the passes as parallel subagents**, each returning only findings — the document
+   audits read-only **by capability**, the reviewer read-only **by rule** (it keeps Bash to
+   run the tests; see its ground rules). **Which document audits exist is a fact on disk, not
+   an assumption**: run one per **document-audit** skill present — `business`, `decision`,
+   `compliance` (the others own no document audit). `/compliance` is
+   opt-in and absent in projects that declared themselves out of regulated scope (attest
+   ADR-0030) — then it is three passes, not four, and the verdict says
+   *"compliance — not installed"* rather than *"skipped"*, because those mean different things:
    - the **`reviewer` subagent** (`.claude/agents/reviewer.md`) — the code-level pass,
      run as itself;
    - one **`doc-auditor` subagent per document audit** (`.claude/agents/doc-auditor.md` —
      tools `Read, Grep, Glob`: it cannot run git, edit or write; attest ADR-0017), each
      given: the audit-mode section of its skill (`.claude/skills/business/SKILL.md` Mode 3 ·
      `.claude/skills/decision/SKILL.md` Mode 2 · `.claude/skills/compliance/SKILL.md`
-     Mode 3), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), the `$M` paths
+     Mode 3, **when that file exists**), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), the `$M` paths
      (its git material — the agent has no Bash), and the
      instruction to apply its skill's own skip/trigger rules (`/compliance audit` runs its
      cheap trigger check first and returns "out of scope" on no hit).
 
-   This is the kit's own token-hygiene rule (GUIDE PART 4): four audits inline would pull
-   four SKILL.mds, three documents and the diff into the main context; in subagents each
-   runs in its own context and returns a summary.
+   This is the kit's own token-hygiene rule (GUIDE PART 4): running the audits inline would
+   pull every SKILL.md, every control document and the diff into the main context; in
+   subagents each runs in its own context and returns a summary.
 
    A missing piece **degrades, never fails**: no `BUSINESS.md` → note "nothing declared —
    run `/business`" and skip that pass; a document still the shipped skeleton → same; the
@@ -90,8 +96,10 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
    owner, including for the two edges it resolves explicitly. Order everything by the shared
-   ladder, domain aliases intact. Reviewer `nit`s stay nits and sort last; they never change
-   the verdict line.
+   ladder — three bare rungs, no per-skill variants (attest ADR-0029). Reviewer `nit`s stay
+   nits and sort last; they never change the verdict line. If `/compliance` is not installed
+   and a hunk lands on regulated ground, the ladder's fallback applies: the closest audit
+   reports it once, naming what it would have been.
 4. **Return ONE verdict:**
    - one line overall — ✅ *ready to commit* / ⚠️ *commit after changes* — plus a one-liner
      per pass, including the clean and skipped ones (a short clean gate is a correct
@@ -107,10 +115,18 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    # gate run — <UTC ISO timestamp>
    - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
-   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…>
+   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit <(owner per finding, one line each)>
    ```
+
+   **If a run was not recorded when it happened, record it late — and say so.** Keep the run's
+   own timestamp in the filename when you know it; when you do not, use the time you are
+   *writing* and put one line at the top saying which it is. A gap in `.attest/` and a
+   plausible-looking invented time are both worse than a record that declares itself late
+   (attest ADR-0032). Because of this, **name order is write order, not run order** — anything
+   scoping itself to *"since the last audit"* must read the HEAD sha inside the names, never
+   assume the last line of `ls` is the last run.
 
    The directory is append-only: never edit or delete a previous record. Its one exception
    is the `.attest/tmp/` scratch of step 2, which is ignored by git and deleted by the run

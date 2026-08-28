@@ -25,17 +25,15 @@ fi
 echo "template-cleanup: removing attest's own files"
 rm -f docs/attest-decisions.md docs/attest-progress.md docs/attest-devlog.md install.sh
 
-# smoke.sh and ci.yml are generic names — and ci.yml is exactly what the stub README below
-# tells you to create out of ci.yml.example. So they go only if they are still attest's own,
-# by content. Leaving one behind costs nothing: attest's ci.yml is guarded to attest's repo
-# name and never runs anywhere else.
+# smoke.sh and ci.yml are generic names — ci.yml is what you are most likely to write first.
+# So they go only if they are still attest's own, by content. Leaving one behind costs
+# nothing: attest's ci.yml is guarded to attest's repo name and never runs anywhere else.
 if grep -q "^# smoke.sh — attest's own smoke test" scripts/smoke.sh 2>/dev/null; then
   rm -f scripts/smoke.sh
 fi
 if grep -q "^# ci.yml — attest's OWN gate" .github/workflows/ci.yml 2>/dev/null; then
   rm -f .github/workflows/ci.yml
 fi
-# .github/workflows/ci.yml.example is the one file under .github/ written FOR you — it stays.
 # rmdir, never rm -rf: a directory that still holds files of yours is left exactly as it is.
 rmdir docs 2>/dev/null || true
 
@@ -55,8 +53,9 @@ First steps (the kit's README calls this "First 5 minutes"):
 2. Fill `LICENSE` (`<YEAR>`, `<YOUR NAME>`) — the cleanup left you an MIT skeleton.
 3. Fill `CLAUDE.md` (`/init` is the fastest way), restart Claude Code.
 4. Declare: `/business` · `/decision` as you choose · `/compliance` if in scope.
-5. Optional CI: `.github/workflows/ci.yml.example` is yours — rename it to `ci.yml`
-   and adapt. It ships fully commented out, so it does nothing until you do.
+5. Not in regulated scope? Delete `COMPLIANCE.md` and `.claude/skills/compliance/` —
+   `/business` will tell you which way this project goes. An empty posture file reads
+   as "declared" to every later audit.
 6. Everything else: `GUIDE.md` PART 9.
 EOF
 else
@@ -92,16 +91,10 @@ else
   echo "template-cleanup: LICENSE is no longer attest's — left untouched"
 fi
 
-# ADR-0015 parity with install.sh: a repo with no Python keeps no Python formatter config.
-# Without this the two adoption paths disagree — the installer withholds ruff.toml from a
-# non-Python project while the template button hands it one.
-# The prune list mirrors install.sh's has_python_markers exactly — a vendored .py under
-# node_modules must not count as "this project is Python" on either path.
-if [ ! -f pyproject.toml ] && [ ! -f setup.py ] && [ ! -f setup.cfg ] && [ ! -f requirements.txt ] &&
-   [ -z "$(find . \( -name .git -o -name .claude -o -name node_modules -o -name .venv \) \
-        -prune -o -name '*.py' -print -quit 2>/dev/null)" ]; then
-  rm -f ruff.toml
-  echo "template-cleanup: no Python here — removed ruff.toml (the format hook stays inert)"
-fi
+# COMPLIANCE.md and .claude/skills/compliance/ are deliberately LEFT here, even though
+# install.sh does not ship them without --compliance (ADR-0030). The two paths disagree on
+# purpose: a generated repo has no install.sh to re-run, so removing them would be the one
+# state a user cannot get out of without going back to the kit. /business closes the gap from
+# the other side — it tells you to delete them when the archetype says out of scope.
 
 echo "template-cleanup: done"

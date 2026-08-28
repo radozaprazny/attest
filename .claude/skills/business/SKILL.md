@@ -7,7 +7,10 @@ description: >-
   / data-pipeline / AI-system / local-app), which selects a tailored template and a focused
   question set. Three modes: bootstrap (write the file in a new project),
   update (reconcile it against the project's state), and `audit` (check reality —
-  code, commits, diff — against the declared non-goals and scope, read-only).
+  code, commits, diff — against the declared non-goals and scope, read-only; in a project
+  that did not install /compliance it also inherits the shared ladder's fallback row for
+  regulated ground). Bootstrap and update end by making the compliance call — whether this
+  project needs COMPLIANCE.md at all.
   Generic — usable in any project. Do NOT use it for live status (that belongs in
   PROGRESS.md) or for rules/conventions (they belong in CLAUDE.md).
 disable-model-invocation: true
@@ -168,7 +171,24 @@ ship gate is `/audit-history`): it does
 not touch the document, it **reports** whether what the repo is *doing* still matches what
 `BUSINESS.md` *declares*. It owns **non-goal / scope** drift only — an undocumented decision
 (a new dependency, a new pattern) is `/decision audit`'s finding and regulated ground is
-`/compliance audit`'s, so one hunk is flagged once. You own what the code **does**;
+`/compliance audit`'s, so one hunk is flagged once.
+
+> **Unless `/compliance` is not installed** (`.claude/skills/compliance/` absent — the project
+> opted out, attest ADR-0030). Then its ground is re-assigned by the ladder's table and its
+> last row is **yours**: regulated ground with no choice and no bytes behind it is a finding
+> *here*, because what is missing is a **declaration**. That covers the whole of the row —
+> a bare new personal-data field, a model or automated decision wired in with nothing to
+> weigh, a new data source / export / transfer, a feature on prohibited (Art 5) ground.
+> Report it **once**, with the clause *"regulated ground; /compliance is not installed in this
+> project."*
+>
+> **Take the severity from the ladder, not from this paragraph.** Its floor stands in every
+> audit: special-category or national-ID personal data, or an Art 5 practice, is a
+> **blocker** — inheriting a ground must never be able to lower what it would have scored.
+> Everything else on the row is **major**. This is the only thing that makes you fire on
+> something other than a non-goal, and only while that skill is absent.
+
+You own what the code **does**;
 `/audit-history` owns what the repo **ships** (bytes in the tree or history) — so a violated
 *behaviour* non-goal ("no network access") is yours, even if it looks like a leak risk.
 
@@ -180,8 +200,9 @@ not touch the document, it **reports** whether what the repo is *doing* still ma
    flows or sources.
    *Run as a `/gate` pass you have no git at all* — scope from the material handed to you
    instead: `diff.patch` is the change under audit, `log-docs.txt` dates the last
-   `BUSINESS.md` edit, and the newest name in `gate-records.txt` carries the sha of the last
-   gated commit; take the later of those two as the window's start. If neither file reached
+   `BUSINESS.md` edit, and the names in `gate-records.txt` carry the shas they gated — match on
+   the sha, not on the order (a record may be written late, so name order is write order;
+   attest ADR-0032). Take the later of those two as the window's start. If neither file reached
    you, audit the diff alone and **say so in the verdict** — an unscoped pass may re-flag
    drift a previous run already reported.
 3. **Check each declared non-goal** — is the repo now doing the thing it said it would not?
@@ -190,14 +211,60 @@ not touch the document, it **reports** whether what the repo is *doing* still ma
 4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (file / commit / diff hunk), and a severity —
    - **blocker** — a stated non-goal is being violated;
-   - **major (scope creep)** — real work outside the declared scope, or the archetype no
+   - **major** — real work outside the declared scope, or the archetype no
      longer fits;
    - **minor** — a stale "Later:" item, or wording that has drifted.
    End with a recommended `BUSINESS.md` update (which section, roughly what) — but **do not
    make it**. If nothing drifted, say so in one line. **The audit writes nothing.**
+5. **One extra verdict line, only when it applies.** If `/compliance` is **not installed** and
+   this diff (or the archetype no longer fitting) plainly triggers regulated scope, add:
+   *"the compliance call may need re-making: &lt;the trigger&gt;; re-run `install.sh --compliance`
+   — or, in a repo generated from the template, `COMPLIANCE.md` and
+   `.claude/skills/compliance/` are already there and only need filling."* A pointer, not a
+   finding: it never moves the verdict line. Without it the call made at bootstrap is never
+   revisited, and the trigger is an event that arrives later (attest ADR-0030).
 
 **Audit writes nothing.** If I agree with a finding, I re-run the skill in update mode
 (Mode 2) to change the document.
+
+## The compliance call — make it here, once, after the archetype
+
+`/compliance` and `COMPLIANCE.md` are **opt-in**: `install.sh` does not land them, because at
+install time nobody yet knows whether the project is in regulated scope, and an empty
+`COMPLIANCE.md` is worse than none — it reads as *"posture declared"* to every later audit
+while declaring nothing (attest ADR-0030). The archetype you just established is the first
+moment the question can actually be answered, so answer it here.
+
+After bootstrap or update (**not** in `audit` mode), check whether `.claude/skills/compliance/`
+exists, and weigh what you just recorded — the archetype, the target user, whether personal
+data or a model-driven decision is anywhere in scope.
+
+**If the skill is present and the project is plainly in scope**, check whether `COMPLIANCE.md`
+actually says anything: if its sections are still `<placeholder>`, say so and point at
+`/compliance` — a present-but-empty posture file is the state ADR-0030 calls worse than none,
+and the template path produces it by default. If it is filled, say nothing; it is where it
+belongs. **If it is present and the project is plainly out of scope** (a repo generated from
+the template button gets it whether or not it needs it), say so and recommend deleting
+`COMPLIANCE.md` and `.claude/skills/compliance/`, plus recording the one-sentence reason as
+below. **If it is absent**, say **one** of two things, in one or two lines:
+
+- **In scope, or genuinely uncertain** — name the trigger you saw (personal data, an
+  automated decision, an EU market placement, a regulated sector) and tell me to re-run the
+  installer with `--compliance`, then `/compliance`. Uncertainty resolves toward installing
+  it: the cost of the skill sitting unused is a directory, the cost of a missing posture is
+  a finding nobody owns.
+- **Out of scope** — say so plainly with the reason in one clause, and recommend I record
+  that single sentence somewhere durable (a line in `BUSINESS.md`'s non-goals is the usual
+  home: *"no personal data, no EU market placement — regulatory posture out of scope"*).
+  A recorded "out of scope, because …" is a real declaration; an absent file is not.
+
+**In `audit` mode the call is not re-opened here.** Mode 3 step 5 carries the one exception —
+a single pointer line when a later change triggers regulated scope — and it is written there
+rather than restated here because Mode 3 is the section `/gate` hands to the subagent. Two
+copies of one rule drift apart; this one did.
+
+Never create `COMPLIANCE.md` yourself, and never guess a legal tier — the archetype is a
+trigger, not a classification (attest ADR-0001).
 
 ## After editing
 
