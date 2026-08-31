@@ -2,27 +2,48 @@
 # install.sh — install the attest kit into a project.
 #
 # Never clobbers. Every file is copy-if-absent; anything already present is left exactly as
-# it is and reported as SKIPPED for you to merge by hand. Nothing here is attest's identity:
-# README.md and LICENSE describe *attest* and are deliberately not installed.
+# it is and reported for you to merge by hand. Nothing here is attest's identity: README.md
+# and LICENSE describe *attest* and are deliberately not installed.
 #
-#   ./install.sh <path-to-your-project>
+# The report is grouped by CAPABILITY, not by path (attest ADR-0031): what you can now do,
+# what stayed yours, what did not land and why. The per-file detail prints only when there is
+# something a human actually has to act on.
+#
+#   ./install.sh [--compliance] <path-to-your-project>
 
 set -Eeuo pipefail   # -E: the ERR trap below must fire from inside functions too
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-TARGET="${1:-}"
+TARGET=""
+WANT_COMPLIANCE=0
 
-[ -n "$TARGET" ] || { echo "usage: ./install.sh <path-to-your-project>" >&2; exit 2; }
+usage() {   # usage [exit-code] — a requested --help is not an error, so it exits 0 on stdout
+  local code="${1:-2}"
+  if [ "$code" = 0 ]; then echo "usage: ./install.sh [--compliance] <path-to-your-project>"
+  else echo "usage: ./install.sh [--compliance] <path-to-your-project>" >&2; fi
+  exit "$code"
+}
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --compliance) WANT_COMPLIANCE=1 ;;
+    -h|--help)    usage 0 ;;
+    -*)           echo "install.sh: unknown option: $1" >&2; usage ;;
+    *)            [ -z "$TARGET" ] || { echo "install.sh: more than one target given" >&2; usage; }
+                  TARGET="$1" ;;
+  esac
+  shift
+done
+
+[ -n "$TARGET" ] || usage
 [ -d "$TARGET" ] || { echo "install.sh: no such directory: $TARGET" >&2; exit 2; }
 TARGET="$(cd "$TARGET" && pwd -P)"   # -P: resolve symlinks, so the self-install guard holds
 # Ancestry, not just equality: installing into a subdirectory of the kit (a mistyped
 # tab-completion) or into a directory that contains it would litter the checkout with a
 # second copy. The trailing slashes make the prefix test exact — and TARGET == KIT is the
-# degenerate case of the first pattern.
-# Both sides carry exactly one trailing slash, so the prefix test is exact and "/" (where
-# pwd -P leaves no trailing component) behaves like any other directory. The prefixes are
-# built as variables first: "${VAR%/}"/* would put a *quoted null* in the pattern, which bash
-# matches literally — the guard would then silently never fire for TARGET=/.
+# degenerate case of the first pattern. The prefixes are built as variables first:
+# "${VAR%/}"/* would put a *quoted null* in the pattern, which bash matches literally — the
+# guard would then silently never fire for TARGET=/.
 KIT_P="${KIT%/}/"
 TARGET_P="${TARGET%/}/"
 case "$TARGET_P" in "$KIT_P"*)
@@ -33,7 +54,10 @@ case "$KIT_P" in "$TARGET_P"*)
 esac
 
 INSTALLED=()
-SKIPPED=()
+KEPT=()               # yours, left exactly as they were — informational, never a warning
+NEEDS_YOU=()          # the kit moved and your copy did not, or a hook is on disk but unwired
+LINES=()              # the report, buffered: a run that changed nothing prints one line instead
+LAST=""               # per-file outcome: new | same | kept | drift | none
 
 # An abort mid-run (unwritable path, .claude present as a regular file, disk full) leaves a
 # partial install and skips the report below — so say what landed and that a re-run is safe.
@@ -51,32 +75,59 @@ on_abort() {
 }
 trap on_abort ERR
 
-note_installed() { INSTALLED+=("$1"); }
-note_skipped()   { SKIPPED+=("$1 — $2"); }
+note_needs_you() { NEEDS_YOU+=("$1 — $2"); }
 
-# copy_if_absent <relative-path> [reason-noun]
+# copy_if_absent <relative-path> [reason-noun] — sets LAST
 copy_if_absent() {
   local rel="$1" what="${2:-file}"
+  LAST="none"
   # A file this kit checkout does not have is not an error to abort on — an older kit, or a
   # partial copy, simply has nothing to install here.
   [ -e "$KIT/$rel" ] || return 0
   # -L too: a dangling symlink is not -e, but cp must not write through it either
   if [ -e "$TARGET/$rel" ] || [ -L "$TARGET/$rel" ]; then
     if cmp -s "$KIT/$rel" "$TARGET/$rel" 2>/dev/null; then
-      note_skipped "$rel" "already exists (identical to the kit's — a re-run, nothing to merge)"
+      LAST="same"
     elif [ "$what" = "version" ]; then
       # Kit-owned trees (skills/hooks/agents): a silently stale copy is how installs
-      # freeze — say that it drifted and where the fresh copy sits (ADR-0018).
-      note_skipped "$rel" "already exists (your version kept — DIFFERS from the kit's; diff against $KIT/$rel to upgrade)"
+      # freeze — say that it drifted and where the fresh copy sits (ADR-0018). This one
+      # really is an action: the kit moved and your copy did not.
+      LAST="drift"
+      note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
     else
-      note_skipped "$rel" "already exists (your $what kept)"
+      # A DOCUMENT of yours that the kit also ships is the DESIGNED outcome, not a problem:
+      # it is reported as kept, never as something to fix (ADR-0031). Only documents go in
+      # that bucket — settings.json is judged by whether it leaves a hook unwired, and listing
+      # it here too would print one file twice under opposite framings.
+      # An `[ … ] && …` here would leave the function returning 1 for a non-document, which
+      # `set -e` plus the ERR trap turns into a bogus "ABORTED, partial install".
+      LAST="kept"
+      if [ "$what" = "document" ]; then KEPT+=("$rel"); fi
     fi
   else
     mkdir -p "$(dirname "$TARGET/$rel")"
     cp "$KIT/$rel" "$TARGET/$rel"
-    note_installed "$rel"
+    INSTALLED+=("$rel")
+    LAST="new"
   fi
 }
+
+# Group accounting: every group ends up as one line. G_NEW counts what landed, G_ACT counts
+# what the human must act on; the icon follows from those two, so no caller decides it.
+G_NEW=0; G_ACT=0
+group_reset() { G_NEW=0; G_ACT=0; }
+group_add() {   # group_add <path> [noun] — copy and fold the outcome into the group
+  copy_if_absent "$1" "${2:-version}"
+  case "$LAST" in
+    new)    G_NEW=$((G_NEW + 1)) ;;
+    drift)  G_ACT=$((G_ACT + 1)) ;;
+  esac
+}
+group_icon() { if [ "$G_ACT" -gt 0 ]; then echo "⚠"; elif [ "$G_NEW" -gt 0 ]; then echo "✓"; else echo "·"; fi; }
+# say <icon> <label> <text> — only the label is padded, and it is always ASCII. Padding the
+# content column instead would misalign the moment a "·" separator appeared in it: printf
+# counts bytes, and every box-drawing character costs two or three of them (ADR-0031).
+say() { LINES+=("$(printf '  %s  %-10s %s' "$1" "$2" "$3")"); }
 
 # copy_tree_if_absent <relative-dir> — per-file, never a blanket cp -r
 copy_tree_if_absent() {
@@ -84,7 +135,7 @@ copy_tree_if_absent() {
   [ -d "$KIT/$dir" ] || return 0
   while IFS= read -r -d '' src; do
     rel="${src#"$KIT"/}"   # quoted: $KIT is a literal here, not a glob
-    copy_if_absent "$rel" "version"
+    group_add "$rel" "version"
   done < <(find "$KIT/$dir" -type f \
       ! -name '*.pyc' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' \
       ! -path '*/__pycache__/*' -print0)
@@ -96,7 +147,8 @@ ensure_ignore() {
   # Never write through a symlinked .gitignore: touch would follow it (creating a file
   # outside the project, or aborting the whole run on an unwritable path).
   if [ -L "$TARGET/.gitignore" ]; then
-    note_skipped ".gitignore += $line" "your .gitignore is a symlink — append it yourself"
+    note_needs_you ".gitignore += $line" "your .gitignore is a symlink — append the line yourself"
+    G_ACT=$((G_ACT + 1))
     return 0
   fi
   touch "$TARGET/.gitignore"
@@ -109,186 +161,188 @@ ensure_ignore() {
     echo >> "$TARGET/.gitignore"
   fi
   printf '%s\n' "$line" >> "$TARGET/.gitignore"
-  note_installed ".gitignore += $line"
-}
-
-has_ruff_config() {
-  # matches [tool.ruff] and [tool.ruff.lint], indented, and the quoted [tool."ruff"] forms —
-  # all valid TOML. The trailing [].] class is what keeps [tool.ruffle] out; the alternation
-  # replaces a \1 backreference, which is a GNU extension and undefined in POSIX ERE (BSD).
-  [ -f "$TARGET/.ruff.toml" ] ||
-    grep -Eq '^[[:space:]]*\[tool\.(ruff|"ruff")[].]' "$TARGET/pyproject.toml" 2>/dev/null
-}
-
-has_python_markers() {
-  # .claude/ excluded: the kit's own hooks are .py and would make every target "Python".
-  # -print -quit short-circuits on the first hit; vendor/VCS dirs pruned for speed.
-  [ -f "$TARGET/pyproject.toml" ] || [ -f "$TARGET/setup.py" ] || [ -f "$TARGET/setup.cfg" ] ||
-    [ -f "$TARGET/requirements.txt" ] ||
-    [ -n "$(find "$TARGET" \( -name .claude -o -name .git -o -name node_modules -o -name .venv \) \
-        -prune -o -name '*.py' -print -quit 2>/dev/null)" ]
+  INSTALLED+=(".gitignore += $line")
+  G_NEW=$((G_NEW + 1))
 }
 
 # The kit's one version marker lives inside the shared ladder, so it travels with every
 # install (ADR-0018) — there is no separate VERSION file to copy or clean up.
 KIT_VERSION="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/_shared/audit-ladder.md" 2>/dev/null || true)"
-echo "attest${KIT_VERSION:+ $KIT_VERSION} → $TARGET"
+echo
+echo "attest${KIT_VERSION:+ $KIT_VERSION}  →  $TARGET"
 echo
 
-# --- the five control documents (templates; yours win if they exist) -----------------
+# --- documents ------------------------------------------------------------------------
+# COMPLIANCE.md is NOT here: it is opt-in, decided after /business knows the archetype
+# (ADR-0030). An empty posture file reads as "declared" to every later audit.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
-for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md COMPLIANCE.md; do
+group_reset
+for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md; do
   copy_if_absent "$doc" "document"
+  [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
 done
-
-# --- the reference guide: this one always lands ---------------------------------------
-# GUIDE.md is the kit's reference manual, not a runtime dependency: the shared audit ladder and
-# the ownership contract live in .claude/skills/_shared/audit-ladder.md, which installs with the
-# skills that read it (ADR-0010). The "GUIDE PART N" references in the skills are documentation
-# pointers — a dangling one costs a reader a lookup, not an audit its severity.
-GUIDE_REF="GUIDE.md"   # which file the kit's manual ended up in — the NEXT steps cite it
-if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
-  cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
-  note_installed "GUIDE.md"
-  # A leftover attest-GUIDE.md from an earlier dual-install would now shadow nothing —
-  # point it out (never delete it ourselves).
-  if [ -e "$TARGET/attest-GUIDE.md" ] || [ -L "$TARGET/attest-GUIDE.md" ]; then
-    note_skipped "attest-GUIDE.md" "leftover from an earlier install — GUIDE.md is now the kit's; delete it if you no longer keep your own guide"
-  fi
-elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
-  # A re-run: the GUIDE.md present is the kit's own prior install — not the user's.
-  note_skipped "GUIDE.md" "already the kit's version (re-run)"
-elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
-  # The kit's own manual from an older install — never clobber, but say what to do.
-  note_skipped "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
-elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
-  cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
-  GUIDE_REF="attest-GUIDE.md"
-  note_installed "attest-GUIDE.md (you have your own GUIDE.md — the skills' \"GUIDE PART N\" references mean this file)"
-elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
-  GUIDE_REF="attest-GUIDE.md"
-  note_skipped "attest-GUIDE.md" "already the kit's version (re-run)"
-else
-  # Your own GUIDE.md plus an attest-GUIDE.md that is neither current nor yours: it is the
-  # kit's manual from an older install. Same refresh hint the GUIDE.md branch gets — without
-  # it this path is the one place a stale manual can never be noticed (ADR-0018).
-  GUIDE_REF="attest-GUIDE.md"
-  note_skipped "attest-GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh (your own GUIDE.md is untouched; the skills' \"GUIDE PART N\" refs mean attest-GUIDE.md)"
+DOC_LIST="CLAUDE · PROGRESS · BUSINESS · DECISIONS"
+if [ "$WANT_COMPLIANCE" = 1 ]; then
+  copy_if_absent "COMPLIANCE.md" "document"
+  [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
+  DOC_LIST="$DOC_LIST · COMPLIANCE"
 fi
+say "$(group_icon)" "Documents" "$DOC_LIST — templates, you fill them in"
 
-# --- .claude/ — per file, so your own skills/agents/hooks/settings are never touched --
-copy_tree_if_absent ".claude/skills"
+# --- skills ------------------------------------------------------------------------------
+# Enumerate the kit's skills rather than listing them: a hardcoded list means a skill added
+# upstream installs nowhere and nobody finds out (the same failure ADR-0018 exists to prevent).
+# `compliance` is the one opt-in member — every other directory ships (ADR-0030).
+group_reset
+CMDS=""
+for dir in "$KIT"/.claude/skills/*/; do
+  [ -d "$dir" ] || continue
+  sk="$(basename "$dir")"
+  if [ "$sk" = "compliance" ] && [ "$WANT_COMPLIANCE" = 0 ]; then
+    continue
+  fi
+  copy_tree_if_absent ".claude/skills/$sk"
+  # _shared holds the ladder, not a skill — it installs, but it is not a command you can type.
+  [ "$sk" = "_shared" ] || CMDS="$CMDS /$sk"
+done
+say "$(group_icon)" "Commands" "${CMDS# }"
+
+# --- subagents ---------------------------------------------------------------------------
+group_reset
 copy_tree_if_absent ".claude/agents"
-copy_tree_if_absent ".claude/hooks"
-# Warn about unwired hooks only when the kept settings.json really leaves a hook unwired.
-# "Differs from the kit's" is not the same question: an older kit stanza — or yours with the
-# kit's hooks merged in — registers all three already, and the categorical warning would be
-# false (ADR-0020). So ask the file which hooks it names. Same present-predicate as
-# copy_if_absent (-e or -L): a dangling symlink names nothing and warns.
+say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagents /gate runs"
+
+# --- hooks + their wiring ----------------------------------------------------------------
+# Warn about unwired hooks only when the kept settings.json really leaves one unwired: an
+# older stanza — or yours with the kit's hooks merged in — registers them already, and a
+# categorical warning would be false (ADR-0020). So ask the file which hooks it names.
+KIT_HOOKS=()
+for h in "$KIT"/.claude/hooks/*; do
+  [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
+done
 SETTINGS_STATE="absent"
 if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
   if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
     SETTINGS_STATE="identical"
   else
     SETTINGS_STATE="wired"
-    for hook in format_py.py precompact_checkpoint_nudge.py stop_session_length_warn.py; do
+    for hook in "${KIT_HOOKS[@]:-}"; do
       grep -qF "$hook" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_STATE="unwired"
     done
   fi
 fi
+group_reset
+copy_tree_if_absent ".claude/hooks"
 copy_if_absent ".claude/settings.json" "settings"
+# No `drift` arm: copy_if_absent only ever sets it for a "version" file. Whether a KEPT
+# settings.json is an action is decided by SETTINGS_STATE below, not by the copy.
+case "$LAST" in new) G_NEW=$((G_NEW + 1)) ;; esac
+if [ "$SETTINGS_STATE" = "unwired" ]; then
+  G_ACT=$((G_ACT + 1))
+  note_needs_you ".claude/settings.json" "your settings kept, and they leave one of the kit's hooks unwired — see the stanza below"
+fi
+say "$(group_icon)" "Guards" "non-goals into every session · a ship gate before anything leaves"
 
-# --- ruff: only into Python projects, and never over an existing config ---------------
-# ruff resolves ruff.toml > .ruff.toml > pyproject.toml and does NOT merge, so copying ours
-# in would silently hijack an existing config while leaving it on disk as dead code. And a
-# repo with no Python gets no Python residue (ADR-0015) — the format hook stays inert there.
-#
-# An existing ruff.toml is judged FIRST and by content, not by the has_ruff_config predicate:
-# after one install that file is usually the kit's own, and reporting it as "you already
-# configure ruff" would both lie and exempt it from the identical-vs-DIFFERS drift ladder
-# every other kit file gets (ADR-0018, ADR-0020).
-if [ -e "$TARGET/ruff.toml" ] || [ -L "$TARGET/ruff.toml" ]; then
-  if cmp -s "$KIT/ruff.toml" "$TARGET/ruff.toml" 2>/dev/null; then
-    note_skipped "ruff.toml" "already exists (identical to the kit's — a re-run, nothing to merge)"
-  else
-    note_skipped "ruff.toml" "your ruff config kept — DIFFERS from the kit's (ours would have overridden it; diff against $KIT/ruff.toml to see what the kit ships)"
+# --- the reference guide: this one always lands -------------------------------------------
+# GUIDE.md is the kit's reference manual, not a runtime dependency: the shared audit ladder and
+# the ownership contract live in .claude/skills/_shared/audit-ladder.md, which installs with the
+# skills that read it (ADR-0010). The "GUIDE PART N" references in the skills are documentation
+# pointers — a dangling one costs a reader a lookup, not an audit its severity.
+GUIDE_REF="GUIDE.md"   # which file the kit's manual ended up in — the NEXT steps cite it
+GUIDE_ICON="·"
+if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
+  cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
+  INSTALLED+=("GUIDE.md"); GUIDE_ICON="✓"
+  # A leftover attest-GUIDE.md from an earlier dual-install would now shadow nothing —
+  # point it out (never delete it ourselves).
+  if [ -e "$TARGET/attest-GUIDE.md" ] || [ -L "$TARGET/attest-GUIDE.md" ]; then
+    note_needs_you "attest-GUIDE.md" "leftover from an earlier install — GUIDE.md is now the kit's; delete it if you no longer keep your own guide"
   fi
-elif has_ruff_config; then
-  note_skipped "ruff.toml" "you already configure ruff elsewhere (ours would silently override it)"
-elif ! has_python_markers; then
-  note_skipped "ruff.toml" "no Python detected — see GUIDE PART 2 to swap the formatter unit"
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
+  : # a re-run: the GUIDE.md present is the kit's own prior install
+elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
+  GUIDE_ICON="⚠"
+  note_needs_you "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
+elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
+  cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
+  GUIDE_REF="attest-GUIDE.md"; GUIDE_ICON="✓"
+  INSTALLED+=("attest-GUIDE.md")
+  KEPT+=("GUIDE.md (yours — the kit's manual landed beside it as attest-GUIDE.md, which is what the skills' \"GUIDE PART N\" references mean)")
+elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
+  GUIDE_REF="attest-GUIDE.md"
 else
-  copy_if_absent "ruff.toml" "config"
+  # Your own GUIDE.md plus an attest-GUIDE.md that is neither current nor yours: it is the
+  # kit's manual from an older install. Same refresh hint the GUIDE.md branch gets — without
+  # it this path is the one place a stale manual can never be noticed (ADR-0018).
+  GUIDE_REF="attest-GUIDE.md"; GUIDE_ICON="⚠"
+  note_needs_you "attest-GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh (your own GUIDE.md is untouched; the skills' \"GUIDE PART N\" refs mean attest-GUIDE.md)"
 fi
+say "$GUIDE_ICON" "Manual" "$GUIDE_REF — the whole loop is PART 9"
 
-# --- optional examples: yours to rename and adapt, never live as shipped ---------------
-# "version" noun: both are kit-owned files, so an upstream change must show as DIFFERS
-# rather than as a silent "your example kept" (ADR-0018).
-copy_if_absent ".mcp.json.example" "version"
-# The one file in .github/ written FOR the consumer. Everything else under .github/ is
-# attest's own CI and stays behind (ADR-0021).
-copy_if_absent ".github/workflows/ci.yml.example" "version"
-
-# --- .gitignore: append the lines the kit needs, never replace the file ----------------
+# --- .gitignore: append the lines the kit needs, never replace the file --------------------
+group_reset
 ensure_ignore ".claude/settings.local.json"
-# The gate's run records under .attest/ are meant to be committed; only its scratch is not.
+# The run records under .attest/ are meant to be committed; only the shared scratch is not —
+# the gate's fallback material and the ship guard's decision log both live there (ADR-0034).
 ensure_ignore ".attest/tmp/"
-if has_python_markers || [ -e "$TARGET/ruff.toml" ]; then
-  ensure_ignore ".ruff_cache/"
+if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
+  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/"
 fi
 
-# --- report ---------------------------------------------------------------------------
-echo "INSTALLED (${#INSTALLED[@]}):"
-if [ ${#INSTALLED[@]} -eq 0 ]; then echo "  (nothing — everything was already present)"; fi
-for i in "${INSTALLED[@]:-}"; do [ -n "$i" ] && echo "  + $i"; done
+# --- what deliberately did not land --------------------------------------------------------
+if [ "$WANT_COMPLIANCE" = 0 ]; then
+  say "·" "Opt-in" "compliance — not installed; /business tells you whether you need it"
+fi
+say "·" "Not ours" "README.md · LICENSE — they describe attest, not your project"
 
-echo
-echo "SKIPPED (${#SKIPPED[@]}) — left untouched, merge by hand if you want the kit's version:"
-if [ ${#SKIPPED[@]} -eq 0 ]; then echo "  (nothing)"; fi
-for s in "${SKIPPED[@]:-}"; do [ -n "$s" ] && echo "  · $s"; done
+# --- the report ------------------------------------------------------------------------------
+# A re-run that changed nothing says so in one line. Eight rows of "·" is a wall that reads as
+# "something happened" and has to be parsed before you learn that nothing did (ADR-0031).
+if [ ${#INSTALLED[@]} -eq 0 ] && [ ${#KEPT[@]} -eq 0 ] && [ ${#NEEDS_YOU[@]} -eq 0 ]; then
+  echo "  ·  Everything was already in place — this run changed nothing."
+else
+  for l in "${LINES[@]}"; do echo "$l"; done
+fi
 
-# --- honesty about what will NOT run ---------------------------------------------------
+if [ ${#KEPT[@]} -gt 0 ]; then
+  echo
+  echo "  YOURS, UNTOUCHED (${#KEPT[@]}) — the kit ships these too and did not overwrite them:"
+  for k in "${KEPT[@]}"; do echo "    · $k"; done
+fi
+
+if [ ${#NEEDS_YOU[@]} -gt 0 ]; then
+  echo
+  echo "  NEEDS YOU (${#NEEDS_YOU[@]}) — nothing was overwritten; these are yours to merge:"
+  for s in "${NEEDS_YOU[@]}"; do echo "    · $s"; done
+fi
+
 if [ "$SETTINGS_STATE" = "unwired" ]; then
   cat <<'EOF'
 
-⚠ Your .claude/settings.json was kept and does not register all of the kit's hooks — the
-  ones it leaves out are on disk but NOT wired, and will not run until you merge this
-  stanza into your .claude/settings.json:
+  ⚠ The hooks it leaves out are on disk but NOT wired, and will never run. Merge this in:
 
 EOF
-  sed 's/^/    /' "$KIT/.claude/settings.json"
+  sed 's/^/      /' "$KIT/.claude/settings.json"
 elif [ "$SETTINGS_STATE" = "wired" ]; then
-  cat <<EOF
-
-· Your .claude/settings.json was kept. It differs from the kit's but registers all three
-  hooks, so they will run. Diff it against $KIT/.claude/settings.json if you want the
-  kit's current stanza.
-EOF
+  echo
+  echo "  · Your .claude/settings.json was kept. It differs from the kit's but registers both"
+  echo "    hooks, so they will run."
 fi
 
-if ! command -v python3 >/dev/null 2>&1; then
-  cat <<'EOF'
-
-⚠ python3 is not on PATH — the three hooks in .claude/hooks/ will fail on every matching
-  event until it is installed (or delete their entries from .claude/settings.json).
-EOF
-fi
-
+# --- next ------------------------------------------------------------------------------------
 echo
-echo "NEXT"
+echo "  NEXT"
 n=1
-echo "  $n. Restart Claude Code if .claude/ (or .claude/skills/) is new to this project —"
-echo "     skills only load on a fresh session. Until then /business does not exist."
-n=$((n+1))
+printf '  %d  %-24s %s\n' "$n" "Restart Claude Code" "skills only load on a fresh session"
+n=$((n + 1))
 if [ "$CLAUDE_INSTALLED" = 1 ]; then
-  echo "  $n. Fill CLAUDE.md — it is loaded every turn and ships with <placeholders>. No skill"
-  echo "     owns it; /init is the fastest way."
-  n=$((n+1))
+  printf '  %d  %-24s %s\n' "$n" "Fill CLAUDE.md" "loaded every turn, ships with <placeholders>; /init is quickest"
+  n=$((n + 1))
 fi
-echo "  $n. /business    — declare intent + archetype (BUSINESS.md)"
-echo "     /compliance  — only if you are in regulated scope (COMPLIANCE.md)"
-n=$((n+1))
-echo "  $n. Everything else: $GUIDE_REF PART 9 (the whole loop)."
+printf '  %d  %-24s %s\n' "$n" "/business" "purpose, archetype, non-goals — the hooks read these"
+n=$((n + 1))
+printf '  %d  %-24s %s\n' "$n" "/decision" "the choices you have already made"
+n=$((n + 1))
+printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
 echo
-echo "Not installed on purpose: README.md and LICENSE describe attest, not your project."

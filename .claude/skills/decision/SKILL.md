@@ -99,8 +99,19 @@ Invoked as **`/decision audit`**. Read-only — it **reports**, it does not writ
 
 **The one exception is the `/decision` ↔ `/compliance` edge** (`_shared/audit-ladder.md`): a
 choice that lands on **regulated ground** — personal data, a model or automated decision, a
-new data source/transfer, an Art 5 practice — belongs to `/compliance audit` alone, which
-names the missing ADR inside its own finding. Everything else that is a decision is yours.
+new data source/transfer, an Art 5 practice — belongs to `/compliance audit`, which names the
+missing ADR inside its own finding. Everything else that is a decision is yours.
+
+**Unless `/compliance` is not installed** (`.claude/skills/compliance/` absent — the project
+opted out, attest ADR-0030). Then that ground is **re-assigned** by the ladder's table rather
+than dropped, and its first row is yours: a regulated-ground hunk with a **choice** behind it
+comes back to you (the rest goes to `/audit-history` if it is bytes, otherwise to `/business
+audit`). **Take the severity from the ladder, not from your rung list below** — its floor is
+absolute: special-category or national-ID personal data, or an Art 5 practice, is a **blocker**
+even when it reaches you as an inherited choice. Report yours once, with a clause naming what
+it would have been — *"regulated ground; /compliance
+is not installed in this project"*. Deferring to an audit that does not exist is how a finding
+disappears, and the contract forbids silence, not just double-reporting.
 
 1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains; the
    shipped template's commented example is not a recorded decision).
@@ -113,7 +124,7 @@ names the missing ADR inside its own finding. Everything else that is a decision
 4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
    one-line description, **evidence** (file / commit / diff hunk), and a severity —
    - **blocker** — a decision that contradicts a recorded ADR or a stated rule;
-   - **major (undocumented decision)** — a threshold-clearing choice with no entry;
+   - **major** — a threshold-clearing choice with no entry;
    - **minor** — a recorded entry gone stale, or a missing cross-reference.
    End with a recommended `DECISIONS.md` entry (title + the gap it fills) — but **do not**
    write it (recording is a human call, Mode 1). If nothing is undocumented, say so in one

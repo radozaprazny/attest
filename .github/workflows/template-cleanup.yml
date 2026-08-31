@@ -1,8 +1,9 @@
 # template-cleanup — runs ONCE in a repo generated from the attest template button and
 # removes everything that is attest's identity, not the user's project: attest's own docs,
 # its smoke test, install.sh, attest's CI, its README and its LICENSE. Then it deletes the
-# cleanup script and itself. `.github/workflows/ci.yml.example` stays — that one is written
-# for YOU (attest ADR-0021).
+# cleanup script and itself. It leaves COMPLIANCE.md and .claude/skills/compliance/ in place
+# even though install.sh does not ship them by default: a generated repo has no installer to
+# re-run, so /business rules on them instead (attest ADR-0030).
 #
 # The work lives in scripts/template-cleanup.sh, not inline here, so that the only
 # destructive code in the repo is shellcheck'd by CI and exercised by scripts/smoke.sh

@@ -106,6 +106,36 @@ against it. This log records how it got there and, more usefully, what was wrong
   *Test: `scripts/smoke.sh` grew from 23 to **61** assertions — the new ones cover exactly
   the branches the defects sat in, including fourteen on the cleanup — green.*
 
+- **Phase 11 — the subtraction pass (2026-08-28).** The first series that made the kit
+  *smaller*. Every component was put to one question — *would a new adopter miss this if it
+  were gone?* — and four answered no. The formatter went first (ADR-0027): it was the only
+  thing in the kit that edited the user's code, the only thing bound to one language, and the
+  root of five other decisions (ADR-0015, 0020's worked example, 0024, a Python-detection
+  predicate, a cleanup parity branch, a `.gitignore` line, a paragraph in the shipped
+  `CLAUDE.md`). Removing one hook deleted a whole subsystem — and with it the kit's last
+  interpreter dependency. Then the two remaining hooks, both of which merely *reminded*:
+  a compaction nudge that fires when it is already too late to act, and a session-length
+  warning measuring transcript lines as a proxy for context pressure that Claude Code shows
+  natively. What replaced them is the interesting half (ADR-0028): the same two event slots,
+  spent on **prevention**. A non-goal is *always a blocker* on the ladder, yet the agent only
+  met the non-goals when `/gate` ran — after the code existed; now `SessionStart` loads them
+  before the first edit. `/audit-history` was the ship gate, yet nothing connected it to the
+  command that ships; now a `PreToolUse` guard on `Bash` asks at exactly that moment, using a
+  run record keyed to the **current** HEAD sha, so the question is *"was this state audited"*
+  rather than *"was this repo ever audited"*. The rest was honesty about what the kit had been
+  shipping to people who did not need it: `COMPLIANCE.md` and `/compliance` became opt-in
+  because at install time nobody knows the archetype yet and an empty posture file reads as
+  *"declared"* (ADR-0030); the two `.example` files went, and the installer stopped printing
+  23 paths and started printing what you can now do (ADR-0031); the severity ladder lost the
+  per-skill alias that only restated the owner column (ADR-0029). Into an empty directory a
+  default install went from 23 items to 18 — the count is the least of it: none of the
+  survivors edit your code, none are language-bound, none are inert. `python3` stopped being
+  a requirement at all.
+  *Test: `scripts/smoke.sh` grew from 61 to **104** assertions — the new ones cover both hooks
+  end to end (silence on unfilled templates, the sha-specific ship check, valid JSON for a
+  hostile command), the opt-in flag in both orders, and the report's changed-nothing path —
+  green; shellcheck clean over the installer, the hooks, the smoke test and the cleanup.*
+
 ## Phase 7 — what the first real install found
 
 Phases 1–6 checked whether the kit was **internally** consistent. It was. Nobody had ever
@@ -172,3 +202,17 @@ them:
 - Resolved: the history question got its ADR and its answer — squashed to a single root
   commit at first release (ADR-0008); the phase-by-phase record survives in prose, here and
   in the decision log.
+
+  *Shipping it taught two more things, both about the guard.* Opening the PR meant writing the
+  first real ship record — and a record keyed to the HEAD being pushed can never sit in the
+  commit it names, so ADR-0033 wrote the rule down rather than leave the next reader to
+  re-derive it from a filename that looks off by one commit. Then a push at a sha no record
+  named went through with **no prompt**, and nothing in the repo could say whether the hook had
+  fired and the permission mode answered for it, or whether the hook had never been registered
+  at all. A gate whose firing leaves no trace is precisely the thing this kit exists to replace,
+  so ADR-0034 gave the guard a log — the pass as well as the ask — which in turn narrowed
+  ADR-0026: `.attest/tmp/` is shared scratch now, and whoever writes there deletes their own
+  files, not the directory. The suite grew 104 → 111, and one of the new runs exposed a fourth
+  defect that was nobody's design: `smoke.sh` inherited `ATTEST_THREAD_CARRIER` from the
+  developer's own settings and read the maintainer's live document instead of its fixtures. It
+  unsets both overrides now.

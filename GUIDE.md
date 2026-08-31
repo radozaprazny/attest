@@ -10,17 +10,22 @@ install it into any project with `install.sh` (PART 8; never by hand-copying).
 
 ## PART 1 — Control documents
 
-The kit runs on **five living documents**. Only `CLAUDE.md` is held in context every turn;
-the other four are read **on demand** by their skills, so the system stays cheap no matter
-how much it holds. (This PART and the README table are the *only* two full enumerations —
+The kit runs on **four living documents, plus one opt-in fifth**. Only `CLAUDE.md` is held in
+context **every turn**; the others are read **on demand** by their skills, so the system stays
+cheap no matter how much it holds. One deliberate exception: the `SessionStart` hook injects a
+capped extract of `BUSINESS.md`'s non-goals and `PROGRESS.md`'s state once per session (PART
+2.1) — bounded, and only from those two sections. (This PART and the README table are the *only* two full enumerations —
 everywhere else carries the one-line router below.)
 
 **Adopt on a gradient.** The minimum viable attest is **three documents** — `CLAUDE.md` +
 `PROGRESS.md` + `BUSINESS.md`: rules, thread, boundary. `DECISIONS.md` earns its keep at
 team scale or on a long project, when *"why did we do it this way?"* outlives anyone's
-memory; `COMPLIANCE.md` only in regulated scope. Documents you have not adopted cost
-nothing — the skills read them on demand, and an audit degrades to a note ("nothing
-declared") when one is absent.
+memory; `COMPLIANCE.md` only in regulated scope — and that one is **opt-in at install time**:
+`install.sh` does not land it or its skill unless you pass `--compliance`, because an empty
+posture file reads as *"declared"* to every later audit while declaring nothing (attest
+ADR-0030). `/business` makes that call for you once it knows the archetype. Documents you have
+not adopted cost nothing — the skills read them on demand, and an audit degrades to a note
+("nothing declared") when one is absent.
 
 ### 1.1 `CLAUDE.md` — project rules and conventions
 - **How:** a file in the repo root; loaded **automatically every turn**. Quick add: start a
@@ -62,6 +67,12 @@ declared") when one is absent.
   duties and can check a diff against them.
 - **When:** if the project is in regulated scope. Records provisions & checklists, **never a
   legal verdict**.
+- **Opt-in.** Neither this document nor `/compliance` installs by default. Re-run the
+  installer with `--compliance` when `/business` tells you the archetype triggers it. If you
+  are **out** of scope, record that in one sentence (a `BUSINESS.md` non-goal is the usual
+  home) — a recorded *"out of scope, because …"* is a declaration; an absent file is not.
+  With the skill absent its ground is **re-assigned**, never dropped — the shared ladder's
+  table names the owner for each kind of hunk (attest ADR-0030).
 
 > **Anti-duplication rule:** status → PROGRESS · rules → CLAUDE · why-it-exists → BUSINESS ·
 > why-we-chose-X → DECISIONS · under-what-rules → COMPLIANCE. **Each fact in exactly one
@@ -73,71 +84,89 @@ declared") when one is absent.
 
 ## PART 2 — Hooks (`.claude/settings.json` + `.claude/hooks/`)
 
-### 2.1 Auto-format hook (`PostToolUse`)
-- **How:** runs **by itself** after every edit of a `.py` file → tidies its imports, then
-  runs `ruff format` on it.
-- **What for:** the code is always formatted and its imports always sorted; you never think
-  about style.
-- **This one is a Python example — and it is two files, not one:**
-  - `.claude/hooks/format_py.py`, wired in as the `PostToolUse` entry of
-    `.claude/settings.json` (lint-fixes and formats, filters on `.py`, and no-ops when the
-    file is not Python or `ruff` is not on `PATH`);
-  - `ruff.toml` in the repo root (supplies the rules: line length, rule sets).
+**Two hooks, and the bar they had to clear.** A hook is a shell command the *harness* runs on
+an event — not something Claude decides to do — so it cannot be forgotten. That is its whole
+advantage over a skill, and the kit spends it on exactly two jobs: putting the project's
+boundaries in front of the agent **before** it writes, and asking about data at the moment it
+would leave the machine. Anything that merely *reminds* you of something you can already see
+is not worth an event (attest ADR-0028).
 
-  The hook auto-fixes **import hygiene only** (`I001`, `E401`). It deliberately does *not*
-  run the full `--fix`: `F401` would delete an import the moment you write it, before the
-  code that uses it exists. The rest of `[lint]` is yours to run — `ruff check .`.
+Both are POSIX `sh`. The kit needs no interpreter beyond `/bin/sh` and **installs nothing that
+edits your code** — there is no formatter here, by design (attest ADR-0027).
 
-  Swapping languages means replacing **both** — prettier + `.prettierrc`, rustfmt +
-  `rustfmt.toml`, gofmt, ... — and deleting `ruff.toml`. (`install.sh` already lands
-  `ruff.toml` and the `.ruff_cache/` ignore line **only when the target shows Python
-  markers** — a JS/Rust repo gets no Python residue; attest ADR-0015.)
+### 2.1 `SessionStart` — the declaration hook (`session_declaration.sh`)
+- **How:** at the start of every session it reads the **Non-goals** section of `BUSINESS.md`
+  and the **Current state** / **Next** sections of `PROGRESS.md`, and prints them. SessionStart
+  stdout is added to the session's context.
+- **What for:** a violated non-goal is *always a blocker* on the shared ladder — but `/gate`
+  can only find one after the code exists. This hook is the **prevention** half of that rule:
+  the boundaries are in context before the first edit, not after it.
+- **It stays quiet unless you have declared something.** A section still holding the shipped
+  `<placeholder>` text counts as undeclared and prints nothing, so a fresh install adds no
+  noise. Output is capped **per section** — 24 lines of non-goals, 8 of current state, 8 of
+  next — so no section can crowd out another, and a trimmed one says how much it dropped.
+  With framing and truncation notices the worst case is ~52 lines; this text is prepended to
+  *every* session, so it has to stay cheap.
+- **If your live documents are not at those names,** set `ATTEST_BUSINESS` and
+  `ATTEST_THREAD_CARRIER` — in the `env` block of `.claude/settings.json`, or in your
+  environment. Paths are relative to the project root. This is the case for any repo that
+  ships the kit's documents as *templates* and keeps its real ones elsewhere (attest's own
+  live in `docs/attest-*.md` — the same distinction `/gate` scopes with `$DOCS`). Section
+  names are matched loosely, so a renamed file with `## Current state` and `## Next` still
+  works.
 
-  **If Python arrives later**, that detection has already happened: the hook is wired but
-  its rules never landed, so it would format with ruff's defaults instead of the kit's.
-  **Re-run `install.sh`** — it is copy-if-absent, so it adds exactly the two missing pieces
-  (`ruff.toml`, the `.ruff_cache/` ignore line) and touches nothing else. Until you do, the
-  hook still cannot litter the repo: it runs ruff with `--no-cache`, so no unignored
-  `.ruff_cache/` appears (attest ADR-0024).
+### 2.2 `PreToolUse` on `Bash` — the ship guard (`ship_guard.sh`)
+- **How:** before Claude runs a Bash command, the hook matches it against a short list of
+  commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
+  create`, `npm publish`, `twine upload`, `cargo publish`, `docker push`, a Kaggle submit,
+  `scp`/`rsync`, `aws s3 cp`, `curl --upload-file`. On a hit it looks under `.attest/` for an
+  `/audit-history` run record naming the **current** HEAD sha. If there is none, it answers
+  with `permissionDecision: "ask"` and a reason.
+- **What for:** `/audit-history` is the kit's ship gate, and until now it was purely advisory —
+  you had to remember it at exactly the moment you had stopped thinking. This makes the
+  boundary real without making it absolute.
+- **It asks, it never forbids.** The answer is an ordinary permission prompt you can approve.
+  A guard that cannot be overridden gets deleted; one that states what is missing gets used.
+- **The sha in the record name is the point.** The question is *"was this state audited"*, not
+  *"was this repo ever audited"* — which is why `/audit-history` writes
+  `.attest/ship-<date>-<time>-<short-sha>.md` even when the verdict is clean.
+- **It leaves a trace.** Every matched command appends one line — UTC timestamp, decision,
+  HEAD sha, sanitised command — to `.attest/tmp/ship-guard.log`, the **pass** as well as the ask.
+  A hook that decides silently cannot be told apart from one that was never registered, which is
+  exactly how a real push once slipped past unexplained; `cat` that file to see whether the guard
+  is alive and what it decided (attest ADR-0034). It is ignored by git, never a record, and safe
+  to delete at any time.
+- **Adding your own ship command:** it is a `case` statement near the top of the script. Put
+  your deploy script or submit CLI in it literally — do not make the patterns clever.
+- **A dry run publishes nothing** and is allowed through (`--dry-run`) — but only when the
+  dry run is the *whole* command. In a compound one the flag may belong to a different call
+  than the one that ships (`git push --dry-run && git push origin main`), so anything holding
+  `;` `&&` `||` `|` or a newline is judged as a whole and still asks.
 
-  A worked JS/TS swap — replace the `PostToolUse` entry in `.claude/settings.json` with:
+### 2.3 What the kit deliberately does **not** hook
+- **No formatter.** Anything that rewrites your code after every edit belongs to your own
+  toolchain, at your own moment. attest audits; it does not edit (attest ADR-0027).
+- **No warning you cannot act on when it fires.** That rules out the compaction nudge
+  (compaction is already under way) and the session-length warning (transcript lines are a poor
+  proxy, and Claude Code shows context pressure natively) — attest ADR-0028. The one nudge that
+  survives is a *line*, not an event: the declaration hook prints
+  *"/checkpoint owns this file"* under the `PROGRESS.md` half, where you can act on it.
+- **Nothing is forbidden to you.** A project that wants edit-time formatting can still have it —
+  it is one `PostToolUse` entry in `.claude/settings.json` pointing at your own formatter. The
+  kit simply does not ship one, and will not install one over your toolchain (attest ADR-0027).
 
-  ```json
-  { "matcher": "Edit|Write",
-    "hooks": [ { "type": "command",
-      "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.js|*.jsx|*.ts|*.tsx) npx prettier --write \"$f\" >/dev/null 2>&1 || true;; esac; }" } ] }
-  ```
+> **What these two hooks send.** Both put text into the model's context: the declaration hook
+> prints your non-goals and live state at every session start, and the ship guard puts the
+> matched command into the permission prompt. In a **regulated** project that is a data flow
+> like any other — if your control documents can contain personal data, name the destination in
+> `COMPLIANCE.md` (§7, sub-processors / transfers). Neither hook sends anything anywhere by
+> itself; both only print, and what reaches the provider is whatever your session already does.
 
-  — the same shape as the Python pair: filter on extension, fail open (`|| true`), let
-  prettier's own `.prettierrc` supply the rules (this one needs `jq` and `npx` on `PATH` —
-  the same class of dependency as the shipped hooks' `python3`). Then delete the hook
-  file, `ruff.toml` and the `.ruff_cache/` line from `.gitignore`.
-
-  **Two caveats the kit will not paper over.** (1) All three hooks are Python scripts run as
-  `python3 …`, so **`python3` must be on `PATH`** — in a repo without it they fail on every
-  matching event rather than staying quiet. If you are not using them, delete their entries
-  from `.claude/settings.json`; the `.py` filter makes the format hook *inert* in a non-Python
-  repo, not *absent*. (2) **`ruff.toml` wins over `pyproject.toml`** — ruff resolves
-  `ruff.toml` > `.ruff.toml` > `[tool.ruff]` and does **not** merge them. Dropping ours into a
-  project that already configures ruff silently overrides your rules while leaving them on
-  disk as dead code. `install.sh` therefore refuses to copy it if you configure ruff anywhere.
-
-### 2.2 `PreCompact` hook — nudge toward `/checkpoint`
-- **How:** runs **by itself** just before compaction; if the thread-carrier has not changed in
-  a while, it reminds you to "run /checkpoint".
-- **What for:** a safety-net so you save state before losing context.
-- **If your thread-carrier is not `PROGRESS.md`** (some projects call it `TIMESHEET.md`), set
-  `ATTEST_THREAD_CARRIER` to its name. If the file does not exist the hook stays **silent** —
-  a project that keeps no thread-carrier is not nagged about one.
-
-### 2.3 `Stop` hook — long-session warning
-- **How:** runs **by itself** after every response; above 500 transcript lines it warns once:
-  "long session → /checkpoint + /clear".
-- **What for:** tells you when it is time to clean up the context.
-
-> **The hook pattern:** *event (when) → your shell command (what)*. Exit `2` = block the action.
-> Always **fail-open** (an error must not break the session). Verify a new hook via `/hooks`
-> (and approve it).
+> **The hook pattern:** *event (when) → your shell command (what)*. Exit `2` = block the
+> action; a `PreToolUse` hook can also print JSON with `permissionDecision: "ask"` to prompt
+> instead of blocking. Always **fail-open** — an error, an unreadable file or an unparseable
+> payload must let the session proceed untouched. Verify a new hook via `/hooks` (and
+> approve it).
 
 ---
 
@@ -157,15 +186,19 @@ one output shape and one severity ladder so they read as a family:
 > runtime**: it installs when they install, so an audit's severity is never undefined (attest
 > ADR-0010 — the kit's own decision log, not your `DECISIONS.md`).
 >
-> **Ladder:** **blocker** (always the bare word) / **major (domain alias)** / **minor**.
-> Aliases: `/business` *major (scope creep)*, `/decision` *major (undocumented decision)*,
-> `/compliance` *major (posture gap)*, `/audit-history` *major (PII / client name)*.
+> **Ladder:** **blocker** / **major** / **minor** — three bare words, one vocabulary, no
+> per-skill variants (attest ADR-0029): every finding already names its owner, so say what the
+> problem *is* in the description instead.
 > Always a blocker: a secret, special-category / national-ID personal data, a violated
 > non-goal, a prohibited (Art 5) practice. Always minor: metadata, large files, stale wording.
 > **Ownership — one hunk is flagged once:** `/decision` owns *a new dependency / swapped
 > library / new pattern / notable threshold*; `/business audit` fires only on a non-goal /
-> scope violation; `/compliance audit` fires only on regulated ground; `/audit-history` owns
-> only what the repo **ships** — content in the tree or history. The line between the last two
+> scope violation; `/compliance audit` fires only on regulated ground — **and where it is not
+> installed, its ground is re-assigned by the ladder's table** — to `/decision audit` if a
+> choice sits behind it, to `/audit-history` if it is bytes, otherwise to `/business audit` —
+> and the finding names what it would have been, at the severity the ladder would have given it
+> (attest ADR-0030); `/audit-history` owns only what the repo **ships** —
+> content in the tree or history. The line between the last two
 > and `/business` is **content vs behaviour**: code that *does* something a non-goal forbids
 > is `/business`'s; bytes that must not leave are `/audit-history`'s.
 
@@ -176,7 +209,9 @@ one output shape and one severity ladder so they read as a family:
   modes: **bootstrap** (file absent — or still the shipped `<placeholder>` skeleton), **update**
   (compare against project state), and
   **`/business audit`** (check reality — code, commits, diff — against the declared
-  non-goals/scope; read-only, reports a verdict, changes nothing).
+  non-goals/scope; read-only, reports a verdict, changes nothing). In a project that did not
+  install `/compliance`, the audit also inherits the ladder's fallback row — regulated ground
+  with no choice and no bytes behind it, because what is missing there is a *declaration*.
 - **What for:** business context — like `/init` for CLAUDE.md, but for BUSINESS.md. The
   archetype is only a **trigger** for `/compliance` (it signals the AI Act *may* apply) — it
   is **not** the legal risk tier, which `/compliance` sets in COMPLIANCE.md.
@@ -185,7 +220,9 @@ one output shape and one severity ladder so they read as a family:
 - **How:** type `/checkpoint`. Derives
   state from git, updates PROGRESS, advises `/clear` vs `/compact`.
 - **What for:** one word pours the session state into PROGRESS → then you can `/clear` safely.
-- **When:** before every `/clear`, or when the Stop hook warns you.
+- **When:** before every `/clear`. Nothing warns you any more — the session-length hook is
+  gone (PART 2.3); the declaration hook's *"/checkpoint owns this file"* line is what carries
+  the reminder now, at the start of the next session rather than the end of this one.
 
 ### 3.3 `/decision` — records/audits `DECISIONS.md`
 - **How:** type `/decision` to **record** a decision just made (append-only ADR-lite entry);
@@ -196,10 +233,14 @@ one output shape and one severity ladder so they read as a family:
 
 ### 3.4 `/audit-history` — the clean-history leak gate (no doc)
 - **How:** `/audit-history` scans the working tree + the diff about to be pushed;
-  `/audit-history full` scans the **entire history** (all commits/branches). Read-only.
+  `/audit-history full` scans the **entire history** (all commits/branches). **Read-only on
+  your content.**
 - **What for:** the ship gate — before code leaves the machine, catch secrets, personal
   data (EU-first GDPR), client names and metadata leaks. It maintains **no document** (its
   record is the git history itself) and never rewrites history — it reports and recommends.
+- **Its one write:** a dated run record, `.attest/ship-<date>-<time>-<short HEAD sha>.md`,
+  appended **even when the verdict is clean** — that is what the `PreToolUse` ship guard
+  reads before a push or a submit (PART 2.2). Nothing else on disk is touched.
 
 ### 3.5 `/compliance` — creates/maintains/audits `COMPLIANCE.md`
 - **How:** `/compliance` bootstraps/updates the posture; `/compliance audit` checks whether a
@@ -212,10 +253,10 @@ one output shape and one severity ladder so they read as a family:
 
 ### 3.6 `/gate` — the commit-time gate, one command
 - **How:** type `/gate` before a commit. It scopes the diff, then runs the `reviewer`
-  subagent plus the three document audits in **parallel subagents** — it reads each skill's
+  subagent plus every installed document audit in **parallel subagents** — it reads each skill's
   audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
   merges the findings under the shared ladder + ownership contract into **one** verdict.
-- **What for:** the whole per-change gate without four invocations. Touches no document and
+- **What for:** the whole per-change gate in one invocation. Touches no document and
   no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
   passes, verdict — the attestation that the gate ran (attest ADR-0016; stage it with the
   commit it gates). The document audits run in the `doc-auditor` agent — no Bash/Edit/Write,
@@ -297,19 +338,20 @@ one output shape and one severity ladder so they read as a family:
       mcp.run()   # stdio transport
   ```
 
-  Wire it into the repo with a checked-in `.mcp.json`. The kit ships **`.mcp.json.example`** as
-  the single source of truth — rename it, adjust, then approve it once at `claude` startup
-  (`/mcp`). Illustrative shape (the real, commented copy is `.mcp.json.example`):
+  Wire it into the repo with a checked-in `.mcp.json`, then approve it once at `claude`
+  startup (`/mcp`). The kit ships no stub for this — a generic `my_app` skeleton taught
+  nothing the shape below does not (attest ADR-0031). Write it yourself:
 
   ```json
   { "mcpServers": { "my-app": {
       "command": "${CLAUDE_PROJECT_DIR:-.}/.venv/bin/python",
-      "args": ["-m", "my_app.mcp_server"], … } } }
+      "args": ["-m", "my_app.mcp_server"] } } }
   ```
 
+  Keep real tokens out of it — the file is git-tracked.
+
   The `${CLAUDE_PROJECT_DIR:-.}` prefix is the load-bearing part — it resolves against the repo
-  root so the config travels. Keep secrets out of this file (it is git-tracked); the example
-  carries the full warning.
+  root so the config travels.
 - **Lessons worth keeping:**
   - **Config from env, read per call** (not at import) — the server then does not depend on
     when the client started it, and tests can isolate via `monkeypatch.setenv`.
@@ -354,22 +396,27 @@ one output shape and one severity ladder so they read as a family:
 ## PART 8 — Reusing the whole kit
 
 ```bash
-./install.sh <path-to-your-project>
+./install.sh [--compliance] <path-to-your-project>
 ```
 
 That is the whole procedure — do **not** hand-copy the files. The script is **copy-if-absent**:
-every doc, skill, hook, `settings.json` and `ruff.toml` is installed only if the target does
-not already have it, `.gitignore` is **appended to** rather than replaced, and `ruff.toml` is
-refused outright if you configure ruff in `.ruff.toml` or `pyproject.toml` (it would silently
-override you — see PART 2). A `ruff.toml` that is already there is judged like any other
-kit-owned file: identical on a re-run, otherwise reported as drifted.
-It prints an **INSTALLED** list and a **SKIPPED** list naming every file it refused to touch,
-so you can merge those by hand.
+every doc, skill, hook and `settings.json` is installed only if the target does not already
+have it, and `.gitignore` is **appended to** rather than replaced.
 
-It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/` or itself —
-those are *attest*, not your project. From `.github/` it copies exactly one file,
-`workflows/ci.yml.example`: a fully commented-out CI starting point written for you, inert
-until you rename it (attest ADR-0021). Attest's own `ci.yml` stays behind.
+**What it prints** is grouped by capability, not by path (attest ADR-0031): one line per
+group — documents, commands, checks, guards, manual — with `✓` for *landed*, `·` for
+*already there* and `⚠` for *something is yours to look at*. Two blocks follow only when
+they have content: **YOURS, UNTOUCHED** (files the kit also ships and did not overwrite —
+the designed outcome, not a warning) and **NEEDS YOU** (a kit-owned file that drifted from
+upstream, or a hook on disk that your `settings.json` leaves unwired). A re-run that changed
+nothing says exactly that, in one line.
+
+`--compliance` adds `COMPLIANCE.md` and `/compliance`; without it neither lands (attest
+ADR-0030). Adding it later is the same command again — copy-if-absent means a re-run only
+fills the gap.
+
+It deliberately does **not** copy `README.md`, `LICENSE`, `docs/`, `scripts/`, anything under
+`.github/`, or itself — those are *attest*, not your project.
 
 `GUIDE.md` lands as the kit's reference manual: a copy the kit
 itself installed is recognized on re-runs (current → skipped, outdated → pointed out for a
@@ -378,6 +425,18 @@ by-hand refresh); a guide of your own keeps its name and the kit's goes in besid
 runtime dependency: the shared audit ladder and the ownership contract live in
 `.claude/skills/_shared/audit-ladder.md` and install with the skills that read them (attest
 ADR-0010), so a missing GUIDE costs a reader a lookup, not an audit its severity.
+
+**If you add CI of your own,** the kit ships no starting point for it — what your project runs
+is your decision, and a fully commented-out example file taught nothing a sentence does not
+(attest ADR-0031). Two habits are worth carrying over from attest's own workflows, and they are
+the whole of what that example existed to teach:
+
+- **Pin the tool version.** An unpinned `uvx ruff` (or `npx prettier`, or `go test` on `latest`)
+  turns your gate red the day upstream changes a rule or a default, with nothing of yours
+  having moved.
+- **Pin GitHub Actions by commit SHA, not by tag** — `uses: actions/checkout@11d5960… # v4`.
+  A tag is a mutable pointer: whoever controls it decides what runs in your job. Keep the
+  version as a trailing comment so the diff stays readable (attest ADR-0025).
 
 **Upgrading** — pull the kit and re-run it; that is the whole procedure here too:
 
@@ -398,7 +457,8 @@ used, and `/gate`'s run record cites it.
 
 Afterwards: **restart Claude Code** (`.claude/` is a new top-level directory, so the skills
 only load on a fresh session — until then `/business` does not exist), fill `CLAUDE.md`
-(`/init`), then declare with `/business`, `/decision` and `/compliance`. Promote mature skills
+(`/init`), then declare with `/business` and `/decision` — `/business` will tell you whether
+this project needs `--compliance` too. Promote mature skills
 into **`~/.claude/skills/`** → available globally, in every project — **but not the audit
 family** (`/business`, `/decision`, `/compliance`, `/audit-history`, `/gate`): those read
 `.claude/skills/_shared/audit-ladder.md` and `.claude/agents/` by **project-relative** path,
@@ -415,22 +475,32 @@ once, loop every change, gate before you ship — so read it as two loops around
 single straight line.
 
 **SETUP — once, at the start**
-- `/business` — declare intent + the archetype (`BUSINESS.md`).
-- `/compliance` — **only if in regulated scope** — establish the posture (`COMPLIANCE.md`).
-  Run `/business` first: `/compliance` reads the archetype (and if it is missing, offers to
-  derive a provisional one).
+- `/business` — declare intent + the archetype (`BUSINESS.md`). **It ends by making the
+  compliance call**: either *"in scope, here is the trigger"* or *"out of scope, record that
+  sentence"* (attest ADR-0030). What you then do depends on how you adopted the kit — with
+  `install.sh`, re-run it with `--compliance` to add the pair; from the **template button**,
+  they are already in the repo, so being out of scope means **deleting** `COMPLIANCE.md` and
+  `.claude/skills/compliance/` instead. The two paths differ on purpose: a generated repo has
+  no installer to re-run.
+- `/compliance` — **only if in regulated scope**, and only once it is installed — establish
+  the posture (`COMPLIANCE.md`). It reads the archetype `/business` recorded.
+- From here on the two hooks work without you: the **declaration hook** puts your non-goals
+  in front of the agent at every session start, and the **ship guard** asks before a push or a
+  submit that no `/audit-history` run has cleared (PART 2) — it never forbids; the answer is an
+  ordinary permission prompt.
 
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
 2. **Build.**
-3. **Gate, before the commit — one command: `/gate`.** It runs the four passes in parallel
+3. **Gate, before the commit — one command: `/gate`.** It runs the installed passes in parallel
    subagents, merges one verdict, and appends a dated **run record** under `.attest/`
    (stage it with the commit — that is the attestation the gate ran); each pass fires only
    when relevant:
    - the `reviewer` subagent — the code-level pass;
    - `/business audit` — did the work cross a non-goal / creep past scope?
    - `/decision audit` — a choice made in code but never recorded?
-   - `/compliance audit` — did the diff touch regulated ground? (skips unless it did)
+   - `/compliance audit` — did the diff touch regulated ground? (skips unless it did; absent
+     entirely in a project that did not opt in — the ladder says who reports instead)
 
    Each **owns** its own finding, so one hunk is flagged once. (The pieces stay separately
    runnable when you want just one.)
@@ -438,9 +508,12 @@ single straight line.
 5. **`/checkpoint`** — pour state into `PROGRESS.md`, then `/clear` between blocks.
 
 **SHIP — before code leaves the machine**
-- `/audit-history` — the quick leak scan, **every push**.
+- `/audit-history` — the quick leak scan, **every push**. It appends
+  `.attest/ship-…-<HEAD sha>.md`.
 - `/audit-history full` — the whole-history scan, **before a public release** (a secret or a
   name in *any* old commit, not just `HEAD`).
+- You no longer have to remember either: the ship guard asks at the moment the command that
+  publishes is about to run, and names what is missing (PART 2.2).
 
 > **Reading key:** the SETUP row runs **once**; the PER-CHANGE loop repeats **every commit**;
 > the SHIP gate fires only when code **leaves the machine**. `/compliance` appears in both —

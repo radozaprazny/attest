@@ -26,15 +26,10 @@ demand.
 
 <your conventions — formatter, linter, line length, rule sets>
 
-> **Note — the shipped example is Python.** This template comes with a `ruff` PostToolUse
-> hook (`.claude/hooks/format_py.py` — sorts imports, then formats) plus `ruff.toml` for its
-> rules (`install.sh` lands `ruff.toml` only into projects with Python markers — a
-> non-Python repo will not have it). The two are one swappable unit: replace both with
-> your language's equivalent
-> (prettier + `.prettierrc`, rustfmt + `rustfmt.toml`, gofmt, ...) and delete `ruff.toml`.
-> The hook filters on `.py`, so it is **inert** elsewhere — but it still needs `python3` on
-> `PATH`; if you are not using it, delete its entry from `.claude/settings.json` rather than
-> leaving it to fail. See GUIDE.md (PART 2).
+> **Note — attest ships no formatter.** The kit deliberately installs nothing that edits your
+> code: use your own formatter, your own config, at your own moment (a pre-commit hook, your
+> editor, CI). Write the command here so the `reviewer` subagent runs the same one you do —
+> it derives the project's conventions from this file and from nothing else. See GUIDE PART 2.
 
 ## Commit style
 

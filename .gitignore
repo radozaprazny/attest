@@ -1,15 +1,6 @@
-# Virtual environment
-.venv/
-
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-.ruff_cache/
-
 # Claude Code — local settings (permission allowlist)
 .claude/settings.local.json
 
-# /gate scratch — the run records beside it ARE committed (attest ADR-0016, ADR-0026)
+# Ignored scratch — /gate's fallback material and the ship guard's decision log. The run
+# records beside it ARE committed (attest ADR-0016, ADR-0026, ADR-0034)
 .attest/tmp/

@@ -88,7 +88,7 @@ was created. That restraint is the same rule /decision applies.
   text that has to stay in sync. Accepted: the dogfood showed all four then routed correctly
   instead of triple-flagging, which is what makes the "one pass" claim true.
 
-## ADR-0005 — One 3-rung severity ladder with a domain alias, not per-skill vocabularies · 2026-07-15 · Accepted
+## ADR-0005 — One 3-rung severity ladder with a domain alias, not per-skill vocabularies · 2026-07-15 · Superseded by ADR-0029
 
 - **Context** — the audits were meant to read as one family, but shipped three ladders:
   `/init-tier` used blocker/creep/nit, the reviewer blocker/major/minor/nit, and the newer
@@ -311,7 +311,7 @@ was created. That restraint is the same rule /decision applies.
   3.1 each grow by one row; ADR-0001 is untouched — the archetype remains a trigger, never
   the legal tier, for six labels as for five.
 
-## ADR-0015 — Install Python tooling only into Python projects · 2026-07-22 · Accepted
+## ADR-0015 — Install Python tooling only into Python projects · 2026-07-22 · Superseded by ADR-0027
 
 - **Context** — the kit claims to be language-agnostic, but `install.sh` unconditionally
   landed `ruff.toml` and a `.ruff_cache/` gitignore line into every target — Python residue
@@ -451,7 +451,7 @@ was created. That restraint is the same rule /decision applies.
   Four new smoke assertions cover the re-run, the drift, the two pyproject forms, and the
   wired-but-differing settings case.
 
-## ADR-0021 — `ci.yml.example` ships to consumers; it is the one file under `.github/` that is theirs · 2026-08-11 · Accepted
+## ADR-0021 — `ci.yml.example` ships to consumers; it is the one file under `.github/` that is theirs · 2026-08-11 · Superseded by ADR-0031
 
 - **Context** — the file says *"opt-in CI for your project. Rename to `ci.yml` and adapt"*,
   but neither adoption path delivered it: `install.sh` copies nothing from `.github/`, and
@@ -528,7 +528,7 @@ was created. That restraint is the same rule /decision applies.
   carve-outs are restated in terms of the edge, so no skill's own text can contradict the
   contract the gate merges under.
 
-## ADR-0024 — hooks act only inside the project, and never leave cache behind · 2026-08-11 · Accepted
+## ADR-0024 — hooks act only inside the project, and never leave cache behind · 2026-08-11 · Superseded by ADR-0027
 
 - **Context** — the format hook filtered on `.py` alone. Claude edits files outside the repo
   (another checkout, a script in `$HOME`), and ruff resolves config by walking up from the
@@ -594,3 +594,283 @@ was created. That restraint is the same rule /decision applies.
 - **Consequences** — "the gate's only write" is no longer literally true and the ladder says
   so precisely; readers of `.attest/` must know one subdirectory is not a record. The rule is
   stated in both the ladder and the gate's step 5 so a doc-auditor handed either sees it.
+
+## ADR-0027 — the kit ships no formatter: attest audits, it does not edit · 2026-08-28 · Accepted
+
+Supersedes: ADR-0015, ADR-0024
+
+- **Context** — the kit shipped a `PostToolUse` hook (`format_py.py`) plus `ruff.toml`: after
+  every `Edit`/`Write` of a `.py` file it lint-fixed imports and reformatted. It was the only
+  thing in the kit that **modified the user's code**, the only thing **bound to one language**,
+  and the source of a disproportionate share of the kit's own complexity — ADR-0015 (install
+  it only into Python projects), ADR-0020 (judge an installed `ruff.toml` by content),
+  ADR-0024 (contain it to the project, `--no-cache`), a `has_ruff_config` predicate, a
+  template-cleanup parity branch, a `.ruff_cache/` ignore line, and a paragraph in the shipped
+  `CLAUDE.md` that every reader pays for. Its actual value is near zero in the common case: a
+  project that formats already has this configured, and one that does not has no agreed format
+  for the hook to enforce.
+- **Options** — (a) keep it, document the swap better; (b) keep the hook, drop `ruff.toml` and
+  let the project's own config decide; (c) drop the whole unit — hook, config, detection,
+  cleanup parity and the `.gitignore` line.
+- **Decision** — (c).
+- **Why** — (a) is the status quo and the status quo is where all that machinery came from.
+  (b) still runs a formatter after every edit, which is the wrong *moment* regardless of whose
+  rules it uses: formatting belongs to a commit hook or CI, not to each keystroke of an agent.
+  (c) is the only option that matches what the kit *is*. attest's claim is that a repo can
+  attest to what it declared — reading, judging, recording. A component that silently rewrites
+  the artifact under audit is a different product, and its removal takes five other decisions
+  with it. It also removes the last interpreter dependency from **what the kit
+  installs**: both remaining hooks are POSIX `sh`, so a consumer needs nothing beyond `git` and
+  `/bin/sh`. (`install.sh` and `scripts/*.sh` are still bash — they run once, at the author's
+  keyboard, and nothing they leave behind depends on them.)
+- **Consequences** — supersedes ADR-0015 and ADR-0024 (both existed only to contain this
+  hook); ADR-0020's *principle* survives, only its worked example is gone. Projects upgrading
+  keep whatever `ruff.toml` they have — the installer never deletes, so removal is a one-line
+  `rm` they make themselves. The kit's **own** `.gitignore` loses its whole Python block
+  (`.venv/`, `__pycache__/`, `*.py[cod]`, `*.egg-info/`, `.pytest_cache/`, `.ruff_cache/`), not
+  just the ruff line — after this there is no Python in the repo for any of them to match;
+  only the `.ruff_cache/` line was ever installed into consumers. The shipped `CLAUDE.md` now
+  asks for **your** format command in
+  the "Formatting and lint" section, which is strictly more useful: the `reviewer` subagent
+  derives conventions from that file, so writing it there makes the review run the same
+  command you do. A project that wants edit-time formatting still can — it is one `PostToolUse`
+  entry, and GUIDE PART 2.3 says so.
+
+## ADR-0028 — a hook must prevent, not remind: two guards replace two nags · 2026-08-28 · Accepted
+
+- **Context** — after ADR-0027 removed the formatter, the two remaining hooks were both
+  advisory. `precompact_checkpoint_nudge` fired just before compaction to say the
+  thread-carrier was stale — at a moment the user cannot act on, since compaction is already
+  under way. `stop_session_length_warn` counted transcript lines and warned above 500, which is
+  a poor proxy for context pressure (one long tool output crosses it without a word being said)
+  and duplicates a signal Claude Code shows natively. Meanwhile the two rules the kit cares
+  most about were left entirely to memory: a **non-goal** is *always a blocker* on the ladder,
+  yet the agent only meets the non-goals when `/gate` runs — after the code exists; and
+  `/audit-history` is the ship gate, yet nothing connects it to the command that actually ships.
+- **Options** — (a) keep the two nags, tune their thresholds; (b) delete them and ship no hooks
+  at all, leaving `settings.json` out of the kit; (c) delete them and spend the two events on
+  prevention instead — `SessionStart` to load the declaration, `PreToolUse` on `Bash` to guard
+  the ship boundary.
+- **Decision** — (c).
+- **Why** — the test a hook has to pass is *does this do something a skill cannot?* A reminder
+  fails it: the user can already see a long session, and `/checkpoint` exists. Prevention passes
+  it decisively. Loading non-goals at session start moves a blocker-severity rule from
+  **detection** to **prevention**, and it is a hook precisely because a skill can be forgotten
+  and a session start cannot. The ship guard makes the kit's own ship gate real at the one
+  moment it becomes irreversible. (b) was tempting for leanness but throws away the two places
+  where the harness genuinely beats a prompt.
+- **Consequences** — `/audit-history` now writes one artifact, a dated run record under
+  `.attest/ship-…-<short HEAD sha>.md`, so the guard can ask *"was THIS state audited"* rather
+  than *"was this repo ever audited"*; the ladder's "every audit writes nothing" clause is
+  amended to name both records (the gate's and the ship gate's) and to say the document audits
+  still write nothing at all, because they hold no `Write` tool (ADR-0017). The guard **asks**
+  via `permissionDecision: "ask"` and never blocks: a guard that cannot be overridden gets
+  deleted, one that names what is missing gets used. Its command list is deliberately literal
+  and is meant to be edited per project. Both hooks are POSIX `sh` and fail open — an
+  unparseable payload, a missing document or a non-git directory lets everything proceed.
+  Two invariants the kit's own gate had to teach it, both now pinned by `smoke.sh`: the
+  declaration hook caps **per section** (24 non-goals / 8 state / 8 next) rather than once over
+  the whole block — a single trailing `head` silently dropped whichever section came last and
+  the closing tag with it — and each trimmed section says how much it dropped; and the ship
+  guard's `--dry-run` bypass applies only to a **simple** command, because in a compound one
+  (`git push --dry-run && git push origin main`) the flag may belong to a different call than
+  the one that ships.
+
+## ADR-0029 — three bare rungs: the middle rung loses its domain alias · 2026-08-28 · Accepted
+
+Supersedes: ADR-0005
+
+- **Context** — ADR-0005 gave the shared middle rung a per-skill flavour: *major (scope creep)*,
+  *major (undocumented decision)*, *major (posture gap)*, *major (PII / client name)*. In
+  practice every merged finding also carries its **owner** — the ownership contract requires it —
+  so the alias restated the owner in different words, and a reader had to learn two vocabularies
+  to read one verdict. It also made the ladder's own table longer than the rule it encodes.
+- **Options** — (a) keep the aliases; (b) keep them but only outside `/gate`, where no owner
+  column exists; (c) drop them everywhere — three bare rungs, and let the finding's one-line
+  description carry the flavour.
+- **Decision** — (c).
+- **Why** — (b) is the worst of both: the same finding would be named differently depending on
+  how it was invoked. (c) costs nothing that is not already on the line — the owner is printed,
+  and *what kind of problem this is* is exactly what a one-line description is for. Shorter
+  ladder, one vocabulary, same information.
+- **Consequences** — supersedes ADR-0005 (its 3-rung structure survives; only the alias is
+  withdrawn). `nit` is unaffected and still lives only in the `reviewer` (ADR-0005's other half,
+  reaffirmed by ADR-0023). Four `SKILL.md`s lost an alias from their verdict list; anyone with
+  older run records will see both vocabularies in `.attest/`, which is harmless — records are
+  append-only history, not a live contract.
+
+## ADR-0030 — compliance is opt-in, and `/business` makes the call · 2026-08-28 · Accepted
+
+- **Context** — every install landed `COMPLIANCE.md` and `/compliance`, regardless of scope.
+  For the majority of projects that is a template nobody fills, and an unfilled posture file is
+  actively worse than an absent one: it reads as *"posture declared"* to every later audit while
+  declaring nothing. The deeper problem is timing — **at install time nobody knows the
+  archetype yet**. Asking "are you in regulated scope?" before the project has said what it is
+  is a question posed at the wrong moment, which is also why an interactive install menu was
+  rejected.
+- **Options** — (a) keep installing it always; (b) an interactive prompt during install; (c)
+  install it never and document the manual copy; (d) an opt-in flag plus a recommendation from
+  `/business`, which is the first step that actually knows the archetype.
+- **Decision** — (d): `install.sh --compliance`, and `/business` ends by making the call.
+- **Why** — (b) breaks non-interactive installs and asks too early. (c) leaves the regulated
+  case — the kit's differentiator — worse served than the common one. (d) puts the decision at
+  the only point where it is answerable, and the answer is cheap either way: a re-run adds the
+  pair (copy-if-absent fills exactly the gap), and being out of scope produces a **recorded
+  sentence** rather than an empty file. Uncertainty is told to resolve toward installing it —
+  an unused skill costs a directory, an unowned posture costs a finding nobody files.
+- **Amends in part** — ADR-0023's *"exactly two mutually exclusive conditions, so exactly one
+  owner exists"* on the `/decision` ↔ `/compliance` edge. That held while `/compliance` was
+  always installed. The edge now has **three** conditions and the ownership contract a
+  re-assignment table; ADR-0023 is not reversed and keeps its `Status` — a reader landing there
+  should land here next.
+- **Consequences** — the ladder gains a rule for the absent case, and it is **total**: a hunk
+  goes to `/decision audit` if a choice sits behind it, to `/audit-history` if it is bytes, and
+  otherwise to `/business audit` — a bare new personal-data field is none of the first two, and
+  an enumerated fallback let exactly that fall through (the kit's own second gate caught it).
+  That last row is a deliberate carve-out from `/business audit`'s *"non-goals only"*: what is
+  missing in that case is a **declaration**, which is its subject matter. It applies only while
+  `/compliance` is absent and is written **inside** the skill's Mode 3, because that is the
+  section `/gate` hands to the subagent — a rule stated anywhere else in the file never reaches
+  the pass that must apply it. For the same reason the *"the compliance call may need
+  re-making"* pointer is a step of Mode 3 and not only of the bootstrap section: it is a
+  pointer, never a finding, and it never moves the verdict line. Beyond that, the nearest audit
+  reports the hunk **once** with a clause naming what it would have been — never two findings,
+  never silence. **The fallback rows carry no severity of their own.** An inherited finding is
+  scored by the ladder exactly as it would have been: the always-a-blocker floor
+  (special-category or national-ID personal data, an Art 5 practice) stands, everything else on
+  the row is major. The alternative — letting `/business audit` fix the rung at major, which is
+  how this was first written — meant that *removing* `/compliance` silently downgraded a
+  blocker, the precise opposite of what this entry promises. `/decision audit`'s row never fixed
+  one, so leaving both to the ladder also keeps the two rows symmetric. A present-but-unfilled
+  `COMPLIANCE.md` is the template path's default, so `/compliance audit` says so **before** its
+  per-diff trigger and `/business` says so when it makes the call — an empty posture file that
+  nobody ever points at is the same silence by another route. `/gate` counts its passes from what is on disk and
+  distinguishes *"not installed"* from *"skipped"*. The template-button path deliberately
+  disagrees with the installer and keeps both files: a generated repo has no `install.sh` to
+  re-run, so deleting them would be the one state a user cannot undo — `/business` closes that
+  gap from the other side by recommending their removal when the archetype says out of scope.
+
+## ADR-0031 — the installer reports capabilities, not files; and ships nothing inert · 2026-08-28 · Accepted
+
+Supersedes: ADR-0021
+
+- **Context** — a fresh install printed 23 lines of relative paths under `INSTALLED`, then a
+  `SKIPPED` list, then the next steps. The paths are the least useful thing a reader needs: they
+  answer *what files exist* when the question is *what can I do now, and what do I have to look
+  at*. A re-run printed the same wall to say nothing had happened. Two of the 23 items were
+  `.mcp.json.example` and `.github/workflows/ci.yml.example` — files that do nothing until
+  renamed: the MCP stub taught nothing the GUIDE's four-line shape does not, and the CI example
+  was entirely commented out, needed its own ADR (0021) to survive template cleanup, and is
+  inert in any repo without a remote.
+- **Options** — (a) keep the path list, reorder it; (b) group by path prefix (`.claude/…`,
+  root docs); (c) group by **capability**, with per-file detail only when a human must act;
+  and separately (d) keep vs. (e) drop the two `.example` files.
+- **Decision** — (c) and (e).
+- **Why** — (b) still answers the wrong question. (c) makes the report say what changed *for
+  you*: one line per group with `✓` landed / `·` already there / `⚠` look at this, a **YOURS,
+  UNTOUCHED** block for files the kit also ships and left alone — the designed outcome, never a
+  warning — and a **NEEDS YOU** block for the rare real action (a kit-owned file that drifted,
+  a hook on disk your `settings.json` leaves unwired). A run that changed nothing says exactly
+  that in one line. On (e): a file that requires a rename to do anything is a documentation
+  example living in the wrong medium; the habits worth teaching from `ci.yml.example` — pin the
+  tool version, pin actions by SHA — are three lines of prose, and they were written: GUIDE
+  PART 8, *"If you add CI of your own"*. Removing the file without writing them would have made
+  this entry's own justification false, which the gate's `/decision audit` caught.
+- **Consequences** — **ADR-0025's consumer-facing half lapses with this entry**: its rule was
+  *"pin by SHA in the kit's CI **and in the example it ships**"*, and there is no shipped example
+  any more. It stays `Accepted` because its live half — attest's own workflows — is unchanged;
+  the habit reaches adopters as prose in GUIDE PART 8 instead of as a file. Also: supersedes
+  ADR-0021; `install.sh` now copies **nothing** from `.github/`,
+  which makes the rule simpler than the exception it replaces ("none of it is written for the
+  consumer"). The report's column padding is done on the **label only**, never on the content:
+  `printf` counts bytes, and a `·` separator in a content column silently shifts every row after
+  it. The drift/identical ladder (ADR-0018, ADR-0020) is unchanged — it now feeds the two detail
+  blocks instead of a flat `SKIPPED` list, and a kept document of yours is classified as
+  *untouched*, not as something to merge. `--compliance` is parsed alongside the target path in
+  any order, and an unknown option is rejected rather than treated as a directory.
+
+## ADR-0032 — a gate run record may be written late, and says so in its own first line · 2026-08-28 · Accepted
+
+- **Context** — the phase-11 series was gated four times on one uncommitted tree. The second
+  run's record was not written when it happened: the findings were fixed immediately and the
+  record was only noticed as missing two runs later. ADR-0016 and ADR-0026 define `.attest/` as
+  append-only, one file per run, `gate-<UTC yyyymmdd-HHMMSS>-<sha>.md` — neither says what the
+  timestamp *means* or whether a record may be added afterwards. The kit's whole claim is that
+  a record makes *"the gate ran"* a fact rather than a memory, so an unrecorded run is a hole in
+  exactly the thing being sold.
+- **Options** — (a) leave the gap: a run with no record simply did not happen for the record's
+  purposes; (b) write it with a back-dated, plausible-looking run time; (c) write it late, put
+  the *write* time in the filename, and say in the record's first line that it is late and why.
+- **Decision** — (c).
+- **Why** — (a) is the tidiest and the least honest: the gap is invisible, so a reader counts
+  three runs where four happened. (b) is the option this kit exists to prevent — a fabricated
+  timestamp inside an attestation artifact is worse than no artifact, and nothing downstream
+  could ever tell it from a real one. (c) costs one line of prose and keeps the chain complete;
+  the record is weaker evidence than a contemporaneous one, and it says so itself, which is the
+  correct amount of trust to invite.
+- **Consequences** — **name order in `.attest/` is write order, not run order.** Anything that
+  scoped itself by "the newest name" — `/gate` step 1, `/business audit` Mode 3 step 2 — must
+  match on the **HEAD sha inside the name** instead; both now say so. `/gate` step 5 gains the
+  rule so the next late record does not have to re-derive it. The permitted deviation is narrow:
+  a late record may differ from the shipped template only in its first line and its heading, and
+  it may never be written for a run that did not happen — this entry sanctions honesty about
+  timing, not reconstruction from memory.
+
+
+## ADR-0033 — a ship record is written before the push and committed under a later sha · 2026-08-31 · Accepted
+
+- **Context** — `/audit-history` keys its record on the HEAD being shipped and the `PreToolUse`
+  guard matches that sha before a push, so the record must exist *while that HEAD is current* —
+  it is an untracked file at the moment the guard reads it. Committing it moves HEAD, so the
+  commit that carries a record is itself one no record names. ADR-0016 fixes the filename and
+  ADR-0028 fixes what the sha means; neither says where the file sits in history. Phase 11 hit
+  it first: `3481531` carries the record for `8a7d45a`, and the question only surfaced because
+  the push actually happened.
+- **Options** — (a) never commit ship records — leave them local evidence, ignored like scratch;
+  (b) commit them, accepting that a record lands under a later sha than the one it names;
+  (c) make the names line up — rename the record to its containing commit, or delay writing it
+  until after the push.
+- **Decision** — (b), stated in the skill rather than left to be re-derived.
+- **Why** — (a) makes the guard's evidence unshareable: a reviewer of the PR cannot see that the
+  ship gate ran, and `.attest/` exists precisely so *"the gate ran"* is a fact in the repo rather
+  than on one machine. (c) is ADR-0032's rejected option wearing a different hat — a filename
+  that claims a state nothing actually audited, indistinguishable downstream from an honest one.
+  (b) costs exactly one thing, and it is visible and explainable.
+- **Consequences** — the record is untracked when the guard reads it **by design**, so the guard
+  must keep checking the filesystem and never the index (it already does). Read `.attest/`
+  accordingly: `ship-…-<sha>.md` is evidence about `<sha>`, never about the commit it happens to
+  sit in — do not infer the audited state from the container. A branch's **final** commit, which
+  is typically the one adding the record, is unaudited by construction; where that matters — a
+  public release — run `/audit-history` again at that sha and accept that its record lands one
+  commit later still, or squash before shipping. The rule is written into `/audit-history`'s run
+  record section.
+
+## ADR-0034 — the ship guard leaves a trace, for the pass as well as the ask · 2026-08-31 · Accepted
+
+- **Context** — pushing `3481531`, a sha no record named, produced **no prompt**. Driven by hand
+  on the identical payload the guard answers `ask`, so the script was not the suspect. From
+  inside the session the two explanations — the hook was never registered, or it fired and the
+  active permission mode auto-approved its `ask` — are **indistinguishable**, because a
+  `PreToolUse` hook that answers `ask` writes nothing anywhere. The kit's whole claim is that a
+  gate having run is a fact rather than a memory, and the guard was the one gate leaving no fact
+  behind.
+- **Options** — (a) leave it: a guard is a convenience, its firing need not be evidence;
+  (b) log only the ask; (c) log every matched command with its decision, into ignored scratch;
+  (d) promote it to a committed record.
+- **Decision** — (c): one line — UTC timestamp, decision, sha, sanitised command — appended to
+  `.attest/tmp/ship-guard.log`.
+- **Why** — (a) is the state that produced this entry. (b) still cannot separate *"passed
+  silently"* from *"never ran"*, and the silent pass is exactly the case that misled a reader
+  here. (d) inflates a routine hook firing into an attestation and would put a line in the repo
+  for every push. (c) answers *"did the guard run, and what did it decide"* in one `cat`, costs
+  **no new `.gitignore` line** — `.attest/tmp/` is already ignored (ADR-0026) — and cannot be
+  mistaken for a record, because it does not carry a record's name and never leaves the machine.
+- **Consequences** — **ADR-0026 is narrowed.** `.attest/tmp/` is no longer the gate's private
+  scratch to remove wholesale: whatever writes there deletes **its own files**, and a `/gate` run
+  deleting the directory would silently erase the guard's trace. Said in `/gate` step 2, `/gate`
+  step 5 and the shared ladder, so a doc-auditor handed any of the three sees it. The log is
+  unbounded on purpose — the guard only matches publishing commands, so it grows by a line per
+  push, and it is ignored and disposable. It carries the same `tr`-sanitised command the reason
+  does, so a trace can hold nothing the prompt could not already show. Fail-open like the rest of
+  the hook: an unwritable scratch costs the line, never the decision. Smoke pins all of it,
+  including that an unmatched command leaves no trace at all.

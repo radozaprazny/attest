@@ -5,8 +5,9 @@ description: >-
   release), scan the git history and working tree for things that must not ship: secrets
   and keys, personal data (EU-first: GDPR ordinary + special-category + national identifiers),
   client/customer names, internal hostnames/paths, metadata and stray large/data files.
-  Read-only — it reports a severity-ranked verdict with remediation, it never rewrites
-  history. Two modes: default (working tree + staged + the diff about to be pushed) and
+  Read-only on your content — it reports a severity-ranked verdict with remediation and never
+  rewrites history; its one write is a dated run record under `.attest/`. Two modes:
+  default (working tree + staged + the diff about to be pushed) and
   `full` (the entire history — all commits, all branches; run before a public release).
   Generic — usable in any repo. This is the one skill that maintains NO document; its "record"
   is the git history itself.
@@ -18,8 +19,9 @@ argument-hint: "[full]"
 
 This skill is the kit's **final gate** on the *clean history* spine node: before anything
 leaves the machine, it checks that the repo is not carrying something it should not ship. It
-**maintains no document** — the thing it guards *is* the git history. It **writes nothing**;
-it reports.
+**maintains no document** — the thing it guards *is* the git history. It changes nothing you
+wrote; its only write is the dated **run record** below, which is what makes *"this state was
+audited"* a fact in the repo rather than a memory.
 
 The skill is **generic** — work with what you actually find in the repo, and assume nothing
 about the specific project.
@@ -41,7 +43,9 @@ have them. This skill earns its place by being **EU-first and integrated**:
   "secret".
 
 > **Boundary — content, not behaviour.** You own what the repo **ships**: bytes in the tree or
-> in history. You do **not** own what the code **does**. A non-goal like *"no network access"*
+> in history. (If `/compliance` is not installed in this project, regulated **content** you find
+> is still yours — say what it is; only the *posture* question is unowned, and the ladder says
+> so.) You do **not** own what the code **does**. A non-goal like *"no network access"*
 > violated by new code is `/business audit`'s finding, not yours — even though it looks like
 > an exfiltration risk. If one change both adds forbidden **behaviour** and commits forbidden
 > **data**, flag only the data half and name `/business audit` for the rest.
@@ -68,7 +72,7 @@ Use the shared audit ladder (see `.claude/skills/_shared/audit-ladder.md`), tier
   - **Special-category personal data** (GDPR Art 9) — health, biometric, racial/ethnic,
     political, religious, sexual-orientation, trade-union data.
   - **National identifiers** — passport / ID / tax numbers (e.g. a national birth number).
-- **major (PII / client name)**
+- **major**
   - **Ordinary personal data** — emails, phone numbers, personal names, postal addresses.
   - **Client / customer names** — confidentiality, not statute; still must not ship.
   - **IP addresses** (personal data per CJEU *Breyer*), online/device identifiers,
@@ -106,7 +110,35 @@ and a **severity** from the taxonomy above. End with a **recommended remediation
   may be in play (GDPR Art 33/34 — a 72-hour notification duty *may* apply) — **consult**, do
   not decide it here.
 
-If nothing is found, say so in one line. **The audit writes nothing** and rewrites no history.
+If nothing is found, say so in one line. **The audit changes no file you wrote** and rewrites
+no history.
+
+## The run record — the one write
+
+After reporting, append one record under `.attest/`, mirroring `/gate`'s (attest ADR-0016):
+
+    .attest/ship-<YYYYMMDD>-<HHMMSS>-<short-HEAD-sha>.md
+
+with the date, the HEAD SHA, the kit version (from the shared ladder), the mode (`default` or
+`full`), the verdict line and the finding counts per rung. **The short SHA in the filename is
+load-bearing** — the `PreToolUse` ship guard (`.claude/hooks/ship_guard.sh`) looks for a record
+matching the *current* HEAD before a push, a submit or an upload, so the question it answers is
+*"was this state audited"*, not *"was this repo ever audited"* (attest ADR-0028). Write the
+record even when the verdict is clean: a clean ship is exactly the state the guard must be able
+to recognise.
+
+**Where the record lives in history** (attest ADR-0033). Write it **before** the push it gates,
+so the sha in its name is the state that actually leaves the machine — which means it is an
+**untracked** file at the moment the guard reads it, and the guard reads the filesystem, not the
+index. A record can therefore never be contained by the commit it names: commit it afterwards,
+under a later sha, and leave that visible. Do **not** rename it to match the commit that carries
+it, and do **not** postpone writing it until after the push so the names line up — either would
+make the filename a claim about a state nothing audited, which is the trap ADR-0032 already
+refused. Read `.attest/` accordingly: `ship-…-<sha>.md` is evidence about `<sha>`, never about
+the commit it happens to sit in.
+
+Never write a record for an audit you did not actually complete — a record for a pass that
+degraded says which part degraded, in one line, or it is not written at all.
 
 ## Boundary vs the reviewer
 
