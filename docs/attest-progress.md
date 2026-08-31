@@ -7,8 +7,9 @@
 
 ## Current state
 
-The **lean-kit series (phase 11)** is committed — `9101eac` on `feat/lean-kit`, pushed to
-origin. It came from a design pass that asked one question of every component — *would a new
+The **lean-kit series (phase 11)** is open as **PR #4** — `feat/lean-kit` → `main`, three
+commits (`9101eac` the series, `8a7d45a` this file, `3481531` the ship record), CI green,
+mergeable. It came from a design pass that asked one question of every component — *would a new
 adopter miss this if it were gone?* — and removed the four that answered no. Six ADRs:
 **0027** no formatter · **0028** a hook must prevent, not remind · **0029** three bare rungs ·
 **0030** `/compliance` is opt-in · **0031** the installer reports capabilities · **0032** a late
@@ -41,10 +42,16 @@ a separate, deliberate step.
 
 ## Next
 
-- **Dogfood the two hooks in a live session** — both are unit-covered by `smoke.sh` and both
-  answer correctly when driven by hand, but neither has yet fired inside a real session. The
-  ship guard wants one push it stops and one it lets through; the declaration hook wants a
-  session started with `ATTEST_THREAD_CARRIER` set (see Notes).
+- **Finish dogfooding the ship guard — one open question.** Driven by hand it is correct both
+  ways: `ask` with the missing-record reason at a bare HEAD, silent once the record exists. Live,
+  only the *pass* half is confirmed (the push of `8a7d45a`, whose record was on disk). The *stop*
+  half is **not**: pushing `3481531` — a sha no record names — went through with **no visible
+  prompt**. From inside the session the two explanations cannot be told apart: the hook may not be
+  registered, or the active permission mode may be auto-approving its `ask`. Re-test in a fresh
+  session under default permissions before trusting the guard in anger.
+- **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
+  `.claude/settings.local.json` (gitignored), so the next session start here is the first live
+  run.
 - **Enable branch protection** on `main` once the `ci` workflow is green — without it the
   CI reports but does not block (noted in ADR-0019).
 - **Decide on going public** — before flipping visibility: re-run `/audit-history full`,
@@ -67,6 +74,14 @@ a separate, deliberate step.
   consumer's file, and attest's own paths must never ride out in it. Same ADR-0006 tension
   `/gate` solves with `$DOCS`. Attest has no `docs/attest-business.md`, so only the carrier
   half applies here.
+- **A ship record can never name the commit that contains it.** `/audit-history` keys the record
+  on the HEAD being shipped, so the record is written while that HEAD is current and is therefore
+  untracked at the moment the guard reads it; committing it lands it under a *later* sha, which no
+  record names in turn. ADR-0016 and ADR-0028 fix the filename but say nothing about where the
+  file sits in history. Phase 11 hit this first (`3481531` carries the record for `8a7d45a`). Not
+  a defect — the chain is intact and readable — but the rule is undeclared, and a future series
+  should either write it down or decide the record stays untracked. Do not "fix" it by back-dating
+  a record to the commit that holds it; that is exactly ADR-0032's option (b).
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
   docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0032 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
