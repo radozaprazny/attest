@@ -44,12 +44,15 @@ a separate, deliberate step.
 
 ## Next
 
-- **Read `.attest/tmp/ship-guard.log` after the next push.** The guard now records every
-  matched command and its decision (ADR-0034), so the question that could not be answered from
-  inside a session — did the hook fire at all, or did the permission mode answer for it — is now
-  one `cat`. A push with a line in the log and no prompt means the mode auto-approved; a push
-  with **no line** means the hook is not registered, and that is the real bug. Check it once,
-  then this bullet is done.
+- ~~Is the ship guard registered at all?~~ **Answered the first time the log existed.** An
+  isolated `git push` tool call — nothing else in it, no hook invoked by hand — appended
+  `12:56:06Z pass 5e9939b git push origin feat/lean-kit`. The hook fires on real Bash tool
+  calls, so the earlier silent push of `3481531` was the guard answering `ask` and the active
+  permission mode approving it without surfacing a prompt. Both hooks are now dogfooded: the
+  guard has stopped a push, passed a push and traced both; the declaration hook has a carrier
+  set and runs at the next session start. The log also caught the over-match its own comment
+  predicts — a tool call merely *containing* the text `git push` inside a payload fires it —
+  which is the designed trade (an extra prompt, never a miss).
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live
   run.
