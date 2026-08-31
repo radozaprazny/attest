@@ -55,18 +55,42 @@ case "$CMD" in
   *--dry-run*) exit 0 ;;
 esac
 
+# Only characters that cannot break the JSON string survive into the reason — and into the
+# trace below, so one sanitisation serves both.
+SAFE="$(printf '%s' "$CMD" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
+
 SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+
+# Leave a trace, for the pass as well as the ask (attest ADR-0034). A hook that decides
+# silently cannot be told apart from one that was never registered — this repo hit exactly
+# that: a push at a sha no record named went through with no prompt, and from inside the
+# session "the guard did not fire" and "the guard fired and the permission mode auto-approved
+# it" were indistinguishable. The pass is logged too, because a silent pass is the case that
+# looked like a dead hook. `.attest/tmp/` is the kit's ignored scratch (ADR-0026 as narrowed by
+# ADR-0034), so a trace is never committed and never mistaken for a record. Fail-open like
+# everything else here: an unwritable repo loses the line, never the decision.
+trace() { # trace <decision>
+  {
+    mkdir -p "$ROOT/.attest/tmp" &&
+      printf '%s %s %s %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${SHA:--}" "$SAFE" \
+        >> "$ROOT/.attest/tmp/ship-guard.log"
+  } 2>/dev/null || true
+}
+
 if [ -n "$SHA" ]; then
   for rec in "$ROOT"/.attest/ship-*"$SHA"*.md; do
-    [ -e "$rec" ] && exit 0
+    if [ -e "$rec" ]; then
+      trace pass
+      exit 0
+    fi
   done
   WHY="no /audit-history run record for HEAD ($SHA) under .attest/"
 else
   WHY="this is not a git checkout, so no ship record could be matched"
 fi
 
-# Only characters that cannot break the JSON string survive into the reason.
-SAFE="$(printf '%s' "$CMD" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
+trace ask
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
   "attest ship gate: this command sends data off the machine ($SAFE) and $WHY. Run /audit-history first (full before a public release), or approve to ship unaudited."

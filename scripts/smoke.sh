@@ -8,6 +8,13 @@
 
 set -euo pipefail
 
+# The hooks honour two environment overrides (ADR-0028). A maintainer who sets either for this
+# checkout — which docs/attest-progress.md tells them to do, so the SessionStart hook is not
+# silent here — would otherwise have that ambient value reach every fixture below, and the
+# assertions pinning the DEFAULT document paths would fail against files no test wrote. The
+# suite controls its own environment; the tests that want an override set it per invocation.
+unset ATTEST_BUSINESS ATTEST_THREAD_CARRIER
+
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -137,6 +144,34 @@ elif printf '%s' "$json" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>
 else
   fail "the ask payload is valid JSON even for a hostile command"
 fi
+
+# --- 3b. the guard leaves a trace, so "did it fire" is a fact (ADR-0034) ---------------
+echo "hooks — ship guard trace:"
+G="$WORK/trace"; mkdir -p "$G"
+git -C "$G" init -q .
+git -C "$G" config user.email smoke@example.invalid
+git -C "$G" config user.name smoke
+: > "$G/f"; git -C "$G" add f; git -C "$G" commit -qm init
+GSHA="$(git -C "$G" rev-parse --short HEAD)"
+tguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$G" sh "$GUARD"; }
+LOG="$G/.attest/tmp/ship-guard.log"
+
+tguard 'ls -la' >/dev/null
+check "an unmatched command leaves no trace at all"  test ! -e "$LOG"
+tguard 'git push origin main' >/dev/null
+check "an ask is traced"                             test -f "$LOG"
+says "…with its decision and the sha it judged"      "$(cat "$LOG")" "ask $GSHA"
+check "the trace sits in the ignored scratch, not beside the records" test ! -e "$G/.attest/ship-guard.log"
+# The pass is the case that looked like a dead hook, so it must be traced too.
+: > "$G/.attest/ship-20260831-000000-$GSHA.md"
+tguard 'git push origin main' >/dev/null
+says "a pass is traced too"                          "$(tail -1 "$LOG")" "pass $GSHA"
+if [ "$(grep -c . "$LOG")" -eq 2 ]; then ok "one line per matched command, no more"; else fail "one line per matched command, no more"; fi
+# Fail-open: a scratch it cannot write costs the line, never the decision.
+rm -f "$G/.attest/ship-20260831-000000-$GSHA.md"
+chmod 500 "$G/.attest/tmp"
+says "an unwritable scratch still yields a decision" "$(tguard 'git push origin main')" 'permissionDecision":"ask'
+chmod 700 "$G/.attest/tmp"
 
 # --- 4. fresh install, then a re-run that must change nothing --------------------------
 echo "install.sh — idempotency:"

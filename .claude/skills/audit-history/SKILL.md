@@ -127,6 +127,16 @@ matching the *current* HEAD before a push, a submit or an upload, so the questio
 record even when the verdict is clean: a clean ship is exactly the state the guard must be able
 to recognise.
 
+**Where the record lives in history** (attest ADR-0033). Write it **before** the push it gates,
+so the sha in its name is the state that actually leaves the machine — which means it is an
+**untracked** file at the moment the guard reads it, and the guard reads the filesystem, not the
+index. A record can therefore never be contained by the commit it names: commit it afterwards,
+under a later sha, and leave that visible. Do **not** rename it to match the commit that carries
+it, and do **not** postpone writing it until after the push so the names line up — either would
+make the filename a claim about a state nothing audited, which is the trap ADR-0032 already
+refused. Read `.attest/` accordingly: `ship-…-<sha>.md` is evidence about `<sha>`, never about
+the commit it happens to sit in.
+
 Never write a record for an audit you did not actually complete — a record for a pass that
 degraded says which part degraded, in one line, or it is not written at all.
 

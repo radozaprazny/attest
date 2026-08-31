@@ -130,6 +130,12 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 - **The sha in the record name is the point.** The question is *"was this state audited"*, not
   *"was this repo ever audited"* — which is why `/audit-history` writes
   `.attest/ship-<date>-<time>-<short-sha>.md` even when the verdict is clean.
+- **It leaves a trace.** Every matched command appends one line — UTC timestamp, decision,
+  HEAD sha, sanitised command — to `.attest/tmp/ship-guard.log`, the **pass** as well as the ask.
+  A hook that decides silently cannot be told apart from one that was never registered, which is
+  exactly how a real push once slipped past unexplained; `cat` that file to see whether the guard
+  is alive and what it decided (attest ADR-0034). It is ignored by git, never a record, and safe
+  to delete at any time.
 - **Adding your own ship command:** it is a `case` statement near the top of the script. Put
   your deploy script or submit CLI in it literally — do not make the patterns clever.
 - **A dry run publishes nothing** and is allowed through (`--dry-run`) — but only when the

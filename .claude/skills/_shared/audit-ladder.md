@@ -147,8 +147,10 @@ sanctioned artifacts exist, both of them records *that* a gate ran and what it r
 `/gate` appends a dated run record under `.attest/` (attest ADR-0016), and `/audit-history`
 appends one of its own — `ship-…-<short-HEAD-sha>.md` — which the `PreToolUse` ship guard
 reads before anything leaves the machine (attest ADR-0028). `.attest/` therefore holds
-append-only records plus — only when a subagent cannot read the out-of-tree scratch — an
-ignored `.attest/tmp/` the gate deletes when it is done (attest ADR-0026). The document audits
+append-only records plus an ignored `.attest/tmp/` for anything transient: the gate's
+fallback material, which it deletes when it is done, and the ship guard's decision trace,
+which it keeps (attest ADR-0026, ADR-0034). Whatever writes there removes its **own files**,
+never the directory. The document audits
 inside the gate still write nothing at all: they have no `Write` tool (attest ADR-0017).
 
 Do not inflate a minor into a blocker to look thorough, and do not invent findings to avoid

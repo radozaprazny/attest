@@ -92,7 +92,9 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    say in the verdict that those passes were read-only by instruction only. If a subagent
    reports it **cannot read `$M`** (a temp dir is outside the project, and a harness may
    refuse it), re-write the same material under `.attest/tmp/` inside the repo, re-run that
-   pass, and delete the directory afterwards — it is scratch, never a record.
+   pass, and delete **the files you wrote** afterwards — it is scratch, never a record. Delete
+   your files, not the directory: `.attest/tmp/` is shared ignored scratch and the ship guard
+   keeps its decision trace there too (attest ADR-0034).
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
    owner, including for the two edges it resolves explicitly. Order everything by the shared
@@ -129,8 +131,10 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    assume the last line of `ls` is the last run.
 
    The directory is append-only: never edit or delete a previous record. Its one exception
-   is the `.attest/tmp/` scratch of step 2, which is ignored by git and deleted by the run
-   that made it (attest ADR-0026) — a record is never written there. Recommend staging
+   is the ignored `.attest/tmp/` scratch, which git never sees and whose **files** are removed
+   by whatever wrote them — the directory itself is shared, so a run that deleted it whole
+   would silently erase the ship guard's trace (attest ADR-0026, narrowed by ADR-0034). A
+   record is never written there. Recommend staging
    the record **with the commit it gates** — that is what makes "the gate ran" a fact in
    history rather than a memory. The record holds the verdict summary only: never the
    findings' full text, and never a fact whose home is a control document (the router

@@ -283,7 +283,8 @@ say "$GUIDE_ICON" "Manual" "$GUIDE_REF — the whole loop is PART 9"
 # --- .gitignore: append the lines the kit needs, never replace the file --------------------
 group_reset
 ensure_ignore ".claude/settings.local.json"
-# The gate's run records under .attest/ are meant to be committed; only its scratch is not.
+# The run records under .attest/ are meant to be committed; only the shared scratch is not —
+# the gate's fallback material and the ship guard's decision log both live there (ADR-0034).
 ensure_ignore ".attest/tmp/"
 if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
   say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/"

@@ -8,8 +8,10 @@
 ## Current state
 
 The **lean-kit series (phase 11)** is open as **PR #4** — `feat/lean-kit` → `main`, three
-commits (`9101eac` the series, `8a7d45a` this file, `3481531` the ship record), CI green,
-mergeable. It came from a design pass that asked one question of every component — *would a new
+commits, CI green, mergeable. Two follow-up ADRs came out of shipping it: **0033** a ship
+record is written before the push and committed under a later sha · **0034** the ship guard
+leaves a trace, for the pass as well as the ask (which narrows ADR-0026 — whatever writes into
+`.attest/tmp/` deletes its own files, not the directory). It came from a design pass that asked one question of every component — *would a new
 adopter miss this if it were gone?* — and removed the four that answered no. Six ADRs:
 **0027** no formatter · **0028** a hook must prevent, not remind · **0029** three bare rungs ·
 **0030** `/compliance` is opt-in · **0031** the installer reports capabilities · **0032** a late
@@ -25,7 +27,7 @@ Baseline green and the shape claims re-measured 2026-08-31 — shellcheck is not
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 104 passed, 0 failed
+./scripts/smoke.sh                                    # 111 passed, 0 failed
 ./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore lines = 18 items
 ./install.sh --compliance "$EMPTY"                    # 20 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 4 — the sanctioned
@@ -42,13 +44,12 @@ a separate, deliberate step.
 
 ## Next
 
-- **Finish dogfooding the ship guard — one open question.** Driven by hand it is correct both
-  ways: `ask` with the missing-record reason at a bare HEAD, silent once the record exists. Live,
-  only the *pass* half is confirmed (the push of `8a7d45a`, whose record was on disk). The *stop*
-  half is **not**: pushing `3481531` — a sha no record names — went through with **no visible
-  prompt**. From inside the session the two explanations cannot be told apart: the hook may not be
-  registered, or the active permission mode may be auto-approving its `ask`. Re-test in a fresh
-  session under default permissions before trusting the guard in anger.
+- **Read `.attest/tmp/ship-guard.log` after the next push.** The guard now records every
+  matched command and its decision (ADR-0034), so the question that could not be answered from
+  inside a session — did the hook fire at all, or did the permission mode answer for it — is now
+  one `cat`. A push with a line in the log and no prompt means the mode auto-approved; a push
+  with **no line** means the hook is not registered, and that is the real bug. Check it once,
+  then this bullet is done.
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live
   run.
@@ -73,17 +74,14 @@ a separate, deliberate step.
   gitignored). The shipped `.claude/settings.json` stays generic on purpose — it is the
   consumer's file, and attest's own paths must never ride out in it. Same ADR-0006 tension
   `/gate` solves with `$DOCS`. Attest has no `docs/attest-business.md`, so only the carrier
-  half applies here.
-- **A ship record can never name the commit that contains it.** `/audit-history` keys the record
-  on the HEAD being shipped, so the record is written while that HEAD is current and is therefore
-  untracked at the moment the guard reads it; committing it lands it under a *later* sha, which no
-  record names in turn. ADR-0016 and ADR-0028 fix the filename but say nothing about where the
-  file sits in history. Phase 11 hit this first (`3481531` carries the record for `8a7d45a`). Not
-  a defect — the chain is intact and readable — but the rule is undeclared, and a future series
-  should either write it down or decide the record stays untracked. Do not "fix" it by back-dating
-  a record to the commit that holds it; that is exactly ADR-0032's option (b).
+  half applies here. It **is** now set locally. `smoke.sh` unsets both overrides at the top for
+  that reason: with the carrier exported, the declaration fixtures read this file instead of the
+  documents the test wrote, and four assertions failed for a purely ambient reason.
+- **A ship record never names the commit that contains it** — `3481531` carries the record for
+  `8a7d45a`, and that is now the declared rule, not an accident (ADR-0033). Read `.attest/` by the
+  sha *in the name*, never by the commit the file sits in, and never make the two line up.
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0032 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0034 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
   entry's `Status` (ADR-0003). Phase 11 flipped four: 0005, 0015, 0021, 0024.
 - **Cutting a release = bump the `Kit version:` line** in

@@ -202,3 +202,17 @@ them:
 - Resolved: the history question got its ADR and its answer — squashed to a single root
   commit at first release (ADR-0008); the phase-by-phase record survives in prose, here and
   in the decision log.
+
+  *Shipping it taught two more things, both about the guard.* Opening the PR meant writing the
+  first real ship record — and a record keyed to the HEAD being pushed can never sit in the
+  commit it names, so ADR-0033 wrote the rule down rather than leave the next reader to
+  re-derive it from a filename that looks off by one commit. Then a push at a sha no record
+  named went through with **no prompt**, and nothing in the repo could say whether the hook had
+  fired and the permission mode answered for it, or whether the hook had never been registered
+  at all. A gate whose firing leaves no trace is precisely the thing this kit exists to replace,
+  so ADR-0034 gave the guard a log — the pass as well as the ask — which in turn narrowed
+  ADR-0026: `.attest/tmp/` is shared scratch now, and whoever writes there deletes their own
+  files, not the directory. The suite grew 104 → 111, and one of the new runs exposed a fourth
+  defect that was nobody's design: `smoke.sh` inherited `ATTEST_THREAD_CARRIER` from the
+  developer's own settings and read the maintainer's live document instead of its fixtures. It
+  unsets both overrides now.

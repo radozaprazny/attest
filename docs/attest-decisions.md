@@ -816,3 +816,61 @@ Supersedes: ADR-0021
   it may never be written for a run that did not happen — this entry sanctions honesty about
   timing, not reconstruction from memory.
 
+
+## ADR-0033 — a ship record is written before the push and committed under a later sha · 2026-08-31 · Accepted
+
+- **Context** — `/audit-history` keys its record on the HEAD being shipped and the `PreToolUse`
+  guard matches that sha before a push, so the record must exist *while that HEAD is current* —
+  it is an untracked file at the moment the guard reads it. Committing it moves HEAD, so the
+  commit that carries a record is itself one no record names. ADR-0016 fixes the filename and
+  ADR-0028 fixes what the sha means; neither says where the file sits in history. Phase 11 hit
+  it first: `3481531` carries the record for `8a7d45a`, and the question only surfaced because
+  the push actually happened.
+- **Options** — (a) never commit ship records — leave them local evidence, ignored like scratch;
+  (b) commit them, accepting that a record lands under a later sha than the one it names;
+  (c) make the names line up — rename the record to its containing commit, or delay writing it
+  until after the push.
+- **Decision** — (b), stated in the skill rather than left to be re-derived.
+- **Why** — (a) makes the guard's evidence unshareable: a reviewer of the PR cannot see that the
+  ship gate ran, and `.attest/` exists precisely so *"the gate ran"* is a fact in the repo rather
+  than on one machine. (c) is ADR-0032's rejected option wearing a different hat — a filename
+  that claims a state nothing actually audited, indistinguishable downstream from an honest one.
+  (b) costs exactly one thing, and it is visible and explainable.
+- **Consequences** — the record is untracked when the guard reads it **by design**, so the guard
+  must keep checking the filesystem and never the index (it already does). Read `.attest/`
+  accordingly: `ship-…-<sha>.md` is evidence about `<sha>`, never about the commit it happens to
+  sit in — do not infer the audited state from the container. A branch's **final** commit, which
+  is typically the one adding the record, is unaudited by construction; where that matters — a
+  public release — run `/audit-history` again at that sha and accept that its record lands one
+  commit later still, or squash before shipping. The rule is written into `/audit-history`'s run
+  record section.
+
+## ADR-0034 — the ship guard leaves a trace, for the pass as well as the ask · 2026-08-31 · Accepted
+
+- **Context** — pushing `3481531`, a sha no record named, produced **no prompt**. Driven by hand
+  on the identical payload the guard answers `ask`, so the script was not the suspect. From
+  inside the session the two explanations — the hook was never registered, or it fired and the
+  active permission mode auto-approved its `ask` — are **indistinguishable**, because a
+  `PreToolUse` hook that answers `ask` writes nothing anywhere. The kit's whole claim is that a
+  gate having run is a fact rather than a memory, and the guard was the one gate leaving no fact
+  behind.
+- **Options** — (a) leave it: a guard is a convenience, its firing need not be evidence;
+  (b) log only the ask; (c) log every matched command with its decision, into ignored scratch;
+  (d) promote it to a committed record.
+- **Decision** — (c): one line — UTC timestamp, decision, sha, sanitised command — appended to
+  `.attest/tmp/ship-guard.log`.
+- **Why** — (a) is the state that produced this entry. (b) still cannot separate *"passed
+  silently"* from *"never ran"*, and the silent pass is exactly the case that misled a reader
+  here. (d) inflates a routine hook firing into an attestation and would put a line in the repo
+  for every push. (c) answers *"did the guard run, and what did it decide"* in one `cat`, costs
+  **no new `.gitignore` line** — `.attest/tmp/` is already ignored (ADR-0026) — and cannot be
+  mistaken for a record, because it does not carry a record's name and never leaves the machine.
+- **Consequences** — **ADR-0026 is narrowed.** `.attest/tmp/` is no longer the gate's private
+  scratch to remove wholesale: whatever writes there deletes **its own files**, and a `/gate` run
+  deleting the directory would silently erase the guard's trace. Said in `/gate` step 2, `/gate`
+  step 5 and the shared ladder, so a doc-auditor handed any of the three sees it. The log is
+  unbounded on purpose — the guard only matches publishing commands, so it grows by a line per
+  push, and it is ignored and disposable. It carries the same `tr`-sanitised command the reason
+  does, so a trace can hold nothing the prompt could not already show. Fail-open like the rest of
+  the hook: an unwritable scratch costs the line, never the decision. Smoke pins all of it,
+  including that an unmatched command leaves no trace at all.
