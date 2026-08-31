@@ -7,81 +7,44 @@
 
 ## Current state
 
-The **audit fix series (phase 10)** is **merged** — PR #3, merge commit `ce439a5`. `main`
-carries it.
+The **lean-kit series (phase 11)** is committed — `9101eac` on `feat/lean-kit`, pushed to
+origin. It came from a design pass that asked one question of every component — *would a new
+adopter miss this if it were gone?* — and removed the four that answered no. Six ADRs:
+**0027** no formatter · **0028** a hook must prevent, not remind · **0029** three bare rungs ·
+**0030** `/compliance` is opt-in · **0031** the installer reports capabilities · **0032** a late
+gate record says so. Rationale → `attest-decisions.md`; narrative → `attest-devlog.md` Phase 11;
+what moved where → the commit body of `9101eac`. Phase 10 is merged (PR #3, `ce439a5`).
 
-In progress: the **lean-kit series (phase 11)**, branch `feat/lean-kit`, uncommitted at the
-time of writing. It comes from a design pass that asked one question of every component —
-*would a new adopter miss this if it were gone?* — and removed everything that answered no.
-Measured into an empty directory, a default install goes from **23 items to 18** (16 files +
-2 `.gitignore` lines; 20 with `--compliance`) — but the composition is the point, not the
-count: **0** of them edit your code, **0** are bound to a language, **0** are inert. The kit
-also drops from *"needs `python3` on `PATH`"* to *"needs `git` and `/bin/sh`"*. What it changes, by ADR:
+The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
+repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
+0.3.0** (`.claude/skills/_shared/audit-ladder.md`).
 
-- **ADR-0027** — the formatter is gone: `format_py.py`, `ruff.toml`, the `.ruff_cache/` ignore
-  line, `has_ruff_config`/`has_python_markers`, and the cleanup's Python parity branch. Nothing
-  in the kit edits your code any more. Supersedes ADR-0015 and ADR-0024.
-- **ADR-0028** — the two advisory hooks (`PreCompact` nudge, `Stop` long-session warning) are
-  replaced by two that prevent rather than remind:
-  - `session_declaration.sh` (`SessionStart`) — reads the **Non-goals** of `BUSINESS.md` and
-    the **Current state**/**Next** of `PROGRESS.md` into context at every session start, so a
-    blocker-severity rule is known *before* the code exists. Silent while the documents are
-    still `<placeholder>` text; capped **per section** (24 / 8 / 8), ~52 lines worst case, and
-    a trimmed section says how much it dropped.
-  - `ship_guard.sh` (`PreToolUse` on `Bash`) — matches commands that publish/submit/upload and
-    answers `permissionDecision: "ask"` unless `.attest/` holds an `/audit-history` record
-    naming the **current** HEAD sha. `/audit-history` therefore now writes
-    `ship-<date>-<time>-<sha>.md` — its first and only artifact.
-- **ADR-0029** — the middle rung loses its per-skill alias; three bare rungs. Supersedes the
-  alias half of ADR-0005 (`nit` in the reviewer is untouched).
-- **ADR-0030** — `COMPLIANCE.md` and `/compliance` are opt-in (`install.sh --compliance`), and
-  `/business` makes the call once it knows the archetype. The ladder gains the absent-owner
-  rule; `/gate` distinguishes *"not installed"* from *"skipped"*. The template path keeps both
-  files on purpose (a generated repo has no installer to re-run).
-- **ADR-0032** — a gate run record may be written **late** and says so in its own first line;
-  its filename then carries the write time, so name order in `.attest/` is write order and
-  anything scoping to "since the last audit" matches on the HEAD sha instead. Written because
-  this series' own second gate run went unrecorded until two runs later.
-- **ADR-0031** — the installer reports **capabilities, not paths**: one line per group with
-  ✓/·/⚠, a *YOURS, UNTOUCHED* block, a *NEEDS YOU* block, and a single line when a re-run
-  changed nothing. `.mcp.json.example` and `ci.yml.example` are gone; `install.sh` now copies
-  nothing at all from `.github/`. Supersedes ADR-0021.
+Baseline green and the shape claims re-measured 2026-08-31 — shellcheck is not on `PATH`, use
+`uvx`:
 
-Also in the series, without an ADR: the shipped `CLAUDE.md` asks for **your** format command
-instead of documenting ruff; GUIDE PART 2 is rewritten around the two hooks and gains a 2.3
-naming what the kit deliberately does *not* hook; PART 6 keeps the MCP pattern but writes the
-`.mcp.json` shape inline; PART 8 documents the new report and the flag; README gains a "what it
-does not ship" paragraph; `ci.yml` drops its ruff step and shellchecks the hooks instead.
+```bash
+uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
+./scripts/smoke.sh                                    # 104 passed, 0 failed
+./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore lines = 18 items
+./install.sh --compliance "$EMPTY"                    # 20 items; a re-run reports "changed nothing"
+git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 4 — the sanctioned
+                                                      # status flips only (0005, 0015, 0021, 0024)
+```
 
-**Kit version is now 0.3.0** (`.claude/skills/_shared/audit-ladder.md`).
+There is no linter step for another language because the kit no longer contains one. Both new
+hooks answer correctly when driven by hand: `ship_guard.sh` returns `ask` on `git push` naming
+the current HEAD and stays silent on `ls`; `session_declaration.sh` emits the declaration block
+once a carrier is set.
 
 Repo is **private** on GitHub (`radozaprazny/attest`), template button on. Going public is
 a separate, deliberate step.
 
-Baseline stays green — shellcheck is not on `PATH`, use `uvx`:
-
-```bash
-uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh
-./scripts/smoke.sh          # 104 assertions
-```
-
-There is no linter step for another language because the kit no longer contains one.
-
 ## Next
 
-- **Open the PR.** `/gate` ran **four** times on this working tree (records under `.attest/`,
-  committed with the change they gate); every finding was addressed and the baseline is green.
-
-  **It landed as one commit, not the planned commit-per-ADR.** ADR-0027, 0028, 0030 and 0031
-  are interleaved through `install.sh` and `scripts/smoke.sh` — the formatter cannot leave
-  without `settings.json` and the smoke suite moving with it, and the opt-in flag and the new
-  report touch the same functions. Splitting them would have produced intermediate commits
-  whose own test suite fails, which is a worse lie about the history than one honest commit
-  with six ADRs in its body. ADR-0029 and ADR-0032 *were* separable; they were folded in rather
-  than shipped as two one-line commits around a large one.
-- **Dogfood the two new hooks in a real project** — they are unit-covered by `smoke.sh` but
-  have not yet run inside a live session. The declaration hook wants a project whose
-  `BUSINESS.md` non-goals are real; the ship guard wants one push and one refusal.
+- **Dogfood the two hooks in a live session** — both are unit-covered by `smoke.sh` and both
+  answer correctly when driven by hand, but neither has yet fired inside a real session. The
+  ship guard wants one push it stops and one it lets through; the declaration hook wants a
+  session started with `ATTEST_THREAD_CARRIER` set (see Notes).
 - **Enable branch protection** on `main` once the `ci` workflow is green — without it the
   CI reports but does not block (noted in ADR-0019).
 - **Decide on going public** — before flipping visibility: re-run `/audit-history full`,
@@ -105,7 +68,7 @@ There is no linter step for another language because the kit no longer contains 
   `/gate` solves with `$DOCS`. Attest has no `docs/attest-business.md`, so only the carrier
   half applies here.
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0031 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0032 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
   entry's `Status` (ADR-0003). Phase 11 flipped four: 0005, 0015, 0021, 0024.
 - **Cutting a release = bump the `Kit version:` line** in
