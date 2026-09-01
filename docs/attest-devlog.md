@@ -228,3 +228,15 @@ them:
   believed-but-false gate; the merge boundary is branch protection, which is server-side. The
   `case` arms now each carry what the prompt will claim, so the two reasons can never be
   substituted for one another. Suite 111 → 118, one of them pinning that the merge stays silent.
+
+  *Then the carrier itself.* `docs/attest-progress.md` went false at the merge three times in a
+  row — *"uncommitted"* after PR #3, *"open as PR #4"* after PR #4, *"in progress"* after PR #5 —
+  each time written correctly and falsified by the very next event. The shape is the same one
+  ADR-0033 had already named in a different place: the carrier lives inside the branch it
+  describes, so it can never describe its own merge. It matters more here, because the
+  `SessionStart` hook loads the file as *binding* context, so the falsehood is read into the next
+  session as a rule. ADR-0036's answer is not a reminder but a form: state what is true of the
+  **branch**, in a tense the merge leaves standing — *"committed on `feat/x`; PR #7 opened"*,
+  never *"in progress"*. It needs no action at all to stay true, which is the only property that
+  survives someone forgetting; staleness is recoverable, and a wrong line is not, because nobody
+  can tell it from a current one.

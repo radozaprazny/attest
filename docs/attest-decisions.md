@@ -910,3 +910,35 @@ Supersedes: ADR-0021
   whole rather than only with `--public`, because creating a repo from a local source pushes the
   history regardless of who can read it. The omission of `gh pr merge` is written in the script
   and in GUIDE 2.3 so the next reader does not "fix" it; smoke pins that it stays silent.
+
+## ADR-0036 — the thread-carrier states what is true of the branch, in a tense the merge leaves standing · 2026-09-01 · Accepted
+
+- **Context** — `docs/attest-progress.md` went false at the merge three times in a row: after PR
+  #3 it still said the lean-kit series was *"uncommitted"*, after PR #4 it said *"open as PR #4"*,
+  after PR #5 it said *"in progress on `feat/visibility-guard`"*. Each was written correctly and
+  each was falsified by the very next event. The cause is structural, not sloppiness: the carrier
+  lives **inside** the branch it describes, so it can never describe its own merge — the last
+  write precedes the merge by construction, exactly as a ship record cannot sit in the commit it
+  names (ADR-0033). It matters more here than there: the `SessionStart` hook loads this file as
+  *binding* context (ADR-0028), so the falsehood is read into the next session as a rule.
+- **Options** — (a) discipline: remember to fix the carrier after every merge; (b) a rule in
+  `/checkpoint` that the next series' first commit cleans the stale section; (c) write the carrier
+  in a form the merge cannot falsify — claims about the **branch** (*"committed on `feat/x`;
+  PR #7 opened"*), never about a momentary repo status (*"in progress"*, *"PR #7 is open"*);
+  (d) move the carrier out of the branch entirely.
+- **Decision** — (c), written into `/checkpoint`.
+- **Why** — (a) is what already failed three times, and this kit exists to replace discipline
+  with mechanism. (b) is still discipline, only deferred, and it leaves the document wrong for
+  the whole gap — the window in which a session actually starts and reads it. (d) breaks the
+  routing table's one-fact-one-home for no gain and would put status outside review. (c) needs
+  **no action at all** to stay true, which is the only property that survives a person forgetting:
+  a branch-scoped past-tense claim goes stale — incomplete, still true — rather than wrong, and a
+  reader cannot tell a wrong line from a current one, which is precisely why staleness is the
+  cheaper failure.
+- **Consequences** — `/checkpoint` gains the rule and the two worked examples, and the
+  instruction to repair a falsified line **before** layering today's delta on it. The rule is
+  generic — any project using branches and PRs has the same shape — so it ships rather than
+  living in attest's own notes. Related and left as it is: `/audit-history` gains a plain
+  operational line, not an ADR, that the record and the push must be two separate steps, because
+  a `PreToolUse` guard judges the state *before* the step it guards runs — one step doing both is
+  judged against a world where the record does not exist yet.

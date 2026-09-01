@@ -18,12 +18,18 @@ ask (narrowing ADR-0026 — whatever writes into `.attest/tmp/` deletes its own 
 directory). Rationale → `attest-decisions.md`; narrative → `attest-devlog.md` Phase 11. Phase 10
 is merged (PR #3, `ce439a5`).
 
-In progress: **ADR-0035** on `feat/visibility-guard`. Merging PR #4 passed the guard in silence,
-which looked like a missing `gh pr merge` pattern; measuring found the larger gap was elsewhere.
-The guard now covers the **visibility flip** (`gh repo edit --visibility`, `gh repo create`) —
-the one action whose blast radius is the whole history and which no revert undoes — each `case`
-arm states what the prompt will claim the command does, and the absence of `gh pr merge` is a
-written decision rather than a hole.
+**ADR-0035** landed on `feat/visibility-guard`, PR #5 (merge commit `4ed24da`). Merging PR #4
+passed the guard in silence, which looked like a missing `gh pr merge` pattern; measuring found
+the larger gap was elsewhere. The guard covers the **visibility flip** (`gh repo edit
+--visibility`, `gh repo create`) — the one action whose blast radius is the whole history and
+which no revert undoes — each `case` arm states what the prompt will claim the command does, and
+the absence of `gh pr merge` is a written decision rather than a hole.
+
+**ADR-0036** is committed on `fix/carrier-tense`: this file went false at the merge three times
+running, because a carrier lives inside the branch it describes and so can never describe its own
+merge. `/checkpoint` now asks for claims the merge leaves standing — branch-scoped and past
+tense — since staleness is recoverable and a wrong line is not. This paragraph is written that
+way; so is the one above it.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
@@ -83,13 +89,17 @@ a separate, deliberate step.
 - **A ship record never names the commit that contains it** — `3481531` carries the record for
   `8a7d45a`, and that is now the declared rule, not an accident (ADR-0033). Read `.attest/` by the
   sha *in the name*, never by the commit the file sits in, and never make the two line up.
+- **Write a ship record and push in two separate steps** — a `PreToolUse` guard is evaluated
+  before the command it guards runs, so one step doing both is judged against a state where the
+  record does not exist yet and the guard asks, correctly, while looking wrong. Now also in
+  `/audit-history` itself, so it is the kit's rule and not a local habit.
 - **The ship guard fires on real Bash tool calls** — proven 2026-08-31 by an isolated `git push`
   that logged a `pass` line with no hook invoked by hand. A push that raises no prompt is the
   guard being auto-approved by the permission mode, not a dead hook; a push leaving **no line**
   in `.attest/tmp/ship-guard.log` would be the real bug. Its designed over-match is visible in
   the same log: a tool call merely *containing* the text `git push` in a payload fires it.
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0035 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0036 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
   entry's `Status` (ADR-0003). Phase 11 flipped four: 0005, 0015, 0021, 0024.
 - **Cutting a release = bump the `Kit version:` line** in

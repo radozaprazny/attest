@@ -137,6 +137,11 @@ make the filename a claim about a state nothing audited, which is the trap ADR-0
 refused. Read `.attest/` accordingly: `ship-…-<sha>.md` is evidence about `<sha>`, never about
 the commit it happens to sit in.
 
+**Write the record and ship in two separate steps.** A `PreToolUse` guard is evaluated *before*
+the command it guards runs, so a single step that writes the record and then pushes is judged
+against the state where the record does not exist yet — the guard asks, correctly, and the
+prompt looks wrong. Write the record, let that step finish, then push.
+
 Never write a record for an audit you did not actually complete — a record for a pass that
 degraded says which part degraded, in one line, or it is not written at all.
 
