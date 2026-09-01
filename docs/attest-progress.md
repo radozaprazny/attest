@@ -7,27 +7,34 @@
 
 ## Current state
 
-The **lean-kit series (phase 11)** is open as **PR #4** — `feat/lean-kit` → `main`, three
-commits, CI green, mergeable. Two follow-up ADRs came out of shipping it: **0033** a ship
-record is written before the push and committed under a later sha · **0034** the ship guard
-leaves a trace, for the pass as well as the ask (which narrows ADR-0026 — whatever writes into
-`.attest/tmp/` deletes its own files, not the directory). It came from a design pass that asked one question of every component — *would a new
-adopter miss this if it were gone?* — and removed the four that answered no. Six ADRs:
-**0027** no formatter · **0028** a hook must prevent, not remind · **0029** three bare rungs ·
-**0030** `/compliance` is opt-in · **0031** the installer reports capabilities · **0032** a late
-gate record says so. Rationale → `attest-decisions.md`; narrative → `attest-devlog.md` Phase 11;
-what moved where → the commit body of `9101eac`. Phase 10 is merged (PR #3, `ce439a5`).
+The **lean-kit series (phase 11)** is **merged** — PR #4, merge commit `8360fd5`; `main` carries
+it. It came from a design pass that asked one question of every component — *would a new adopter
+miss this if it were gone?* — and removed the four that answered no. Six ADRs: **0027** no
+formatter · **0028** a hook must prevent, not remind · **0029** three bare rungs · **0030**
+`/compliance` is opt-in · **0031** the installer reports capabilities · **0032** a late gate
+record says so. Shipping it produced two more: **0033** a ship record is written before the push
+and committed under a later sha · **0034** the guard leaves a trace, for the pass as well as the
+ask (narrowing ADR-0026 — whatever writes into `.attest/tmp/` deletes its own files, not the
+directory). Rationale → `attest-decisions.md`; narrative → `attest-devlog.md` Phase 11. Phase 10
+is merged (PR #3, `ce439a5`).
+
+In progress: **ADR-0035** on `feat/visibility-guard`. Merging PR #4 passed the guard in silence,
+which looked like a missing `gh pr merge` pattern; measuring found the larger gap was elsewhere.
+The guard now covers the **visibility flip** (`gh repo edit --visibility`, `gh repo create`) —
+the one action whose blast radius is the whole history and which no revert undoes — each `case`
+arm states what the prompt will claim the command does, and the absence of `gh pr merge` is a
+written decision rather than a hole.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
 0.3.0** (`.claude/skills/_shared/audit-ladder.md`).
 
-Baseline green and the shape claims re-measured 2026-08-31 — shellcheck is not on `PATH`, use
+Baseline green; shape claims measured 2026-08-31, suite re-run 2026-09-01 — shellcheck is not on `PATH`, use
 `uvx`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 111 passed, 0 failed
+./scripts/smoke.sh                                    # 118 passed, 0 failed
 ./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore lines = 18 items
 ./install.sh --compliance "$EMPTY"                    # 20 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 4 — the sanctioned
@@ -44,22 +51,15 @@ a separate, deliberate step.
 
 ## Next
 
-- ~~Is the ship guard registered at all?~~ **Answered the first time the log existed.** An
-  isolated `git push` tool call — nothing else in it, no hook invoked by hand — appended
-  `12:56:06Z pass 5e9939b git push origin feat/lean-kit`. The hook fires on real Bash tool
-  calls, so the earlier silent push of `3481531` was the guard answering `ask` and the active
-  permission mode approving it without surfacing a prompt. Both hooks are now dogfooded: the
-  guard has stopped a push, passed a push and traced both; the declaration hook has a carrier
-  set and runs at the next session start. The log also caught the over-match its own comment
-  predicts — a tool call merely *containing* the text `git push` inside a payload fires it —
-  which is the designed trade (an extra prompt, never a miss).
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live
   run.
-- **Enable branch protection** on `main` once the `ci` workflow is green — without it the
-  CI reports but does not block (noted in ADR-0019).
-- **Decide on going public** — before flipping visibility: re-run `/audit-history full`,
-  and consider a README demo GIF (open nice-to-have; never fabricate a transcript).
+- **Enable branch protection** on `main` — now load-bearing, not housekeeping: ADR-0035 names
+  branch protection plus required CI as *the* merge boundary, precisely because the ship guard
+  deliberately does not cover merges. Until it is on, that boundary does not exist anywhere.
+- **Decide on going public** — the guard now asks at the flip itself (ADR-0035). The right
+  answer to that prompt is an `/audit-history full` run, not an approval. A README demo GIF
+  stays an open nice-to-have; never fabricate a transcript.
 - **Still never exercised in anger:** `/checkpoint` alone (it cannot be, on a template —
   ADR-0006).
 
@@ -83,8 +83,13 @@ a separate, deliberate step.
 - **A ship record never names the commit that contains it** — `3481531` carries the record for
   `8a7d45a`, and that is now the declared rule, not an accident (ADR-0033). Read `.attest/` by the
   sha *in the name*, never by the commit the file sits in, and never make the two line up.
+- **The ship guard fires on real Bash tool calls** — proven 2026-08-31 by an isolated `git push`
+  that logged a `pass` line with no hook invoked by hand. A push that raises no prompt is the
+  guard being auto-approved by the permission mode, not a dead hook; a push leaving **no line**
+  in `.attest/tmp/ship-guard.log` would be the real bug. Its designed over-match is visible in
+  the same log: a tool call merely *containing* the text `git push` in a payload fires it.
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0034 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0035 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
   entry's `Status` (ADR-0003). Phase 11 flipped four: 0005, 0015, 0021, 0024.
 - **Cutting a release = bump the `Kit version:` line** in

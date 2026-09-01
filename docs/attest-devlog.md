@@ -216,3 +216,15 @@ them:
   defect that was nobody's design: `smoke.sh` inherited `ATTEST_THREAD_CARRIER` from the
   developer's own settings and read the maintainer's live document instead of its fixtures. It
   unsets both overrides now.
+
+  *And a third, from the merge itself.* PR #4 merged without the guard saying a word, which read
+  as a missing `gh pr merge` pattern — until measuring what the list actually covered turned up
+  `gh repo edit --visibility public` and `gh repo create`, equally silent, on a repo whose own
+  `Next` list says *"decide on going public"*. ADR-0035 took the visibility flip and refused the
+  merge, for a reason worth keeping: the guard's prompt would have claimed the merge *"sends data
+  off the machine"* when every byte was already on the remote, no record could ever name a merge
+  commit that does not exist yet, and most merges never touch the machine at all — so matching
+  the CLI form would have sold a coverage the hook cannot have. A declared gap beats a
+  believed-but-false gate; the merge boundary is branch protection, which is server-side. The
+  `case` arms now each carry what the prompt will claim, so the two reasons can never be
+  substituted for one another. Suite 111 → 118, one of them pinning that the merge stays silent.

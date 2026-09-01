@@ -874,3 +874,39 @@ Supersedes: ADR-0021
   does, so a trace can hold nothing the prompt could not already show. Fail-open like the rest of
   the hook: an unwritable scratch costs the line, never the decision. Smoke pins all of it,
   including that an unmatched command leaves no trace at all.
+
+## ADR-0035 — the ship guard gates the visibility flip, and declares that it does not gate the merge · 2026-09-01 · Accepted
+
+- **Context** — merging PR #4 passed the guard in silence, which looked like a hole and raised
+  the obvious fix: add `gh pr merge` to the `case`. Measuring what the list actually covered
+  found a different and larger gap — `gh repo edit --visibility public` and `gh repo create`
+  were equally silent, and attest's own `Next` list carries *"decide on going public"*.
+- **Options** — (a) add `gh pr merge` and leave visibility uncovered; (b) add both; (c) add the
+  visibility commands, and write down *why* the merge is out; (d) add neither and treat the push
+  as the only boundary.
+- **Decision** — (c).
+- **Why the merge stays out** — three independent reasons, any one of which would be enough.
+  **It would state a falsehood:** at merge time every byte is already on the remote, put there by
+  a push this guard did gate, so the prompt's *"sends data off the machine"* would be untrue —
+  and a hook that cannot back its own reason is the failure ADR-0034 was written to end, not to
+  repeat. **It could never be satisfied:** the merge commit does not exist when the check runs,
+  so the only record that could exist names the branch HEAD — accepting it would be a claim about
+  a different commit, which ADR-0033 forbade one day earlier. **It would advertise coverage it
+  cannot have:** most merges never touch the machine at all — the web button, auto-merge, a
+  colleague — so matching the CLI form would leave a reader believing merges are gated when the
+  common path is not. A declared gap is worth more than a believed-but-false gate. The merge
+  boundary is branch protection plus required CI (ADR-0019), which is server-side and
+  path-independent; the guard cannot reach it and should not pretend to.
+- **Why visibility comes in** — it is the ADR-0028 test met exactly: the moment the question
+  becomes irreversible. A push exposes the tree you just wrote; making a repository public
+  exposes **every commit and every old blob**, and a revert does not un-publish them. It is also
+  the only entry whose required mode is `/audit-history full` rather than the default, because a
+  secret buried in an old commit is precisely that action's risk.
+- **Consequences** — the `case` arms now each set what the prompt claims the command does, so
+  *"sends data off the machine"* and *"changes who can read this repository"* are never
+  substituted for one another. `--visibility private` matches too: narrowing to the value needs a
+  second pattern per flag spelling (`--visibility=public`), and this hook's standing rule is that
+  an over-match costs a prompt while an under-match costs the gate. `gh repo create` matches
+  whole rather than only with `--public`, because creating a repo from a local source pushes the
+  history regardless of who can read it. The omission of `gh pr merge` is written in the script
+  and in GUIDE 2.3 so the next reader does not "fix" it; smoke pins that it stays silent.
