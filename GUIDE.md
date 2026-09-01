@@ -119,9 +119,17 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 - **How:** before Claude runs a Bash command, the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
   create`, `npm publish`, `twine upload`, `cargo publish`, `docker push`, a Kaggle submit,
-  `scp`/`rsync`, `aws s3 cp`, `curl --upload-file`. On a hit it looks under `.attest/` for an
-  `/audit-history` run record naming the **current** HEAD sha. If there is none, it answers
-  with `permissionDecision: "ask"` and a reason.
+  `scp`/`rsync`, `aws s3 cp`, `curl --upload-file` — plus the one that changes **who may read**
+  what you already sent: `gh repo edit --visibility` and `gh repo create`. On a hit it looks
+  under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha. If there
+  is none, it answers with `permissionDecision: "ask"` and a reason.
+- **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
+  just wrote; making a repository public exposes **every commit and every old blob**, including
+  the ones you have not re-read in a year — and it is the one action you cannot take back by
+  reverting. It is also the only entry where the recommended mode is `/audit-history full`
+  rather than the default, which is why the prompt says so (attest ADR-0035). Turning a repo
+  *private* asks too: narrowing the pattern to the value would need one more spelling per flag
+  form, and this hook's standing rule is that an extra prompt beats a miss.
 - **What for:** `/audit-history` is the kit's ship gate, and until now it was purely advisory —
   you had to remember it at exactly the moment you had stopped thinking. This makes the
   boundary real without making it absolute.
@@ -151,6 +159,14 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   proxy, and Claude Code shows context pressure natively) — attest ADR-0028. The one nudge that
   survives is a *line*, not an event: the declaration hook prints
   *"/checkpoint owns this file"* under the `PROGRESS.md` half, where you can act on it.
+- **No merge gate.** `gh pr merge` is deliberately *not* in the ship guard's list. By the time
+  you merge, every byte is already on the remote — put there by a push the guard did gate — so
+  the prompt's own claim would be false; the merge commit does not exist yet, so no record could
+  ever name it (attest ADR-0033); and most merges never touch your machine at all — the web
+  button, auto-merge, a colleague. Matching only the CLI form would advertise a coverage the
+  hook cannot have, and a believed-but-false gate is worse than a declared gap. That boundary
+  belongs to **branch protection and required CI**, which are server-side and catch every path
+  (attest ADR-0035).
 - **Nothing is forbidden to you.** A project that wants edit-time formatting can still have it —
   it is one `PostToolUse` entry in `.claude/settings.json` pointing at your own formatter. The
   kit simply does not ship one, and will not install one over your toolchain (attest ADR-0027).

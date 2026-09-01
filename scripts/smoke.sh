@@ -145,6 +145,20 @@ else
   fail "the ask payload is valid JSON even for a hostile command"
 fi
 
+# The audience boundary, and the one the guard deliberately does NOT hold (ADR-0035).
+says "making the repo public asks"            "$(guard 'gh repo edit --visibility public')" 'permissionDecision":"ask'
+says "…and the reason names reading, not sending" "$(guard 'gh repo edit --visibility public')" 'changes who can read this repository'
+says "the other flag spelling asks too"       "$(guard 'gh repo edit --visibility=public')" 'permissionDecision":"ask'
+# An over-match costs a prompt; an under-match costs the gate. Going private matches on purpose.
+says "going private asks too, by design"      "$(guard 'gh repo edit --visibility private')" 'permissionDecision":"ask'
+says "creating a repo from a local source asks" "$(guard 'gh repo create x --public --source=.')" 'permissionDecision":"ask'
+# The two reasons must never be substituted for one another — a guard that cannot back its
+# claim is the failure ADR-0034 ended.
+says "a push still claims what a push does"   "$(guard 'git push origin main')" 'sends data off the machine'
+# Pinned, not an oversight: by merge time the bytes are already on the remote, the merge commit
+# does not exist yet, and most merges never touch this machine. Do not "fix" this assertion.
+if [ -z "$(guard 'gh pr merge 4 --merge')" ]; then ok "a merge stays silent — a declared gap, not a miss"; else fail "a merge stays silent — a declared gap, not a miss"; fi
+
 # --- 3b. the guard leaves a trace, so "did it fire" is a fact (ADR-0034) ---------------
 echo "hooks — ship guard trace:"
 G="$WORK/trace"; mkdir -p "$G"
