@@ -52,6 +52,27 @@ Write **briefly**. A thread-carrier should restore context quickly, not replace 
 free to delete old, no-longer-relevant details — the goal is a faithful, short picture, not
 a complete history (`git log` holds that).
 
+### Write a claim the next event cannot falsify
+
+The carrier lives **inside** the branch it describes, so it can never describe its own merge:
+you write it, then the merge happens, and a sentence like *"in progress on `feat/x`"* is false
+from that moment on — while nobody is looking, because the work is done and attention has moved.
+A hook that loads this file into every session then carries the falsehood forward as binding
+context.
+
+So **state what is true of the branch, not what is momentarily true of the repo**, in a tense the
+merge leaves standing:
+
+- write *"phase 12 is committed on `feat/x`; PR #7 opened"* — still true after the merge, merely
+  incomplete;
+- not *"in progress on `feat/x`"* or *"PR #7 is open"* — the merge makes both untrue and nothing
+  will notice.
+
+Same for anything else an imminent event settles: name the state you observed and when, rather
+than a status you expect to hold. Being **stale is recoverable; being wrong is not**, because a
+reader cannot tell a wrong line from a current one. When you do catch a falsified line, fix it
+first — before adding today's delta on top of it.
+
 ## Behaviour when I run you
 
 1. **Determine the current state** — derive it without asking, from:
