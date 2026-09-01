@@ -53,7 +53,23 @@ the current HEAD and stays silent on `ls`; `session_declaration.sh` emits the de
 once a carrier is set.
 
 Repo is **private** on GitHub (`radozaprazny/attest`), template button on. Going public is
-a separate, deliberate step.
+a separate, deliberate step, and as of 2026-09-01 the case for it is measured rather than
+aesthetic:
+
+- **Branch protection is unavailable** on a private repo on GitHub Free — both
+  `branches/main/protection` and `rulesets` answer **403 · "Upgrade to GitHub Pro or make this
+  repository public"**. ADR-0035 delegates the merge boundary to branch protection, so that
+  boundary currently **exists nowhere**; going public is the only way to obtain it at no cost.
+- **`/audit-history full` ran clean** — 51 commits, 9 refs, 441 objects, all 44 paths that ever
+  existed: 0 findings on every rung (`.attest/ship-20260901-143933-9621526.md`). Two things are
+  recorded there as intended rather than as findings: the maintainer's address sits in 45 commit
+  authorships and would become permanently harvestable, and the name is in the `LICENSE`, the
+  clone URLs and the ADR-0012 repo-name guards. (Spelled out in neither place on purpose — the
+  point survives without adding an occurrence in file content, which is a different exposure
+  class from authorship metadata.)
+- **54 `ADR-NNNN` citations ship into every adopter's repo** and today resolve to a 404. The
+  convention is explained (`audit-ladder.md:14`, `GUIDE.md:203`) but both pointers name this
+  private repo. Publishing makes them resolvable without writing a line.
 
 ## Next
 
@@ -68,6 +84,11 @@ a separate, deliberate step.
   stays an open nice-to-have; never fabricate a transcript.
 - **Still never exercised in anger:** `/checkpoint` alone (it cannot be, on a template —
   ADR-0006).
+- **Known debt, deliberately not fixed: GUIDE PART 7 dates fastest.** It cites a specific Claude
+  Code version (*"wizard removed in v2.1.198"*), key bindings and `/rc` — correct today, and the
+  first section to rot in a public repo, while also being what a newcomer reads for orientation.
+  Left alone on purpose: rewriting it to be version-agnostic would cost the concreteness that
+  makes it useful. Re-read it at each release instead.
 
 ## Notes / standing constraints
 
