@@ -33,7 +33,14 @@ way; so is the one above it.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
-0.3.0** (`.claude/skills/_shared/audit-ladder.md`).
+0.4.0** (`.claude/skills/_shared/audit-ladder.md`), tagged `v0.4.0`.
+
+0.4.0 rather than a `v0.3.0` tag on the same tree: three adopter-visible changes landed in
+shipped files after 0.3.0 reached `main` and none of them bumped the line — the guard writes a
+trace file (ADR-0034), gates a new class of command (ADR-0035), and `/checkpoint` carries a new
+rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behaves differently.
+The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
+actually ran under (ADR-0016).
 
 Baseline green; shape claims measured 2026-08-31, suite re-run 2026-09-01 — shellcheck is not on `PATH`, use
 `uvx`:
