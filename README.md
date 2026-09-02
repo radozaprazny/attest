@@ -68,7 +68,9 @@ commands that publish, submit or upload, checks `.attest/` for a run record nami
 
 Dogfooded before shipping: two sandboxes seeded with **known planted faults**, audited by
 agents told nothing about them — **6/6 caught at the right severity, 0 false positives**
-([the record](docs/attest-devlog.md)). The four results that matter:
+([the record](docs/attest-devlog.md)). Read that as what it is: a clean sweep of **six** faults
+across **two** sandboxes, every one of them counted, not a benchmark — the sample is small
+enough to name. The four results that matter:
 
 - `/business` derived the archetype **`service`, not `ai-system`** — the project had no
   server-side model. The tailoring restrains itself.
@@ -113,37 +115,54 @@ never clobbered. It reports by **capability** rather than by path — one line p
 actually have to merge. A re-run that changed nothing says so in one line. Add `--compliance`
 if you are in regulated scope (or let `/business` tell you).
 
+On this path there is nothing to clean up — the installer copies no `README`, no `LICENSE` and
+nothing of attest's own. Go straight to **[First 5 minutes → Everyone](#everyone)**, steps 1–3.
+
 ## First 5 minutes
 
-The template hands you attest's own files next to your empty ones. **A generated repo cleans
-itself:** the `template-cleanup` workflow runs on your first push (or via *Actions → run
-workflow*), removes attest's identity files **by name** (its `docs/attest-*.md`, its smoke
-test, `install.sh`, its own `ci.yml`) and rewrites this README and its `LICENSE` down to
-stubs for you to fill, then deletes itself —
-verify it ran. It is safe to run late: it never removes a directory wholesale, so your own
-`docs/` and `scripts/` survive, and every file it rewrites or removes under a name you might
-also use — `README`, `LICENSE`, `ci.yml`, `scripts/smoke.sh` — is checked for attest's own
-content first. The cleanup pushes an **ordinary commit**, never a history rewrite, so anything
-it removes is one `git revert` away. With Actions disabled, do steps 1–2 by hand *(they are the template/clone
-path only — `install.sh` never copies these files)*:
+**Which steps are yours depends on how you adopted the kit.** Steps **A–B** exist only on the
+template/clone path, and there the cleanup workflow normally does them for you. Steps **1–3**
+are for everyone. If you came through `install.sh`, skip to *Everyone*.
 
-1. **Replace `README.md`** — this one is attest's front page, not your project's.
-2. **Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-   Then delete **`docs/attest-*.md`**, **`scripts/`**, **`install.sh`**,
-   **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
-   attest's own history, tests, installer, cleanup and CI.
-3. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
+### Template or clone only — and usually automatic
+
+**A generated repo cleans itself:** the `template-cleanup` workflow runs on your first push (or
+via *Actions → run workflow*), removes attest's identity files **by name** (its
+`docs/attest-*.md`, its smoke test, `install.sh`, its own `ci.yml`) and rewrites this README and
+its `LICENSE` down to stubs for you to fill, then deletes itself — **verify it ran.** It is safe
+to run late: it never removes a directory wholesale, so your own `docs/` and `scripts/` survive,
+and every file it rewrites or removes under a name you might also use — `README`, `LICENSE`,
+`ci.yml`, `scripts/smoke.sh` — is checked for attest's own content first. The cleanup pushes an
+**ordinary commit**, never a history rewrite, so anything it removes is one `git revert` away.
+
+**If it ran, A and B are already done — skip them.** Do them by hand only when Actions are
+disabled, or when you checked and the run never happened.
+
+- **A. Replace `README.md`** — this one is attest's front page, not your project's.
+- **B. Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
+  Then delete **`docs/attest-*.md`**, **`scripts/`**, **`install.sh`**,
+  **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
+  attest's own history, tests, installer, cleanup and CI.
+
+### Everyone
+
+1. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
-4. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
+2. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
    on a fresh session. Until you do, `/business` does not exist.
-5. **Declare:** `/business` (intent + archetype) · `/decision` as you choose. `/business`
-   ends by telling you whether this project is in regulated scope. **On this path the
-   template already gave you `COMPLIANCE.md` and `/compliance`** — so *in scope* means fill
-   them, and *out of scope* means delete both and record the one-sentence reason. (The
-   `install.sh --compliance` flag is the other adoption path's answer to the same question;
-   step 2 told you to delete the installer.) Then **gate:** `/gate` before each commit ·
-   `/audit-history` before you push, `full` before a public release — the ship guard will ask
-   for it if you forget.
+3. **Declare:** `/business` (intent + archetype) · `/decision` as you choose. `/business`
+   ends by telling you whether this project is in regulated scope — and what you do with that
+   answer depends on how you got here, because the two paths start from opposite defaults:
+   - **template or clone** — you already have `COMPLIANCE.md` and `/compliance`. *In scope*
+     means fill them; *out of scope* means **delete both** and record the one-sentence reason.
+     (You cannot re-run the installer: step **B** told you to delete it.)
+   - **`install.sh`** — you have neither, on purpose. *In scope* means re-run the installer
+     with `--compliance`; *out of scope* means you are already done, but **record the
+     one-sentence reason** anyway — an absent file declares nothing, and a later audit needs
+     to know the question was asked.
+
+   Then **gate:** `/gate` before each commit · `/audit-history` before you push, `full` before
+   a public release — the ship guard will ask for it if you forget.
 
 For a full, point-by-point guide to every piece, see [`GUIDE.md`](GUIDE.md) — PART 9 is the
 whole loop end to end.
