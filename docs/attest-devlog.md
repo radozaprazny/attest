@@ -136,6 +136,27 @@ against it. This log records how it got there and, more usefully, what was wrong
   hostile command), the opt-in flag in both orders, and the report's changed-nothing path —
   green; shellcheck clean over the installer, the hooks, the smoke test and the cleanup.*
 
+- **Phase 12 — the guard learns to tell the truth about itself (2026-09-04).** An outside
+  analysis of `v0.4.0` — eight lenses, 65 findings — arrived and turned out to be worth taking
+  seriously: ten of its sharpest claims were reproduced here, on a different OS than it was
+  written on, and all ten held. Its value was not the count but the reframing. The ship guard
+  *could* be bypassed, which was never a secret; what nobody had noticed was that a bypass
+  **left no line in the log**, so a miss and an unregistered hook were the same observation —
+  the exact ambiguity ADR-0034 had introduced the log to remove. And the guard matched a
+  *filename*, so an empty record opened the door and so did one whose verdict was `blocker`,
+  while its own prompt offered to "ship unaudited": two claims collapsed into one word. Four
+  entries came out of it (ADR-0037…0040) and the order mattered — trace first, because until a
+  miss is visible no later fix is measurable. The other two findings were quieter and neither
+  was about the guard: a Windows checkout opened from WSL hands `dash` CRLF hooks, which exit 2,
+  and a `PreToolUse` exit 2 does not fail — it **blocks every Bash call in the session**; and
+  attest had been shipping twelve of its own audit records, one carrying the maintainer's
+  address, into every repo generated from the template button.
+  *Test: the kit's own gate then caught the fix. The first sweep deleted records on any non-zero
+  `git cat-file`, which outside a repository is every record including the adopter's — the exact
+  inversion of the invariant its own ADR had just written down — and the first version of the
+  test ran outside a repository too, so a green suite covered a destructive bug. `scripts/smoke.sh`
+  118 → **156** assertions; that fixture is now a real repository with its own commit.*
+
 ## Phase 7 — what the first real install found
 
 Phases 1–6 checked whether the kit was **internally** consistent. It was. Nobody had ever

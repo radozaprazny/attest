@@ -91,6 +91,49 @@ else
   echo "template-cleanup: LICENSE is no longer attest's — left untouched"
 fi
 
+# attest's own audit records are attest's history, not yours. Left behind, a generated repo
+# starts with a dozen records of somebody else's scans — /gate hands the newest of them to its
+# auditors as "the last audit", the full-history record describes 51 commits that do not exist
+# here, and one of them carries the maintainer's identity into every copy. The directory itself
+# stays: it is where YOUR records go (attest ADR-0041).
+if [ -d .attest ]; then
+  # The discriminator is the sha in the name, not the file's shape. Every record names the
+  # commit it gated; a generated repo has its own history, so attest's shas do not resolve here
+  # and yours do. Shape would be wrong: a record YOU wrote before the first push carries the
+  # same `- kit:` line attest's do, and losing it would be exactly the kind of quiet deletion
+  # this script exists not to do. Failing to resolve is the only thing that removes a file, so
+  # a git that cannot answer keeps everything.
+  # `git cat-file -e` fails for more reasons than "this object is not here": 128 outside a
+  # repository, 127 with no git at all. Deleting on any non-zero exit inverts the invariant
+  # above — a zip download or a tree before `git init` would lose the adopter's own records
+  # too. So establish first that git can answer at all, and only then let a specific negative
+  # answer remove anything (attest ADR-0041).
+  if git rev-parse --git-dir >/dev/null 2>&1; then
+    echo "template-cleanup: removing attest's own audit records from .attest/"
+    for rec in .attest/gate-*.md .attest/ship-*.md; do
+      [ -e "$rec" ] || continue
+      sha="${rec##*-}"; sha="${sha%.md}"
+      # The trailing segment is only a sha if it LOOKS like one. `gate-notes.md`,
+      # `ship-…-<sha>-rerun.md` and `gate-2026-09-05-pre-release.md` are names the kit never
+      # writes, so they are the adopter's — and feeding "notes" or "rerun" to `git cat-file`
+      # just fails, which under the rule below would delete them. Anything that is not a bare
+      # hex abbreviation of at least four characters is kept, unexamined (attest ADR-0041).
+      case "$sha" in
+        ""|*[!0-9a-f]*) continue ;;
+      esac
+      [ "${#sha}" -ge 4 ] || continue
+      if git cat-file -e "${sha}^{commit}" 2>/dev/null; then
+        continue          # this commit is here — the record is this repository's
+      fi
+      rm -f "$rec"
+    done
+  else
+    echo "template-cleanup: not a git checkout — leaving .attest/ untouched"
+  fi
+  # The directory stays if anything of yours is in it; rmdir, never rm -rf.
+  rmdir .attest 2>/dev/null || true
+fi
+
 # COMPLIANCE.md and .claude/skills/compliance/ are deliberately LEFT here, even though
 # install.sh does not ship them without --compliance (ADR-0030). The two paths disagree on
 # purpose: a generated repo has no install.sh to re-run, so removing them would be the one

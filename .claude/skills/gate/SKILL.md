@@ -130,12 +130,20 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    scoping itself to *"since the last audit"* must read the HEAD sha inside the names, never
    assume the last line of `ls` is the last run.
 
-   The directory is append-only: never edit or delete a previous record. Its one exception
-   is the ignored `.attest/tmp/` scratch, which git never sees and whose **files** are removed
-   by whatever wrote them — the directory itself is shared, so a run that deleted it whole
-   would silently erase the ship guard's trace (attest ADR-0026, narrowed by ADR-0034). A
-   record is never written there. Recommend staging
-   the record **with the commit it gates** — that is what makes "the gate ran" a fact in
+   The directory is append-only: never edit or delete a previous record. **Three carve-outs
+   exist, all named; nothing else is permitted:**
+   - the ignored `.attest/tmp/` scratch, which git never sees and whose **files** are removed
+     by whatever wrote them — the directory itself is shared, so a run that deleted it whole
+     would silently erase the ship guard's trace (attest ADR-0026, narrowed by ADR-0034). A
+     record is never written there;
+   - **redacting personal data a record should never have carried** — the data goes, a visible
+     mark stays where it was, and the record states what was removed, when, and under which
+     entry. The finding, its counts and its verdict are never touched (attest ADR-0040);
+   - **`template-cleanup.sh` removing attest's own records** from a repo generated with the
+     template button, keyed on whether the sha in each filename resolves there, and only once
+     git has proved it can answer at all (attest ADR-0041).
+
+   Recommend staging the record **with the commit it gates** — that is what makes "the gate ran" a fact in
    history rather than a memory. The record holds the verdict summary only: never the
    findings' full text, and never a fact whose home is a control document (the router
    stands).

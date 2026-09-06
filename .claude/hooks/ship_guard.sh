@@ -9,9 +9,10 @@
 # It ASKS, it does not forbid: the answer is a permission prompt you can approve. A guard that
 # cannot be overridden gets deleted; one that states what is missing gets used.
 #
-# Evidence is a run record /audit-history appends under .attest/ whose name carries the short
-# SHA of the commit being shipped — so the check is "was THIS state audited", not "did you ever
-# run it". Fail-open everywhere: no payload, no git, no match => the command proceeds untouched.
+# Evidence is a run record /audit-history appends under .attest/: its name carries the short SHA
+# of the commit being shipped, and two of its lines are read — so the check is "was THIS state
+# audited AND did it come back clean", not "did you ever run it" and not "does a file exist"
+# (ADR-0028, narrowed by ADR-0037). Fail-open everywhere: no payload, no git, no match => the command proceeds untouched.
 
 set -u
 
@@ -59,18 +60,6 @@ case "$CMD" in
   *) exit 0 ;;
 esac
 
-# A dry run publishes nothing — but only when the dry run is the WHOLE command. In a compound
-# command the flag may belong to a different call than the one that ships
-# (`git push --dry-run && git push origin main`), so judge those as a whole and ask.
-NL='
-'
-case "$CMD" in
-  # a compound command — ';' '&&' '||' '|' or a newline, the last of which survives JSON
-  # escaping as the two characters \n
-  *';'*|*'&&'*|*'||'*|*'|'*|*"$NL"*|*'\n'*) ;;
-  *--dry-run*) exit 0 ;;
-esac
-
 # Only characters that cannot break the JSON string survive into the reason — and into the
 # trace below, so one sanitisation serves both.
 SAFE="$(printf '%s' "$CMD" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
@@ -94,21 +83,84 @@ trace() { # trace <decision>
   } 2>/dev/null || true
 }
 
+# A dry run publishes nothing — but only when the dry run is the WHOLE command. In a compound
+# command the flag may belong to a different call than the one that ships
+# (`git push --dry-run && git push origin main`), so judge those as a whole and ask.
+#
+# This branch sits AFTER trace() on purpose (attest ADR-0038). It used to sit above it, and a
+# command that took it left no line at all — so a miss and an unregistered hook looked the same
+# from the log, which is the one ambiguity ADR-0034 introduced the log to remove. A decision to
+# let something through is still a decision; it gets a line.
+NL='
+'
+case "$CMD" in
+  # a compound command — ';' '&&' '||' '|' or a newline, the last of which survives JSON
+  # escaping as the two characters \n
+  *';'*|*'&&'*|*'||'*|*'|'*|*"$NL"*|*'\n'*) ;;
+  *--dry-run*) trace dryrun; exit 0 ;;
+esac
+
+# What the record has to SAY, not merely that it exists (attest ADR-0037). A filename cannot
+# carry a verdict, so matching one only ever answered "was this state audited" — an empty file
+# passed, and so did a record whose verdict was `blocker`. That made "audited" and "clean" the
+# same word to this hook while its own prompt offered to "ship unaudited", i.e. it treated the
+# two as opposites. Two lines of the record template (`/audit-history`) are load-bearing here:
+#
+#   - HEAD: <short sha> …
+#   - findings: 0 blocker · …
+#
+# `[^0-9]*` before `0 blocker` is what keeps `1 blocker` and `10 blocker` out; anchoring on
+# `^- ` keeps prose that merely mentions the words out.
+# record_is_clean <file> — the FIRST `- HEAD:` line names this sha and the FIRST `- findings:`
+# line begins `0 blocker`. First, not any: the record's prose is the author's and may quote
+# either form at column 0, so two independent greps over the whole file could be satisfied by
+# a sentence rather than by the header (attest ADR-0037). `sed -n '/…/{p;q;}'` rather than
+# `grep -m1`, which is a GNU extension.
+record_is_clean() {
+  _h="$(sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null || true)"
+  _f="$(sed -n '/^- findings:/{p;q;}' "$1" 2>/dev/null || true)"
+  case "$_h" in
+    "- HEAD: $SHA"|"- HEAD: $SHA "*) ;;
+    *) return 1 ;;
+  esac
+  printf '%s' "$_f" | grep -Eq '^- findings:[^0-9]*0 blocker' || return 1
+  return 0
+}
+
 if [ -n "$SHA" ]; then
+  # EVERY record for this sha has to be clean, not merely one of them. The glob expands
+  # lexicographically, so "the first clean one wins" meant the OLDEST won — and the workflow the
+  # prompt itself recommends produces exactly the bad case: a quick scan comes back clean, a
+  # later `full` scan finds a blocker, and the push went through on the earlier file. A verdict
+  # for a given tree state does not expire, so a blocker recorded against this sha still holds
+  # (attest ADR-0037).
+  FOUND=0
+  BAD=0
   for rec in "$ROOT"/.attest/ship-*"$SHA"*.md; do
-    if [ -e "$rec" ]; then
-      trace pass
-      exit 0
-    fi
+    [ -e "$rec" ] || continue
+    FOUND=1
+    record_is_clean "$rec" || BAD=1
   done
-  WHY="no /audit-history run record for HEAD ($SHA) under .attest/"
+  if [ "$FOUND" = 1 ] && [ "$BAD" = 0 ]; then
+    trace pass
+    exit 0
+  fi
+  if [ "$FOUND" = 1 ]; then
+    # A distinct word in the log — "a record exists and does not clear this" is a different
+    # event from "no record at all", and only the log can tell them apart afterwards. One
+    # decision, one line: it is traced at the single exit below, never here (attest ADR-0038).
+    DEC=blocked
+    WHY="a /audit-history record for HEAD ($SHA) exists but not every record for this commit attests a clean scan — one of them reports a blocker, or predates the record format and carries no readable 'HEAD:' and 'findings: 0 blocker' header lines"
+  else
+    WHY="no /audit-history run record for HEAD ($SHA) under .attest/"
+  fi
 else
   WHY="this is not a git checkout, so no ship record could be matched"
 fi
 
-trace ask
+trace "${DEC:-ask}"
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-  "attest ship gate: this command $ACT ($SAFE) and $WHY. Run /audit-history first (full before a public release), or approve to ship unaudited."
+  "attest ship gate: this command $ACT ($SAFE) and $WHY. Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
 
 exit 0
