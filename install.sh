@@ -93,7 +93,21 @@ copy_if_absent() {
       # freeze — say that it drifted and where the fresh copy sits (ADR-0018). This one
       # really is an action: the kit moved and your copy did not.
       LAST="drift"
-      note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
+      # ...but first separate the one "drift" that is not a drift at all. If the two files are
+      # identical once CR is removed, the content never diverged — the copy is the kit's own,
+      # mangled to CRLF by a Windows checkout made before .gitattributes existed. That is the
+      # population ADR-0039 was written for, and the generic message fails it twice: "diff
+      # against …" shows nothing in most tools, and the file it calls merely stale is one that
+      # exits 2 under dash, which for a PreToolUse hook BLOCKS every Bash call in the session.
+      # Name it, and hand over the one-line repair. The file is still not rewritten here —
+      # copy-if-absent is the kit's load-bearing promise and a whitespace difference is not a
+      # reason to start writing into files a user already has (attest ADR-0044).
+      if { tr -d '\r' < "$TARGET/$rel" 2>/dev/null || :; } |
+           cmp -s - <(tr -d '\r' < "$KIT/$rel" 2>/dev/null || :) 2>/dev/null; then
+        note_needs_you "$rel" "identical to the kit's except for LINE ENDINGS (CRLF) — under dash a CRLF hook exits 2, and a PreToolUse hook that exits 2 blocks every Bash call; repair with: tr -d '\\r' < $rel > $rel.lf && mv $rel.lf $rel"
+      else
+        note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
+      fi
     else
       # A DOCUMENT of yours that the kit also ships is the DESIGNED outcome, not a problem:
       # it is reported as kept, never as something to fix (ADR-0031). Only documents go in
@@ -341,13 +355,17 @@ group_reset
 # next commit, with a rule this installer wrote. `.claude/hooks/*` covers every executable the
 # kit puts in the repo, which is the whole of what ADR-0039 is about (attest ADR-0039).
 ensure_attribute ".claude/hooks/* text eol=lf"
+# The ship guard parses two lines out of a record byte-exactly (ADR-0037); a CRLF record fails
+# closed with a reason that blames its age rather than its line endings. Narrow, like the line
+# above: `.attest/` is the kit's own directory, never the user's source.
+ensure_attribute ".attest/*.md text eol=lf"
 
 ensure_ignore ".claude/settings.local.json"
 # The run records under .attest/ are meant to be committed; only the shared scratch is not —
 # the gate's fallback material and the ship guard's decision log both live there (ADR-0034).
 ensure_ignore ".attest/tmp/"
 if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
-  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/ · the kit's hooks pinned to LF"
+  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/ · the kit's hooks and records pinned to LF"
 fi
 
 # --- what deliberately did not land --------------------------------------------------------

@@ -152,10 +152,13 @@ append-only records plus an ignored `.attest/tmp/` for anything transient: the g
 fallback material, which it deletes when it is done, and the ship guard's decision trace,
 which it keeps (attest ADR-0026, ADR-0034). Whatever writes there removes its **own files**,
 never the directory. **Two mutations of a record itself are sanctioned, both named, and nothing
-else is:** redacting personal data a record should never have carried, leaving a visible mark and
-saying what went (ADR-0040); and `template-cleanup.sh` sweeping attest's own records out of a
-repo generated from the template button (ADR-0041). Neither ever touches a record in the project
-that wrote it. The document audits
+else is:** redacting personal data a record should never have carried, leaving a visible mark
+and saying what went, when and under which entry — **the finding, its counts and its verdict are
+never touched, and it sanctions one mutation of one record, not a licence to tidy `.attest/`**
+(ADR-0040); and `template-cleanup.sh` sweeping attest's own records out of a repo generated from
+the template button (ADR-0041) — **the sweep** never touches a record in the project that
+wrote it, while the redaction is precisely a project editing one of its own, once, in the open.
+The document audits
 inside the gate still write nothing at all: they have no `Write` tool (attest ADR-0017).
 
 Do not inflate a minor into a blocker to look thorough, and do not invent findings to avoid

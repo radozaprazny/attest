@@ -69,6 +69,14 @@ the other?"* If yes, record it; if no, leave it to the commit.
   a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
   touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
   **never** rewrite its rationale.
+- **Three relations, all of them fields of the *new* entry**, so none of them costs an exception
+  to the rule above: `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only
+  `Supersedes` earns the `Status` flip. **`Narrows` is the one to reach for when an entry's
+  reasoning was right and its wording too broad** — the decision still stands and its scope is
+  smaller than its text claims. The alternative people reach for instead is editing the old
+  wording, which is the one thing the log cannot allow. All three share a limit worth knowing:
+  the field is on the **new** entry, so landing on the old one shows nothing — finding a
+  narrowing means searching the log for that id.
 
 ## Two modes
 

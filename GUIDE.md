@@ -446,10 +446,16 @@ one output shape and one severity ladder so they read as a family:
 
 That is the whole procedure — do **not** hand-copy the files. The script is **copy-if-absent**:
 every doc, skill, hook and `settings.json` is installed only if the target does not already
-have it, and `.gitignore` is **appended to** rather than replaced. It appends one line to
-`.gitattributes` too — `.claude/hooks/* text eol=lf`, scoped to the kit's own files and no
-wider, because `text` normalises on `git add` and a blanket `*.sh` would rewrite your own
-scripts (attest ADR-0039). If you have already ruled on that pattern, it is left alone.
+have it, and `.gitignore` is **appended to** rather than replaced. It appends **two** lines to
+`.gitattributes` too — `.claude/hooks/* text eol=lf` and `.attest/*.md text eol=lf`. Both are
+scoped to paths the kit itself owns and no wider, because `text` normalises on `git add` and a
+blanket `*.sh` would rewrite your own scripts (attest ADR-0039); the second exists because the
+ship guard parses two lines out of a record byte-exactly, so a CRLF record fails closed with a
+reason that blames its age instead of its line endings (attest ADR-0037, ADR-0044). If you have
+already ruled on either pattern, it is left alone. The template path reaches the same place by
+subtraction: the kit's own `.gitattributes` carries a blanket `*.sh` pin it needs for its own
+shell, and `template-cleanup.sh` drops exactly that line from a generated repo (attest
+ADR-0043).
 
 **What it prints** is grouped by capability, not by path (attest ADR-0031): one line per
 group — documents, commands, checks, guards, manual — with `✓` for *landed*, `·` for

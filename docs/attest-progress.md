@@ -7,9 +7,15 @@
 
 ## Current state
 
-The **guard-truthfulness series (phase 12)** is on `fix/guard-trace-and-semantics`, uncommitted
-at the time of writing. It closes the four P0 items an external review of `v0.4.0` left, all of
-which were reproduced here before being touched. Four ADRs, kit **0.5.0**:
+The **guard-truthfulness series (phase 12)** is committed on `fix/guard-trace-and-semantics` as
+`d91f69f`; **PR #10** opened 2026-09-06, CI green. (Written per ADR-0036 — a claim the merge
+leaves standing. The previous wording said *"uncommitted at the time of writing"* and was false
+within the hour, in the repo that wrote that rule; the `SessionStart` hook then loaded the
+falsehood into the next session as binding, which is exactly the failure ADR-0036 names.)
+
+It closes the four P0 items an external review of `v0.4.0` left, all of which were reproduced
+here before being touched — and then **five more ADRs (0042–0046) came out of gating it**, two of
+them blockers that only the gate could see. **Ten** ADRs in the series, kit **0.5.0**:
 
 - **ADR-0037** — the guard reads the record's `- HEAD:` and `- findings: 0 blocker` lines instead
   of matching a filename. An empty record used to pass, and so did one reporting a blocker; those
@@ -23,8 +29,47 @@ which were reproduced here before being touched. Four ADRs, kit **0.5.0**:
   Windows checkout opened from WSL gave `dash` CRLF hooks, exit 2 — and a `PreToolUse` exit 2
   blocks every Bash call in the session.
 - **ADR-0040** — the maintainer's address was redacted from `ship-…-9621526.md` under a narrow,
-  marked exception to append-only, and `template-cleanup.sh` now removes attest's own records
-  from a generated repo, discriminating on whether the sha in the filename resolves there.
+  marked exception to append-only: the data goes, a visible mark stays where it was, and the
+  record says what was removed, when and under which rule.
+- **ADR-0041** — attest's own audit records do not travel into a repo generated from the
+  template. `template-cleanup.sh` removes them, discriminating on whether the sha in the
+  filename **resolves** in the target — the only thing that really separates attest's records
+  from an adopter's own, since auditing before the first push is the workflow this kit teaches.
+  The kit's own gate caught two inversions of that test before it shipped (`git cat-file -e`
+  answers non-zero for *any* reason, including "no git at all", which would have deleted every
+  record wherever git could not answer).
+
+**What the 2026-09-07 gate added** (record: `.attest/gate-20260907-103000-d91f69f.md`, run over
+the whole of PR #10 rather than a working diff):
+
+- **ADR-0042** — a shallow clone answers about `HEAD` and nothing else, so
+  `template-cleanup.sh`'s sha test deleted **the adopter's own** records: a record names the
+  commit it gated, which ADR-0033 makes an ancestor. `actions/checkout` defaults to
+  `fetch-depth: 1`, and the workflow runs unattended with a write token. Fixed in both layers —
+  the script refuses unless git says the history is complete, the workflow asks for it.
+- **ADR-0043** — `.gitattributes` is tracked, so the template button carried a blanket
+  `*.sh text eol=lf` into adopters' repos: the kit editing your code through a rule you never
+  wrote, against the non-goal in README §"Not a kitchen sink". `template-cleanup.sh` now narrows
+  it, like it already narrows README and LICENSE.
+- **ADR-0044** — a line-ending-only difference is named, with its repair, instead of being
+  reported as ordinary `drift` — the message that failed exactly the Windows population ADR-0039
+  exists for. Nothing is rewritten: copy-if-absent stays absolute.
+- **ADR-0045** — the log's `Narrows:` relation gets the entry it never had, and ships in
+  `DECISIONS.md` and `decision/SKILL.md`, which still knew only `Supersedes`.
+- **ADR-0046** — ADR-0038 understated the trace sanitiser's keep-set; narrowed rather than
+  edited, which is what ADR-0045 just made the grammar for.
+
+Both blockers were invisible to `smoke.sh` — one fixture had a single commit, the other never
+copied `.gitattributes`. Both now have regression tests.
+
+**A second gate run over the fixes found more, which is the point.** It returned 2 majors and 8
+minors, and two of them were defects the *first* round of fixes introduced: the narrowing threw
+away the `.attest/*.md` pin the same series had just added, and ADR-0044 claimed smoke coverage
+that did not exist — a consequence written from a manual check rather than from an assertion. The
+narrowing is now surgical (a line of the adopter's own survives a late run), the assertions exist,
+and the ADR says what they actually assert. Verified by running the final suite in a worktree at
+the pre-fix HEAD: **6 failures there, 0 here** — the new tests can fail, which is the only thing
+that makes them tests.
 
 **Why 0.5.0 and not 0.4.1.** The record format became a contract in this series: a record
 written before ADR-0037 no longer clears the guard, and `install.sh` is copy-if-absent, so an
@@ -72,17 +117,20 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-04 — shellcheck is not on `PATH`, use
+Baseline green; every number below re-measured 2026-09-07 — shellcheck is not on `PATH`, use
 `uvx`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 156 passed, 0 failed
-./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore + 1 .gitattributes = 19 items
-./install.sh --compliance "$EMPTY"                    # 21 items; a re-run reports "changed nothing"
-git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 4 — the sanctioned
-                                                      # status flips only (0005, 0015, 0021, 0024)
+./scripts/smoke.sh                                    # 166 passed, 0 failed
+./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore + 2 .gitattributes = 20 items
+./install.sh --compliance "$EMPTY"                    # 22 items; a re-run reports "changed nothing"
+git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 on this branch —
+                                                      # the phase-11 status flips are already in main
 ```
+
+Read `smoke.sh`'s count as a floor, not a constant: four of its assertions are generated one per
+`.attest/` record on disk, so the total moves with the directory. Compare failures, not totals.
 
 There is no linter step for another language because the kit no longer contains one. Both new
 hooks answer correctly when driven by hand: `ship_guard.sh` returns `ask` on `git push` naming
@@ -137,7 +185,9 @@ aesthetic:
      "proceeds untouched"; it actually prompts with advice that cannot be satisfied, and a repo
      with no commits yet is told it is "not a git checkout".
   8. ⬜ **Decide what `/gate` is for** (F65, below) — a light mode for small changes, or stop
-     promising a commit-time gate.
+     promising a commit-time gate. Sharpened by the 09-07 run: the full gate is what *found* two
+     blockers nothing else could, so the answer is not "run it less" — it is a cheaper mode that
+     is still worth running on a one-file change.
 
   **P1** — gate scoping (first-parent diff on a merge HEAD; cleanliness from `git status
   --porcelain`, not `git diff --quiet`, which ignores untracked; `gate-records.txt` filtered to
@@ -151,13 +201,18 @@ aesthetic:
   the declaration hook mis-handles multi-line HTML comments and fenced blocks, and its 24-line
   cap counts blank separators (15 non-goals arrive as 12).
 
-- **Gate has not run since 2026-08-28 (F65).** Sixteen commits and six merges since `9101eac`;
-  PR #4 carries gate records, **PR #5–#9 do not**. `/audit-history` kept running throughout —
-  six committed ship records in the same window — so this is not neglect of records in general.
-  It is the commit-time gate specifically, and the likely reason is its cost: four parallel
-  subagents is disproportionate for a one-file change. That is a design question about `/gate`,
-  not a discipline question about the author. Decide it before the next release; a kit whose
-  headline is *"the gate ran is a fact in the repo"* cannot have its own gate quietly unused.
+- **What `/gate` is for (was F65) — the gap is closed, the design question is not.** F65 read
+  *"gate has not run since 2026-08-28"*; that was true when written and is now stale — it ran
+  2026-09-04, 09-06 and 09-07, the last of them over the whole of PR #10 rather than a working
+  diff. **That run is why this branch grew:** it returned **2 blockers, 2 majors, 7 minors**,
+  and both blockers were things no other check could see — a shallow clone deleting the
+  adopter's own records (ADR-0042) and a blanket `.gitattributes` rule reaching adopters through
+  the template button (ADR-0043). The suite could not see either: one fixture had a single
+  commit, the other never copied dotfiles. Both now have regression tests that fail against the
+  pre-fix code, verified by running the new suite in a worktree at the old HEAD.
+  The design question F65 really asked still stands: four parallel subagents is disproportionate
+  for a one-file change, which is *why* the gate goes unrun, and a light mode is the open item —
+  not the running of it.
 
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live
@@ -178,8 +233,9 @@ aesthetic:
 
 ## Notes / standing constraints
 
-- **attest's own regulatory posture: out of scope.** No personal data, no model, no automated
-  decision, no placement on any market — the kit is markdown and shell that runs on the
+- **attest's own regulatory posture: out of scope.** No personal data beyond the maintainer's
+  own — his authorship on every commit, and what ADR-0040 redacted from one record — no third
+  party, no Art 9 category, no model, no automated decision, no placement on any market — the kit is markdown and shell that runs on the
   author's machine. Recorded here because ADR-0030 makes *"out of scope, because …"* a
   declaration and an absent file not one, and attest has no filled `BUSINESS.md` of its own to
   put it in. The root `COMPLIANCE.md` stays a template for consumers; it is not attest's
@@ -206,7 +262,7 @@ aesthetic:
   in `.attest/tmp/ship-guard.log` would be the real bug. Its designed over-match is visible in
   the same log: a tool call merely *containing* the text `git push` in a payload fires it.
 - **`docs/attest-decisions.md` is append-only.** Check every commit: `git diff -U0
-  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0036 stay
+  docs/attest-decisions.md | grep -c '^-[^-]'` must be **0**. ADR-0001…0046 stay
   byte-identical once landed — except the one sanctioned mutation, flipping a superseded
   entry's `Status` (ADR-0003). Phase 11 flipped four: 0005, 0015, 0021, 0024.
 - **Cutting a release = bump the `Kit version:` line** in

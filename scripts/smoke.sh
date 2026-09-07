@@ -264,6 +264,21 @@ else
   ok "a CRLF source installs an LF hook"
 fi
 check "…and the installed hook is still valid shell" sh -n "$CRT/.claude/hooks/ship_guard.sh"
+# An UPGRADE over an existing CRLF hook takes the other branch entirely, and used to call a
+# whitespace-only difference "drift" with a "diff against …" most tools render as identical —
+# for a file that exits 2 under dash and blocks every Bash call (attest ADR-0044). Both
+# directions, because naming the CRLF case is worthless if a real edit stops reading as drift.
+CRU="$WORK/crlfupgrade"; mkdir -p "$CRU"
+"$KIT/install.sh" "$CRU" >/dev/null
+sed -i.bak 's/$/\r/' "$CRU/.claude/hooks/ship_guard.sh" 2>/dev/null || \
+  { tr -d '\r' < "$CRU/.claude/hooks/ship_guard.sh" | sed 's/$/\r/' > "$CRU/x" && mv "$CRU/x" "$CRU/.claude/hooks/ship_guard.sh"; }
+rm -f "$CRU/.claude/hooks/ship_guard.sh.bak"
+cru_out="$(run_install "$CRU")"
+says "a CRLF-only copy is named, not called drift"  "$cru_out" 'LINE ENDINGS'
+says_not "…and is not reported as ordinary drift"   "$cru_out" 'ship_guard.sh — yours kept, but it DIFFERS'
+printf '\n# an edit of my own\n' >> "$CRU/.claude/hooks/session_declaration.sh"
+cru_out2="$(run_install "$CRU")"
+says "a real content edit still reads as drift"     "$cru_out2" 'session_declaration.sh — yours kept, but it DIFFERS'
 # ...and the adopter's own next checkout must not undo it (ADR-0039)
 GA="$WORK/gitattr"; mkdir -p "$GA"
 "$KIT/install.sh" "$GA" >/dev/null
@@ -273,8 +288,13 @@ check "…scoped to the kit's own hooks"              grep -q 'claude/hooks' "$G
 # `|| echo 0`: grep -c exits 1 on zero matches, and under `set -e` that ends the run — which
 # once cost this suite 75 of its assertions, silently, including the regression test for a
 # destructive bug. Every count in this file is guarded for that reason.
-ga_lines=$(grep -c 'eol=lf' "$GA/.gitattributes" 2>/dev/null || echo 0)
-if [ "$ga_lines" -eq 1 ]; then ok "a re-run does not duplicate the attribute line"; else fail "a re-run does not duplicate the attribute line ($ga_lines)"; fi
+# The installer lands two attributes now — the hooks (ADR-0039) and the records the guard
+# parses byte-exactly (ADR-0037). Count each ONE, not the total: a total is the assertion that
+# breaks every time the kit legitimately pins one more path, which teaches the reader to raise
+# the number rather than ask why it moved.
+ga_hooks=$(grep -c '^\.claude/hooks/\*' "$GA/.gitattributes" 2>/dev/null || echo 0)
+ga_recs=$(grep -c '^\.attest/\*\.md' "$GA/.gitattributes" 2>/dev/null || echo 0)
+if [ "$ga_hooks" -eq 1 ] && [ "$ga_recs" -eq 1 ]; then ok "a re-run duplicates neither attribute line"; else fail "a re-run duplicates neither attribute line (hooks=$ga_hooks records=$ga_recs)"; fi
 check "the blanket *.sh rule is NOT written into your repo" \
   sh -c "! grep -qE '^[*][.]sh' '$GA/.gitattributes'"
 # A pattern the adopter already decided about is left alone — globs are not regexes, and
@@ -434,6 +454,11 @@ says "a stale attest-GUIDE.md gets the refresh hint" "$(run_install "$T9")" 'att
 echo "template-cleanup:"
 GEN="$WORK/generated"; mkdir -p "$GEN"
 cp -r "$KIT/.claude" "$GEN/"; cp "$KIT"/*.md "$GEN/"; cp "$KIT/install.sh" "$GEN/"
+# Dotfiles too: `cp "$KIT"/*.md` does not glob them, but the template button copies the whole
+# tree — which is exactly how a blanket `*.sh` rule reached adopters unseen (attest ADR-0043).
+cp "$KIT/.gitattributes" "$GEN/" 2>/dev/null || true
+# ...and a line of the adopter's own, added under the kit's header the way a late run would find
+printf '*.md diff=markdown\n' >> "$GEN/.gitattributes"
 cp "$KIT/LICENSE" "$GEN/"; mkdir -p "$GEN/docs" "$GEN/scripts" "$GEN/.github/workflows"
 cp "$KIT"/docs/*.md "$GEN/docs/"; cp "$KIT/scripts/smoke.sh" "$KIT/scripts/template-cleanup.sh" "$GEN/scripts/"
 # attest's own audit records: the generated repo must not inherit them (ADR-0041)
@@ -464,6 +489,17 @@ echo 'my notes' > "$GEN/docs/design.md"; echo 'echo deploy' > "$GEN/scripts/depl
 check "attest's own docs are gone"        test ! -e "$GEN/docs/attest-devlog.md"
 check "attest's installer is gone"        test ! -e "$GEN/install.sh"
 check "attest's own CI is gone"           test ! -e "$GEN/.github/workflows/ci.yml"
+# The kit needs a blanket `*.sh` pin for its OWN shell; your repo must never inherit it, or the
+# kit is editing your code through a rule you never wrote (attest ADR-0043).
+check "the blanket *.sh pin does not survive into your repo" \
+  sh -c "! grep -qE '^[*][.]sh' '$GEN/.gitattributes'"
+check "…while the kit's own hooks stay pinned"  grep -q 'claude/hooks' "$GEN/.gitattributes"
+# The narrowing must not take the OTHER kit-scoped pin with it: the guard parses a record
+# byte-exactly, so losing this on the template path hands back the CRLF misdiagnosis ADR-0044
+# closed on the installer path (attest ADR-0043).
+check "…and so does the record pin the guard needs" grep -q '^[.]attest/[*][.]md' "$GEN/.gitattributes"
+# Surgical, not a rewrite: a line the adopter added under attest's header survives a late run.
+check "a line of your own in .gitattributes survives" grep -q '^\*[.]md diff=markdown' "$GEN/.gitattributes"
 check "YOUR docs survive"                 test -f "$GEN/docs/design.md"
 check "YOUR scripts survive"              test -f "$GEN/scripts/deploy.sh"
 check "the kit itself is left in place"   test -f "$GEN/.claude/skills/gate/SKILL.md"
@@ -491,6 +527,54 @@ check "the adopter's own record survives the sweep" test -f "$GEN/.attest/ship-2
 for own in gate-notes.md gate-2026-09-05-pre-release.md "ship-20260904-100000-$GEN_SHA-rerun.md"; do
   check "…and so does $own — its tail is not a sha" test -f "$GEN/.attest/$own"
 done
+# ...and in a SHALLOW clone git answers about HEAD and nothing else. `actions/checkout`
+# defaults to `fetch-depth: 1`, and a record names the commit it gated — an ANCESTOR of HEAD by
+# ADR-0033, never HEAD itself. So every one of the adopter's records fails to resolve and the
+# sweep would take all of them, unattended, with a write token. The fixture above cannot see
+# this: it has a single commit, so its record names HEAD (attest ADR-0042).
+SHAL="$WORK/shallow-src"; mkdir -p "$SHAL/.attest" "$SHAL/scripts"
+cp "$KIT/install.sh" "$SHAL/"; cp "$KIT/scripts/template-cleanup.sh" "$SHAL/scripts/"
+cp "$KIT/README.md" "$KIT/LICENSE" "$SHAL/" 2>/dev/null || true
+git -C "$SHAL" init -q .
+git -C "$SHAL" config user.email adopter@example.invalid
+git -C "$SHAL" config user.name adopter
+echo one > "$SHAL/f1"; git -C "$SHAL" add -A >/dev/null 2>&1; git -C "$SHAL" commit -qm first >/dev/null 2>&1
+SHAL_SHA="$(git -C "$SHAL" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+# the adopter's own record, naming the commit it gated — which the next commit makes an ancestor
+printf -- '# my own scan\n- kit: 0.5.0\n- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHAL_SHA" \
+  > "$SHAL/.attest/ship-20260904-100000-$SHAL_SHA.md"
+cp "$KIT"/.attest/gate-*.md "$SHAL/.attest/" 2>/dev/null || true
+echo two > "$SHAL/f2"; git -C "$SHAL" add -A >/dev/null 2>&1; git -C "$SHAL" commit -qm second >/dev/null 2>&1
+for mode in full shallow; do
+  CL="$WORK/clone-$mode"; rm -rf "$CL"
+  if [ "$mode" = full ]; then
+    git clone -q "file://$SHAL" "$CL" 2>/dev/null || true
+  else
+    git clone -q --depth 1 "file://$SHAL" "$CL" 2>/dev/null || true
+  fi
+  # NOT `ok`: a pass for a fixture that never ran is how a suite goes green over a destructive
+  # bug, which the comment above the counts already records costing this file 75 assertions.
+  if [ ! -d "$CL/.attest" ]; then fail "clone fixture built ($mode) — it did not"; continue; fi
+  (cd "$CL" && bash scripts/template-cleanup.sh >/dev/null 2>&1) || true
+  mine="$CL/.attest/ship-20260904-100000-$SHAL_SHA.md"
+  theirs=$( { find "$CL/.attest" -maxdepth 1 -name 'gate-*.md' 2>/dev/null || true; } | wc -l )
+  if [ "$mode" = shallow ]; then
+    # git cannot tell whose record is whose here, so it must take nothing — not even attest's
+    if [ -f "$mine" ] && [ "$theirs" -gt 0 ]; then
+      ok "a shallow clone keeps every record, yours and the kit's alike"
+    else
+      fail "a shallow clone keeps every record (mine=$([ -f "$mine" ] && echo yes || echo GONE) kit=$theirs)"
+    fi
+  else
+    # ...and with the full history the sweep still does the job it exists for
+    if [ -f "$mine" ] && [ "$theirs" -eq 0 ]; then
+      ok "a full clone still sweeps the kit's records and keeps your ancestor-named one"
+    else
+      fail "a full clone sweeps correctly (mine=$([ -f "$mine" ] && echo yes || echo GONE) kit=$theirs)"
+    fi
+  fi
+done
+
 # ...and outside a repository the sweep must remove nothing at all
 NOGIT="$WORK/nogit"; mkdir -p "$NOGIT/.attest" "$NOGIT/scripts"
 cp "$KIT/install.sh" "$NOGIT/"; cp "$KIT/scripts/template-cleanup.sh" "$NOGIT/scripts/"
