@@ -108,7 +108,13 @@ way; so is the one above it.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
-0.5.0** (`.claude/skills/_shared/audit-ladder.md`); `v0.4.0` is the last tag.
+0.6.0** (`.claude/skills/_shared/audit-ladder.md`); `v0.5.0` is the last tag.
+
+**Why 0.6.0 and not 0.5.1.** 0.5.0 shipped a declaration hook whose reach stopped at the
+language of its own documents; ADR-0047 makes the three headings configurable, which is a new
+capability an adopter can depend on, not a repair of one that was stated and broken. `v0.5.0`
+was tagged at `2d381f5` first, so the number is not left orphaned by the bump — the marker on
+`main` said 0.5.0 to anyone who cloned it, and the tag is what makes that true afterwards.
 
 0.4.0 rather than a `v0.3.0` tag on the same tree: three adopter-visible changes landed in
 shipped files after 0.3.0 reached `main` and none of them bumped the line — the guard writes a
