@@ -1286,3 +1286,54 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   `$`, or anything else that could break the JSON or smuggle a substitution. That is the same
   bound the prompt reason carries, since both come from the one `tr` — which was the property
   ADR-0038 was really asserting, stated correctly here.
+
+---
+
+## ADR-0047 — a heading the hook cannot read is a hook that is not there · 2026-09-07 · Accepted
+
+  Extends: ADR-0028 (the declaration hook), ADR-0034 (a silent decision is unreadable).
+
+- **Context** — `session_declaration.sh` takes its document *paths* from `ATTEST_BUSINESS` and
+  `ATTEST_THREAD_CARRIER` but matches the section *headings* against three hardcoded English
+  patterns. A project that writes `## Stav k 7. 9.` instead of `## Current state` gets nothing
+  from the hook. The hook is fail-open, so it says nothing about it either — and from inside a
+  session, "the hook ran and matched nothing" and "the hook was never registered" produce the
+  identical observation. That is precisely the ambiguity ADR-0034 introduced the ship guard's
+  trace log to remove, reappearing in the other hook.
+- **Options** — (a) leave it and tell adopters to keep English headings; (b) print a diagnostic
+  line when a document is read but no section matches; (c) three heading overrides, matching
+  the treatment the paths already get.
+- **Decision** — (c), with the defaults byte-identical to today's patterns.
+- **Why** — (a) makes the kit's reach stop at the language of its own documents, and the
+  boundary is invisible: the adopter's evidence that the hook works is that it printed
+  something, which is the one thing it will not do. (b) spends context on *every* session to
+  report a condition that is normal in a fresh install, where the templates are unfilled and
+  silence is correct — the hook's own budget rule (~52 lines, prepended always) is the reason
+  it stays quiet. (c) costs nothing at runtime, and a heading is the same class of assumption
+  as a path: the kit already conceded that its document *names* are not universal, and its
+  *section names* are the same concession one level down.
+- **Consequences** — `ATTEST_NONGOALS_HEADING`, `ATTEST_STATE_HEADING`, `ATTEST_NEXT_HEADING`,
+  set beside the two path variables in the `env` block of `.claude/settings.json`. Each is a
+  POSIX ERE matched against the whole `## …` heading line, which two details had to be got
+  right and were not, first time round:
+
+  - An **empty** value is not an override: `${VAR:-default}`, not `${VAR-default}`. The reason
+    is the opposite of the obvious one — an empty awk pattern matches *every* string
+    (`"## Anything" ~ ""` is 1), so the wrong operator would not blank the declaration, it
+    would pour **every section of both documents** into the context of every session. Measured,
+    not reasoned: the first draft of this entry claimed "silently blank" and was wrong.
+  - The pattern reaches awk through **`ENVIRON[]`, not `awk -v`**. `-v` runs its value through
+    escape processing, so the obvious escape of a metacharacter — `Stav \(WIP\)` for a heading
+    that really contains brackets — arrives as `Stav (WIP)`, a grouping that matches something
+    else; it takes a *doubled* backslash to survive, which nobody guesses. The miss is silent,
+    and awk's own warning about it goes to the stderr `section()` discards. `ENVIRON[]` passes
+    bytes through untouched, so one backslash means one backslash.
+
+  What is deliberately **not** fixed: the section must still be at level 2. The body runs to the
+  next `## `, so admitting `###` as a section start would end every section at its own first
+  subheading; `### Ďalší krok` has to be promoted, and `GUIDE.md` says so. Ten cases in
+  `scripts/smoke.sh` pin this — including the silence without an override, which is the
+  behaviour being replaced and the only one that could regress unnoticed, and including
+  fail-open on a regex awk refuses to compile, since user input reaches a regex engine here for
+  the first time. The two subtleties above are pinned by assertions that were checked against a
+  deliberately broken build: reverting either one turns exactly one case red.

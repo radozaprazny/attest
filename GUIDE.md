@@ -111,9 +111,20 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   `ATTEST_THREAD_CARRIER` — in the `env` block of `.claude/settings.json`, or in your
   environment. Paths are relative to the project root. This is the case for any repo that
   ships the kit's documents as *templates* and keeps its real ones elsewhere (attest's own
-  live in `docs/attest-*.md` — the same distinction `/gate` scopes with `$DOCS`). Section
-  names are matched loosely, so a renamed file with `## Current state` and `## Next` still
-  works.
+  live in `docs/attest-*.md` — the same distinction `/gate` scopes with `$DOCS`).
+- **If your sections are not called that either,** set `ATTEST_NONGOALS_HEADING`,
+  `ATTEST_STATE_HEADING` and `ATTEST_NEXT_HEADING` the same way. The defaults are the kit's
+  English headings, and a project writing its documents in another language gets **silence**
+  without this — the hook reads the file, matches nothing and prints nothing, which from
+  inside a session is indistinguishable from a hook that was never registered (attest
+  ADR-0047). Each value is a **POSIX ERE** matched against the whole `## …` line. A heading
+  with no regex metacharacters needs no ceremony — `ATTEST_STATE_HEADING='Stav'` finds
+  `## Stav k 7. 9.` — and one that has them takes a **single** backslash:
+  `ATTEST_STATE_HEADING='Stav \(WIP\)'`. Leaving a variable set but **empty** is not "no
+  override": an empty pattern matches every heading, so the kit treats empty as unset and falls
+  back to the default. The section itself must still be a **level-2** heading — its body runs
+  until the next `## `, so `### Ďalší krok` is read as a subsection of whatever precedes it and
+  has to be promoted to `## `.
 
 ### 2.2 `PreToolUse` on `Bash` — the ship guard (`ship_guard.sh`)
 - **How:** before Claude runs a Bash command, the hook matches it against a short list of

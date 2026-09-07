@@ -8,12 +8,14 @@
 
 set -euo pipefail
 
-# The hooks honour two environment overrides (ADR-0028). A maintainer who sets either for this
-# checkout — which docs/attest-progress.md tells them to do, so the SessionStart hook is not
-# silent here — would otherwise have that ambient value reach every fixture below, and the
-# assertions pinning the DEFAULT document paths would fail against files no test wrote. The
-# suite controls its own environment; the tests that want an override set it per invocation.
+# The hooks honour five environment overrides — two paths (ADR-0028) and three headings
+# (ADR-0047). A maintainer who sets any of them for this checkout — which docs/attest-progress.md
+# tells them to do, so the SessionStart hook is not silent here — would otherwise have that
+# ambient value reach every fixture below, and the assertions pinning the DEFAULT document paths
+# and headings would fail against files no test wrote. The suite controls its own environment;
+# the tests that want an override set it per invocation.
 unset ATTEST_BUSINESS ATTEST_THREAD_CARRIER
+unset ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ATTEST_NEXT_HEADING
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 WORK="$(mktemp -d)"
@@ -105,6 +107,57 @@ out=$(CLAUDE_PROJECT_DIR="$D2" ATTEST_BUSINESS=docs/live-business.md sh "$DECL")
 says     "ATTEST_BUSINESS redirects it to the live document" "$out" 'never touch production'
 says     "…and the heading names the file it actually read"  "$out" 'docs/live-business.md'
 says_not "an unset override does not read the live document" "$(CLAUDE_PROJECT_DIR="$D2" sh "$DECL")" 'never touch production'
+
+# A project that writes its documents in another language. Without an override the hook reads
+# the file, matches nothing and prints nothing — which from inside a session is the same thing
+# as a hook that was never registered, so the silence is asserted first and the fix second
+# (ADR-0047).
+D4="$WORK/decl-lang"; mkdir -p "$D4"
+printf '# B\n\n## Čo nerobíme\n\n- žiadne články\n' > "$D4/BUSINESS.md"
+printf '# P\n\n## Stav k 7. 9.\n\nSK marker\n\n## Ďalší krok\n\n- SK next marker\n' > "$D4/PROGRESS.md"
+if [ -z "$(CLAUDE_PROJECT_DIR="$D4" sh "$DECL")" ]; then
+  ok "non-English headings print nothing without an override"
+else
+  fail "non-English headings print nothing without an override"
+fi
+lang=$(CLAUDE_PROJECT_DIR="$D4" \
+  ATTEST_NONGOALS_HEADING='Čo nerobíme' ATTEST_STATE_HEADING='Stav' ATTEST_NEXT_HEADING='Ďalší krok' \
+  sh "$DECL")
+says "ATTEST_NONGOALS_HEADING finds a renamed section"  "$lang" 'žiadne články'
+says "ATTEST_STATE_HEADING finds a renamed section"     "$lang" 'SK marker'
+says "ATTEST_NEXT_HEADING finds a renamed section"      "$lang" 'SK next marker'
+# The defaults are what a project that never sets them keeps getting, and `${VAR:-}` rather
+# than `${VAR-}` is what guarantees it. An exported-but-EMPTY override is not "no override":
+# an empty awk pattern matches EVERY `## ` heading, so the wrong operator would not blank the
+# declaration — it would pour the whole document into it. Asserting the default marker alone
+# cannot tell the two apart (it is present either way), so the fixture carries a second section
+# the default must NOT reach, and that is the assertion doing the work.
+printf '# P\n\n## Current state\n\nEN marker\n\n## Notes\n\nFOREIGN marker\n' > "$D4/PROGRESS.md"
+empty=$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='' sh "$DECL")
+says     "an EMPTY override falls back to the default heading" "$empty" 'EN marker'
+says_not "…and does not become a match-everything pattern"     "$empty" 'FOREIGN marker'
+# The pattern reaches awk through ENVIRON[], not `-v`, so ONE backslash escapes a metacharacter.
+# Under `-v` this exact value arrives as `Current state (WIP)` — a grouping, matching nothing —
+# and awk's warning about it lands on the stderr the hook discards, so the miss is silent.
+printf '# P\n\n## Current state (WIP)\n\nparen marker\n' > "$D4/PROGRESS.md"
+says "a single backslash escapes a metacharacter in an override" \
+     "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Current state \(WIP\)' sh "$DECL")" 'paren marker'
+# A regex the engine refuses is the new failure mode this knob introduces — user input reaches
+# a regex compiler here for the first time. Fail-open is the hook's whole contract: it may
+# print nothing, it must never fail, or a SessionStart hook starts erroring on every session.
+printf '# P\n\n## Current state\n\nEN marker\n' > "$D4/PROGRESS.md"
+if CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Current state \(WIP' sh "$DECL" >/dev/null 2>&1; then
+  ok "an unparseable override still exits 0"
+else
+  fail "an unparseable override still exits 0"
+fi
+# A heading regex is matched against `## …` lines only, so it cannot reach into a level-3
+# heading: neither to cut a section short at its own first subsection, nor to select one.
+printf '# P\n\n## Current state\n\nEN marker\n\n### Detail\n\nsub marker\n' > "$D4/PROGRESS.md"
+says     "a level-3 subheading does not end its parent section" \
+         "$(CLAUDE_PROJECT_DIR="$D4" sh "$DECL")" 'sub marker'
+says_not "…and an override aimed at one selects nothing" \
+         "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Detail' sh "$DECL")" 'sub marker'
 
 # --- 3. the ship guard: asks exactly at the boundary -----------------------------------
 echo "hooks — PreToolUse ship guard:"
