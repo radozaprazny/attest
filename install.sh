@@ -93,7 +93,21 @@ copy_if_absent() {
       # freeze — say that it drifted and where the fresh copy sits (ADR-0018). This one
       # really is an action: the kit moved and your copy did not.
       LAST="drift"
-      note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
+      # ...but first separate the one "drift" that is not a drift at all. If the two files are
+      # identical once CR is removed, the content never diverged — the copy is the kit's own,
+      # mangled to CRLF by a Windows checkout made before .gitattributes existed. That is the
+      # population ADR-0039 was written for, and the generic message fails it twice: "diff
+      # against …" shows nothing in most tools, and the file it calls merely stale is one that
+      # exits 2 under dash, which for a PreToolUse hook BLOCKS every Bash call in the session.
+      # Name it, and hand over the one-line repair. The file is still not rewritten here —
+      # copy-if-absent is the kit's load-bearing promise and a whitespace difference is not a
+      # reason to start writing into files a user already has (attest ADR-0044).
+      if { tr -d '\r' < "$TARGET/$rel" 2>/dev/null || :; } |
+           cmp -s - <(tr -d '\r' < "$KIT/$rel" 2>/dev/null || :) 2>/dev/null; then
+        note_needs_you "$rel" "identical to the kit's except for LINE ENDINGS (CRLF) — under dash a CRLF hook exits 2, and a PreToolUse hook that exits 2 blocks every Bash call; repair with: tr -d '\\r' < $rel > $rel.lf && mv $rel.lf $rel"
+      else
+        note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
+      fi
     else
       # A DOCUMENT of yours that the kit also ships is the DESIGNED outcome, not a problem:
       # it is reported as kept, never as something to fix (ADR-0031). Only documents go in
@@ -107,8 +121,33 @@ copy_if_absent() {
   else
     mkdir -p "$(dirname "$TARGET/$rel")"
     cp "$KIT/$rel" "$TARGET/$rel"
+    # The kit's own checkout may hold CRLF — .gitattributes fixes that for anyone who clones
+    # the kit, but not for a copy that predates it, a zip download, or a checkout made before
+    # the attribute existed. A hook with CRLF is fatal under dash (it exits 2, and a PreToolUse
+    # exit 2 blocks every Bash call), so strip it on the way in rather than trusting the source
+    # (attest ADR-0039). `cat >` rather than `mv`: it preserves the mode cp just set.
+    # Recorded as landed BEFORE the rewrite below: the file is already on disk and a re-run
+    # would find it, so if the strip dies mid-write the abort report has to name it — otherwise
+    # "a re-run resumes safely" is false for exactly that file (it would come back as kept/drift
+    # and never be repaired).
     INSTALLED+=("$rel")
     LAST="new"
+    # Same scope as the attribute above, plus any `.sh` the kit itself ships: a hook without an
+    # extension must be stripped too, or the two mechanisms disagree about what they cover.
+    case "$rel" in
+      *.sh|.claude/hooks/*)
+        # If the rewrite fails halfway the file is truncated but still reported as installed and
+        # skipped by the next re-run — a hook that parses and does nothing. Restore from the kit
+        # instead of swallowing it (attest ADR-0039).
+        if ! { tr -d '\r' < "$TARGET/$rel" > "$TARGET/$rel.lf$$" 2>/dev/null &&
+               cat "$TARGET/$rel.lf$$" > "$TARGET/$rel" 2>/dev/null; }; then
+          cp "$KIT/$rel" "$TARGET/$rel" 2>/dev/null || true
+          note_needs_you "$rel" "the CRLF strip failed; the kit's file was restored as-is — check its line endings before relying on the hook"
+          G_ACT=$((G_ACT + 1))
+        fi
+        rm -f "$TARGET/$rel.lf$$" 2>/dev/null || true
+        ;;
+    esac
   fi
 }
 
@@ -162,6 +201,32 @@ ensure_ignore() {
   fi
   printf '%s\n' "$line" >> "$TARGET/.gitignore"
   INSTALLED+=(".gitignore += $line")
+  G_NEW=$((G_NEW + 1))
+}
+
+# ensure_attribute <line> — append to .gitattributes, never overwrite it. Same symlink and
+# trailing-newline care as ensure_ignore; the two files have identical hazards.
+ensure_attribute() {
+  local line="$1"
+  if [ -L "$TARGET/.gitattributes" ]; then
+    note_needs_you ".gitattributes += $line" "your .gitattributes is a symlink — append the line yourself"
+    G_ACT=$((G_ACT + 1))
+    return 0
+  fi
+  touch "$TARGET/.gitattributes"
+  # Match on the path pattern, not the whole line: an adopter who wrote `*.sh text=auto` has
+  # already made a decision about that pattern and we do not get to append a second, contrary
+  # one under it. awk with `$1 == p`, never grep: the patterns are globs, so `*.sh` in a regex
+  # is a quantifier on nothing — that mistake let the line be appended on every re-run.
+  if awk -v p="${line%% *}" '$1 == p { found = 1 } END { exit !found }' \
+       "$TARGET/.gitattributes" 2>/dev/null; then
+    return 0
+  fi
+  if [ -s "$TARGET/.gitattributes" ] && [ -n "$(tail -c1 "$TARGET/.gitattributes")" ]; then
+    echo >> "$TARGET/.gitattributes"
+  fi
+  printf '%s\n' "$line" >> "$TARGET/.gitattributes"
+  INSTALLED+=(".gitattributes += $line")
   G_NEW=$((G_NEW + 1))
 }
 
@@ -282,12 +347,25 @@ say "$GUIDE_ICON" "Manual" "$GUIDE_REF — the whole loop is PART 9"
 
 # --- .gitignore: append the lines the kit needs, never replace the file --------------------
 group_reset
+# The strip above guarantees LF bytes at install time; it cannot stop the adopter's own next
+# checkout from re-creating CRLF, which is what .gitattributes is for. Appended, never written
+# over — same contract as .gitignore (attest ADR-0039).
+# Only the kit's own footprint. A blanket `*.sh` would reach scripts the kit never installed —
+# and `text` normalises on `git add`, so it would rewrite the adopter's own CRLF blobs at their
+# next commit, with a rule this installer wrote. `.claude/hooks/*` covers every executable the
+# kit puts in the repo, which is the whole of what ADR-0039 is about (attest ADR-0039).
+ensure_attribute ".claude/hooks/* text eol=lf"
+# The ship guard parses two lines out of a record byte-exactly (ADR-0037); a CRLF record fails
+# closed with a reason that blames its age rather than its line endings. Narrow, like the line
+# above: `.attest/` is the kit's own directory, never the user's source.
+ensure_attribute ".attest/*.md text eol=lf"
+
 ensure_ignore ".claude/settings.local.json"
 # The run records under .attest/ are meant to be committed; only the shared scratch is not —
 # the gate's fallback material and the ship guard's decision log both live there (ADR-0034).
 ensure_ignore ".attest/tmp/"
 if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
-  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/"
+  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/ · the kit's hooks and records pinned to LF"
 fi
 
 # --- what deliberately did not land --------------------------------------------------------

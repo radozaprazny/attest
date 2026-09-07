@@ -119,11 +119,27 @@ After reporting, append one record under `.attest/`, mirroring `/gate`'s (attest
 
     .attest/ship-<YYYYMMDD>-<HHMMSS>-<short-HEAD-sha>.md
 
-with the date, the HEAD SHA, the kit version (from the shared ladder), the mode (`default` or
-`full`), the verdict line and the finding counts per rung. **The short SHA in the filename is
-load-bearing** — the `PreToolUse` ship guard (`.claude/hooks/ship_guard.sh`) looks for a record
-matching the *current* HEAD before a push, a submit or an upload, so the question it answers is
-*"was this state audited"*, not *"was this repo ever audited"* (attest ADR-0028). Write the
+**Two lines are a machine interface — write them exactly** (attest ADR-0037). The ship guard
+reads them; prose around them is yours, but these are parsed:
+
+```markdown
+- HEAD: <short sha> (<branch>) · tree: <clean | dirty — …>
+- findings: <n> blocker · <n> major · <n> minor
+```
+
+The guard requires a record whose `HEAD:` line carries the sha it is about **and** whose
+`findings:` line begins `0 blocker`. Anything else — a record reporting a blocker, a record in
+some older shape, an empty file — makes it ask, because *"this state was audited"* and *"this
+state is clean"* are different claims and only the second one should open the door. Get the sha
+from `git rev-parse --short HEAD` so the name and the line agree.
+
+Around those two lines write the date, the kit version (from the shared ladder), the mode
+(`default` or `full`), the verdict, what was scanned and any remediation. **The short SHA in the
+filename is load-bearing** — the `PreToolUse` ship guard (`.claude/hooks/ship_guard.sh`) looks for a record
+matching the *current* HEAD before a push, a submit or an upload, and then **reads the two lines
+above**, so the question it answers is *"was this state audited and did it come back clean"* —
+not *"was this repo ever audited"*, and not *"does a file with the right name exist"*
+(attest ADR-0028, narrowed by ADR-0037). Write the
 record even when the verdict is clean: a clean ship is exactly the state the guard must be able
 to recognise.
 

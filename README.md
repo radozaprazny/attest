@@ -59,9 +59,11 @@ flagged once. Its document audits run in a subagent that **cannot** write or run
 (read-only by capability, not promise), and every run **appends a dated run record** under
 `.attest/` — HEAD SHA, kit version, which passes ran, the verdict — so *"the gate ran"* is
 a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before anything
-leaves the machine — and it is no longer on your memory: a `PreToolUse` hook matches the
-commands that publish, submit or upload, checks `.attest/` for a run record naming the
-**current** HEAD, and asks if there is none (the whole loop is laid out in
+leaves the machine — and it is no longer on your memory: a `PreToolUse` hook matches **a short,
+literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
+the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
+substrings, not a category — `git -C … push`, `npm run release` and your own deploy script do not
+match, and widening it means adding them (the whole loop is laid out in
 [`GUIDE.md`](GUIDE.md) PART 9).
 
 ## Does it hold up?
@@ -86,7 +88,8 @@ enough to name. The four results that matter:
 kit edits your code. No warning you cannot act on at the moment it fires, which rules out the
 compaction and session-length nags. No inert `.example` files. Two hooks survive that bar, and
 both *prevent* rather than remind: your non-goals go into context at every session start, and
-the ship guard asks before an unaudited push. **Nothing the kit installs needs an interpreter beyond
+the ship guard asks before a push the record does not clear — for the commands on its
+literal list (PART 2.2). **Nothing the kit installs needs an interpreter beyond
 `/bin/sh`** — both hooks are POSIX shell (`install.sh` itself is bash, but it runs once and
 installs nothing that depends on it).
 
@@ -109,8 +112,8 @@ system is.
     git clone https://github.com/radozaprazny/attest.git /tmp/attest
     /tmp/attest/install.sh ~/my-project
 
-`install.sh` is **copy-if-absent**: your `CLAUDE.md`, your settings and your `.gitignore` are
-never clobbered. It reports by **capability** rather than by path — one line per group, plus a
+`install.sh` is **copy-if-absent**: your `CLAUDE.md`, your settings, your `.gitignore` and your
+`.gitattributes` are never clobbered — the last two are appended to, and only ever with lines scoped to the kit's own paths (`.claude/hooks/*`, `.attest/*.md`), never to your source. It reports by **capability** rather than by path — one line per group, plus a
 *YOURS, UNTOUCHED* block for what it left alone and a *NEEDS YOU* block for the rare thing you
 actually have to merge. A re-run that changed nothing says so in one line. Add `--compliance`
 if you are in regulated scope (or let `/business` tell you).
@@ -132,8 +135,13 @@ via *Actions → run workflow*), removes attest's identity files **by name** (it
 its `LICENSE` down to stubs for you to fill, then deletes itself — **verify it ran.** It is safe
 to run late: it never removes a directory wholesale, so your own `docs/` and `scripts/` survive,
 and every file it rewrites or removes under a name you might also use — `README`, `LICENSE`,
-`ci.yml`, `scripts/smoke.sh` — is checked for attest's own content first. The cleanup pushes an
-**ordinary commit**, never a history rewrite, so anything it removes is one `git revert` away.
+`ci.yml`, `scripts/smoke.sh` — is checked for attest's own content first. It also sweeps attest's
+own audit records out of `.attest/`: those name attest's commits, which do not exist in your repo,
+and that resolution is the test — so a record **you** wrote is kept, and where git cannot answer
+about the whole history (no repo yet, no commits yet, or a **shallow** checkout) nothing is
+touched at all. And it drops the blanket `*.sh` pin from `.gitattributes`, surgically: that one
+line goes, every other line stays, including any you added. The cleanup pushes an **ordinary commit**, never a history rewrite, so
+anything it removes is one `git revert` away.
 
 **If it ran, A and B are already done — skip them.** Do them by hand only when Actions are
 disabled, or when you checked and the run never happened.
@@ -143,6 +151,12 @@ disabled, or when you checked and the run never happened.
   Then delete **`docs/attest-*.md`**, **`scripts/`**, **`install.sh`**,
   **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
   attest's own history, tests, installer, cleanup and CI.
+- **C. Drop one line from `.gitattributes`** — the blanket `*.sh text eol=lf`. attest needs it
+  for its **own** shell; in your repo it would normalise every `.sh` you ever write, under a
+  rule you did not choose. Keep `.claude/hooks/*` and `.attest/*.md` — those are the kit's own
+  paths, and the first is what keeps the guard runnable on Windows (attest ADR-0043). **Do this
+  even if you skip A and B:** deleting `scripts/` deletes the cleanup that would have done it
+  for you.
 
 ### Everyone
 

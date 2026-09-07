@@ -65,6 +65,15 @@ How to use this file:
 - **Retention & minimisation · data-subject rights · DPIA (Art 35) · records (Art 30) ·
   transfers (Ch V)** — <one line each that applies>.
 
+<!-- If you use the kit's ship guard, one local store exists that you did not create:
+     `.attest/tmp/ship-guard.log` — every publish/submit/upload command the guard matched, with
+     only JSON-breaking characters stripped, so an address or a credentialed URL survives
+     verbatim — a path or filename counts, not only an address. Gitignored and never shipped, so
+     it exists once per developer checkout and syncs with nothing; nothing in the kit rotates,
+     truncates or expires it. The §7 retention line is therefore "no automatic expiry; manual
+     deletion, per machine" — and an Art 17 request reaches it only clone by clone.
+     Name it below if this project is in scope (attest ADR-0038, GUIDE PART 2.2). -->
+
 ## 7. Data handling (the concrete map — §6 says *which* duties apply, §7 the actual values)
 
 - <PII inventory · where each field is stored · the actual retention windows · sub-processors /

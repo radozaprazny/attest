@@ -20,6 +20,12 @@ How to use this file:
     carrying `Supersedes: ADR-0007`. The ONLY permitted touch to an old entry is flipping its
     Status line (Accepted → Superseded by ADR-000M) — never rewrite its rationale. A
     superseded entry is NOT an anti-duplication violation.
+  - THREE relations may sit under a new entry's title, and all three are fields of the NEW
+    entry, touching nothing older: `Supersedes: ADR-N` (the old decision is reversed — this
+    one alone earns the Status flip) · `Supersedes in part: ADR-N` (half of it is reversed) ·
+    `Narrows: ADR-N` (the old decision still stands, but its scope turns out smaller than its
+    text says). Reach for `Narrows` instead of editing an entry whose reasoning was right and
+    whose wording was too broad.
   - IDs are sequential, zero-padded (ADR-0001, ADR-0002, …). Dates ISO YYYY-MM-DD.
 -->
 

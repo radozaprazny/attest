@@ -1,0 +1,15 @@
+# Shell reaches the working tree with LF, always.
+#
+# Git for Windows sets core.autocrlf=true in its system config, so without this a Windows
+# checkout holds CRLF hooks. That is harmless while they run under Git Bash — and fatal the
+# moment the same checkout is opened from WSL or a Linux container: `dash` reads the trailing
+# CR as part of the last token (`set: Illegal option -`) and exits 2. A PreToolUse hook that
+# exits 2 does not merely fail, it BLOCKS the tool call — so every Bash command in the session
+# dies, with an error that points at the shell rather than at line endings. Neither CI (LF
+# runners) nor the smoke suite (MSYS `sh` tolerates the CR) can see it (attest ADR-0039).
+*.sh            text eol=lf
+.claude/hooks/* text eol=lf
+# The guard parses these two lines out of a record byte-exactly (ADR-0037). On a CRLF checkout
+# the `- HEAD: <sha>` arm never matches, the record is judged unclean, and the stated reason
+# blames the record's age instead of its line endings — fail-closed, but with a false diagnosis.
+.attest/*.md    text eol=lf

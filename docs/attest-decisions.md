@@ -8,6 +8,15 @@
 >
 > Append-only — never edit or delete a past entry (except flipping its `Status` line when
 > superseded); to reverse one, **append** a new entry that supersedes it.
+>
+> A new entry may carry, under its title, any of `Supersedes: ADR-N` · `Supersedes in part:
+> ADR-N` · `Narrows: ADR-N`. All three are fields of the **new** entry and touch nothing older,
+> so they cost no exception to the rule above. `Narrows` is for the case this log kept hitting:
+> the old decision still stands and its scope turns out smaller than its text says. Reach for it
+> instead of editing the older entry, which is the one thing this log cannot allow. Note the
+> limit it shares with the other two: the field sits on the **new** entry, so a reader who lands
+> on the old one is not told — searching the log for its id is what finds the narrowing. Only
+> `Supersedes` earns the `Status` flip.
 
 <!--
 Every entry below was reconstructed from a written record — the design-workflow `reject`
@@ -942,3 +951,338 @@ Supersedes: ADR-0021
   operational line, not an ADR, that the record and the push must be two separate steps, because
   a `PreToolUse` guard judges the state *before* the step it guards runs — one step doing both is
   judged against a world where the record does not exist yet.
+
+## ADR-0037 — the ship guard reads what the record says, not that a file with the right name exists · 2026-09-04 · Accepted
+
+- **Context** — the guard matched `.attest/ship-*<sha>*.md` and stopped there. An external review
+  reproduced the consequence: an **empty** record for HEAD opens the door, and so does one whose
+  verdict is `blocker`. The hook's own prompt offers to *"approve to ship unaudited"*, which only
+  makes sense if passing means *audited and clean* — so the hook treated two claims as one and
+  said the opposite in the same breath. A filename cannot carry a verdict; that was the flaw.
+- **Options** — (a) keep the name check and fix the prompt to say only *"a record exists"*;
+  (b) require two lines of the record template — `- HEAD: <sha>` and `- findings: 0 blocker`;
+  (c) parse the record fully against a schema.
+- **Decision** — (b).
+- **Why** — (a) is honest but useless: a guard that reports the existence of a file is a guard
+  nobody consults. (c) buys accuracy the hook cannot use and makes every record a compatibility
+  surface; the moment a schema exists, a hand-written record is a syntax error rather than a
+  weaker claim. (b) is two `grep`s, keeps the record human-first, and picks exactly the two facts
+  that decide the question. `[^0-9]*` before `0 blocker` is what keeps `1 blocker` and
+  `10 blocker` out; anchoring on `^- ` keeps prose that merely mentions the words out.
+- **Consequences** — those two lines became a **machine interface** and are now specified
+  verbatim in `/audit-history`'s record section and in GUIDE 2.2; everything around them stays
+  prose. A record that predates the format no longer clears the guard — correctly, since it
+  cannot be read — and the ask says so in its own words rather than claiming no record exists.
+  All seven of attest's own shipped records already satisfy the parser, and `smoke.sh` asserts
+  that they continue to — by **shape**, not by verdict, so the day one of them honestly records
+  a blocker the suite does not fail on something that is not a defect.
+
+  Two corrections the kit's own gate made to this before it landed, both part of the decision
+  rather than of its implementation. **Every record for the sha must be clean, not one of them:**
+  the glob expands lexicographically, so "the first clean one wins" meant the *oldest* won, and
+  the workflow this hook's own prompt recommends produces the bad case — a quick scan comes back
+  clean, a later `full` scan finds a blocker, and the push goes through on the earlier file. A
+  verdict about a given tree state does not expire. **And the two lines are read as the header,
+  not as anything matching:** the prose around them is the author's, may quote either form at
+  column 0, and two independent greps over the whole file were satisfied by a sentence. The
+  parser takes the *first* line of each kind. This narrows ADR-0028: the guard's question is no longer *"was this
+  state audited"* but *"was this state audited **and** did it come back clean"*.
+
+## ADR-0038 — every branch of the guard leaves a line, including the ones that let something through · 2026-09-04 · Accepted
+
+- **Context** — ADR-0034 added the trace because a silent decision cannot be told apart from an
+  unregistered hook. The `--dry-run` exemption was then written **above** `trace()`, so the one
+  class of command that the guard deliberately waves through wrote nothing at all — and because
+  the exemption matched `--dry-run` as a substring anywhere in the command, so did
+  `git push origin main # --dry-run` and `git push --dry-run & git push origin main`. The kit
+  violated its own entry in precisely the case that entry existed to cover.
+- **Options** — (a) log only refusals, treating a pass as uninteresting; (b) move `trace()` above
+  every exit and give each outcome its own word; (c) drop the dry-run exemption entirely so there
+  is nothing to miss.
+- **Decision** — (b), with four words: `pass`, `ask`, `blocked`, `dryrun`.
+- **Why** — (a) is what created the ambiguity. (c) trades a real convenience for a problem better
+  solved by logging: a dry run genuinely publishes nothing, and asking about it would train the
+  habit of approving without reading. (b) costs one line and makes the log answer the question it
+  was introduced for — *did the hook run, and what did it decide* — for every command it matched.
+  `blocked` is separate from `ask` on purpose: *"a record exists and does not clear this"* is a
+  different event from *"there is no record"*, and afterwards only the log can tell them apart.
+- **Consequences** — one decision writes exactly **one** line (the first draft of ADR-0037's
+  branch wrote both `blocked` and `ask`; `smoke.sh` now pins the count). **Widening what is
+  traced widens what the trace holds**, and ADR-0034's *"a trace can hold nothing the prompt
+  could not already show"* is true of content and false of durability: the prompt is session UI,
+  the log is a persistent, deliberately unbounded file. The `tr` keeps `@ . - _ : =`, which is
+  what an address and a credentialed URL are made of, so `git send-email --to alice@example.com`
+  or a push URL with a token in it lands there verbatim. It is gitignored and never shipped, so
+  nothing leaves the machine — but GUIDE 2.2 now says this outright, and the shipped
+  `COMPLIANCE.md` names the file in §7 so an adopter in regulated scope declares it rather than
+  discovering it. Deleting the file is the retention control. The dry-run exemption
+  still leaks by substring — `# --dry-run` is not a dry run — and that is knowingly left to the
+  matching work this entry does not cover; the difference is that it is now **visible in the
+  log**, which was the precondition for fixing it in any measurable way.
+
+## ADR-0039 — shell reaches the working tree as LF, guaranteed twice · 2026-09-04 · Accepted
+
+- **Context** — the repo shipped no `.gitattributes`. Git for Windows sets `core.autocrlf=true`
+  in its system config, so a Windows checkout holds CRLF hooks. Under Git Bash they run; opened
+  from WSL or a Linux container the same checkout gives `dash` a trailing CR on the last token —
+  `set: Illegal option -`, exit 2. A `PreToolUse` hook that exits 2 does not merely fail, it
+  **blocks the tool call**, so every Bash command in the session dies with an error that points
+  at the shell rather than at line endings. Neither the LF CI runners nor the smoke suite (MSYS
+  `sh` tolerates the CR) can see it.
+- **Options** — (a) `.gitattributes` only; (b) strip CR in `install.sh` only; (c) both.
+- **Decision** — (c).
+- **Why** — they cover different populations. `.gitattributes` fixes everyone who clones the kit
+  *after* it lands, and fixes nothing for a zip download, a copy made earlier, or a vendored
+  tree. Stripping on copy fixes every install regardless of how the kit got onto the disk, and
+  cannot fix a repo generated from the template button, which never runs the installer. Two
+  cheap mechanisms with disjoint blind spots beat one with a gap.
+- **Consequences** — there are in fact **three** mechanisms, not two: `.gitattributes` in the
+  kit's own repo, the strip on copy, and `ensure_attribute()` writing the attribute into the
+  adopter's repo so their *next* checkout does not undo the strip. That third one is scoped to
+  **`.claude/hooks/*` and nothing else**. A blanket `*.sh` was written first and withdrawn: it
+  reaches scripts the kit never installed, and `text` normalises on `git add`, so it would
+  rewrite the adopter's own CRLF blobs at their next commit under a rule this installer put
+  there — for a kit whose declaration is *"nothing here edits your code"*, that is the wrong
+  side of the line. The hooks pattern already covers 100% of what the kit puts in the repo.
+  `ensure_attribute` is quieter than its twin `ensure_ignore`: it matches on the **pattern
+  token** (`awk '$1 == p'`, never a regex — globs are not regexes, and treating `*.sh` as one
+  duplicated the line on every re-run) and returns silently when the adopter has already ruled
+  on that pattern. `install.sh` rewrites the copied file through `tr -d '\r'`, using
+  `cat >` rather than `mv` so the mode `cp` just set survives, and **restores from the kit if
+  that rewrite fails** — swallowing the failure left a truncated hook reported as installed and
+  skipped by every later re-run: a hook that parses and does nothing. `smoke.sh` builds a CRLF kit and
+  asserts the installed hook is both CR-free and valid shell. The kit still cannot protect a
+  template-generated repo on Windows; `.gitattributes` ships with it, which is the best available
+  answer there.
+
+## ADR-0040 — a record may be redacted once, visibly, when it carries personal data · 2026-09-04 · Accepted
+
+  Narrows: ADR-0016 (`.attest/` is append-only, "one file per run, never edited").
+
+- **Context** — `.attest/ship-…-9621526.md` spelled the maintainer's address out in full, inside
+  the very finding that argued the address should not become permanently harvestable — while
+  `docs/attest-progress.md` claimed it had deliberately not been written into file content. The
+  other half of that finding, attest's records travelling into every generated repo, is ADR-0041:
+  the two were one entry until the kit's own gate pointed out that `Supersedes:` and the
+  sanctioned `Status` flip both operate on a **whole** entry, so a later reversal of one half
+  would nominally reverse the other, and half an entry has nowhere to carry a status.
+- **Options** — (a) leave it, `.attest/` is append-only; (b) delete the record; (c) redact the
+  data, leave a visible mark, and sanction the exception.
+- **Decision** — (c).
+- **Why** — (a) makes append-only protect the wrong thing: the rule exists so a verdict cannot be
+  rewritten to look better, not so leaked personal data must stay leaked. (b) destroys the finding
+  along with the data. (c) is the same shape as ADR-0003's sanctioned `Status` flip — one named,
+  marked, narrow mutation, with the finding, its counts and its verdict untouched.
+- **Consequences** — the permitted mutation is narrow and must be stated in the record itself:
+  what was removed, when, and under which entry. Nothing else may be edited. **It reaches the
+  working tree, not the history:** the pre-redaction line is still the blob at the preceding
+  commit, so this restores the record's truthfulness and does not reduce reachability. That is an
+  accepted risk of the same class already recorded for the 45 commit authorships — the address is
+  the maintainer's own, in a repo he owns, no third party and no special category — and it is
+  written down here rather than left to be discovered after a visibility flip. The record's own
+  `Remediation: none required` is deliberately **not** re-edited: the permitted mutation is spent,
+  and a stale line inside an append-only record is evidence of its own moment.
+  `docs/attest-progress.md` no longer claims the address was never written — it says it was, and
+  was redacted. This entry sanctions **one** mutation of **one** record; it is not a licence to
+  tidy `.attest/`. The only other thing permitted to remove a record is ADR-0041's sweep, and
+  that runs in someone else's repository, never here. `smoke.sh` asserts the **shape** of an
+  address anywhere in a generated tree rather than a domain allowlist — a hard-coded list passes
+  every other domain, and writing one would have put the maintainer's own domain into a shipped
+  file to do it.
+
+## ADR-0041 — attest's own audit records do not travel into a repo generated from the template · 2026-09-04 · Accepted
+
+  Narrows: ADR-0016 (`.attest/` is append-only, "one file per run, never edited").
+
+- **Context** — `template-cleanup.sh` left all twelve of attest's records in every generated repo.
+  An adopter therefore starts with a dozen scans of somebody else's commits and a full-history
+  record describing 51 commits that do not exist in their repository. Those records are not inert:
+  `/gate` and `/business audit` both scope themselves to *"since the last audit"* by reading
+  `.attest/`, so they are handed to an adopter's auditors as that adopter's own history.
+- **Options** — (a) leave them; (b) delete `.attest/` wholesale; (c) delete by name,
+  discriminating on the sha in the filename.
+- **Decision** — (c).
+- **Why** — (b) would take a record the adopter had already written, which is plausible: auditing
+  before the first push is the workflow this kit teaches. (c) keys on the only thing that really
+  distinguishes them — attest's records name attest's commits, which do not resolve in a repo with
+  its own history.
+- **Consequences** — **two failure modes had to be closed before this was safe, and the kit's own
+  gate found both.** First, `git cat-file -e` fails for *any* reason — 128 outside a repository,
+  127 with no git — so deleting on a non-zero exit removed every record wherever git could not
+  answer, the exact inversion of the property this entry rests on. Git must first prove it can
+  answer (`git rev-parse --git-dir`); only then may a specific negative remove anything. Second,
+  the trailing segment of a filename is a sha **only if it looks like one**: `gate-notes.md`,
+  `ship-…-<sha>-rerun.md` and `gate-2026-09-05-pre-release.md` are names the kit never writes, so
+  they are the adopter's — and feeding `notes` or `rerun` to `git cat-file` merely fails, which
+  under the delete-on-failure rule took them as well. Anything that is not a bare hex abbreviation
+  of at least four characters is kept, unexamined. Both belong to the decision rather than to its
+  implementation: a sweep that runs unattended in someone else's repository, from a workflow
+  holding a write token, is defined by what it refuses to touch. `smoke.sh` runs it in a fixture
+  that is a **real repository with its own commit** — the first version of that test ran outside
+  one, so it asserted the right outcome through the very bug it was meant to catch, and the suite
+  was green over it. The directory itself stays (it is where the adopter's records go) and is
+  `rmdir`'d only if it ends up empty.
+- **Note on numbering** — the run record `.attest/gate-20260904-110554-93fc862.md` calls this
+  decision ADR-0040, which is what it was called when that gate ran. Records are not edited to
+  follow a later renumbering (ADR-0032).
+
+## ADR-0042 — a git that can answer about one commit is not a git that can answer · 2026-09-07 · Accepted
+
+  Narrows: ADR-0041 (`template-cleanup.sh` discriminates records by whether their sha resolves).
+
+- **Context** — ADR-0041 rests on an invariant it states plainly: *a git that cannot answer keeps
+  everything*. It establishes that git can answer at all (`git rev-parse --git-dir`) and only
+  then lets a specific negative answer from `git cat-file -e` delete a record. A **shallow**
+  clone breaks the middle of that reasoning: `rev-parse` succeeds, so the guard passes, while
+  every commit but `HEAD` is simply absent — and a record names the commit it *gated*, which by
+  ADR-0033 is an **ancestor**, never `HEAD` itself. So every one of the adopter's own records
+  fails to resolve and is deleted. `actions/checkout` defaults to `fetch-depth: 1`, which is
+  precisely how `template-cleanup.yml` runs it: unattended, with a write token, in someone
+  else's repository. attest's own `/gate` found this; the smoke suite could not, because its
+  fixture had a single commit, so its record named `HEAD` and resolved by accident.
+- **Options** — (a) set `fetch-depth: 0` in the workflow and call it fixed; (b) drop the sha
+  discriminator for something a shallow clone can evaluate; (c) refuse to delete anything unless
+  git states plainly that the history is complete, **and** deepen the workflow's checkout.
+- **Decision** — (c), both layers.
+- **Why** — (a) alone leaves the script destructive for every other caller: the README tells
+  adopters they may run it by hand, and ADR-0022 keeps it runnable late, so the workflow is not
+  the only path. A script that is safe only because of a setting in a file it does not own is
+  not safe. (b) throws away the one discriminator that actually distinguishes attest's records
+  from the adopter's — shape cannot, because a record written before the first push carries the
+  same `- kit:` line. (c) restores the invariant as stated: `--is-shallow-repository` prints
+  `false` on a complete history, `true` on a truncated one, and **nothing** on a git too old to
+  know the option — so the test keeps everything unless git says `false`, which is the same
+  fail-open posture the rest of the block already takes.
+- **Consequences** — in a shallow checkout the sweep prints that it is leaving `.attest/`
+  untouched and removes nothing, including attest's own records; the generated repo then carries
+  a few of attest's records until someone runs the script again with a full history. That is the
+  correct trade: an inherited record is noise, a deleted one is the adopter's evidence. Name the
+cost though: one of the records that then stays is `ship-…-9621526.md`, which carries the
+maintainer's identity into that copy — the same class of exposure ADR-0040 redacted for, accepted
+here because the alternative is deleting somebody else's evidence, and because it is the
+maintainer's own already-public data, no third party and no Art 9 category. Smoke
+  gains a fixture whose record names an **ancestor** — the case the old single-commit fixture
+  structurally could not express — and asserts both directions: a shallow clone keeps every
+  record, a full clone still sweeps the kit's and keeps the adopter's.
+
+## ADR-0043 — what the kit pins for its own shell stops at the template boundary · 2026-09-07 · Accepted
+
+  Narrows: ADR-0039 (shell reaches the working tree as LF, guaranteed twice).
+
+- **Context** — ADR-0039 needs a blanket `*.sh text eol=lf` in attest's own `.gitattributes`:
+  its installer, its smoke suite and its hooks are all shell, and a CRLF hook exits 2 under
+  dash, which for a `PreToolUse` hook blocks every Bash call. The same ADR already saw the
+  danger for the **installer** and narrowed what it writes to `.claude/hooks/*`. It missed that
+  `.gitattributes` is a **tracked file**, so the template button copies it whole — and in the
+  adopter's repo that blanket line normalises every `.sh` they will ever write, under a rule the
+  kit put there. `README.md` and `GUIDE.md` both promise the opposite in as many words: nothing
+  the kit installs edits your code. `/gate`'s `/business` pass called it what it is — a violated
+  non-goal, which the ladder makes a blocker unconditionally.
+- **Options** — (a) narrow attest's own file to `.claude/hooks/*` and accept CRLF risk on the
+  kit's own installer and suite; (b) keep the blanket line and narrow the **declaration**
+  instead, to the installer path; (c) keep it for attest and have `template-cleanup.sh` narrow
+  it in the generated repo, the way it already handles README, LICENSE and the record sweep.
+- **Decision** — (c).
+- **Why** — (a) removes a protection attest genuinely needs to keep its own suite honest on
+  Windows. (b) is the option that costs nothing today and everything later: the non-goal is the
+  most load-bearing sentence in the README, and narrowing a promise to fit an oversight is how a
+  kit that audits declarations stops deserving to. (c) is the shape every other attest-vs-adopter
+  difference already takes — the cleanup is the boundary, and this belongs on it.
+- **How, and why not the obvious way** — the first draft emitted a fresh two-line file. Its own
+  gate run killed that in two ways: it discarded `.attest/*.md text eol=lf`, the other kit-scoped
+  pin ADR-0044 had just added, handing the template path back the CRLF misdiagnosis the installer
+  path had just closed; and on a **late** run — which ADR-0022 keeps supported and the README
+  promises is safe — it silently dropped any line the adopter had added under attest's header,
+  since the guard is only that header's presence. So the removal is **surgical**: the blanket
+  `*.sh` line goes, every other line stays byte for byte. A symlinked or unwritable
+  `.gitattributes` is reported, never written through — `install.sh` refuses those outright and
+  the two paths should not disagree.
+- **Consequences** — the generated repo keeps `.claude/hooks/*` and `.attest/*.md` and loses the
+  blanket rule; once the file no longer carries attest's header it is never touched again. The
+  **cleanup is not the only path**, and the README says so: a user may delete `scripts/` by hand,
+  or have Actions disabled, or simply never run it. For them the manual list gains a step C, and
+  it is marked *do this even if you skip A and B* — deleting `scripts/` is what deletes the fix.
+  Smoke's generated-repo fixture now copies `.gitattributes` — `cp "$KIT"/*.md` never globbed
+  dotfiles, which is the gap that let this ship unseen; other dotfiles remain uncopied, so that
+  class is narrowed, not closed — and it asserts the blanket rule is gone, both kit pins remain,
+  and a line of the adopter's own survives.
+
+## ADR-0044 — a difference of line endings is named, not called drift · 2026-09-07 · Accepted
+
+  Narrows: ADR-0018 (a kit-owned file that differs from the kit's is reported as drift).
+
+- **Context** — ADR-0039 strips CR when `install.sh` copies a file in, but only in
+  `copy_if_absent`'s fresh-copy branch. An adopter who already has the kit — precisely the
+  Windows population ADR-0039 exists for — takes the other branch on upgrade: the CRLF hook is
+  reported as ordinary `drift`, *"yours kept, but it DIFFERS from the kit's — diff against …"*.
+  Every word of that is technically true and all of it misleads: the difference is whitespace
+  most diff tools hide, and the file it calls merely stale is one that exits 2 under dash and
+  blocks every Bash call in the session.
+- **Options** — (a) leave it — the drift message is not false; (b) strip CR on the upgrade path
+  too, repairing the file in place; (c) detect the line-ending-only case and report it by name,
+  with the one-line repair, writing nothing.
+- **Decision** — (c).
+- **Why** — (a) fails the one user it was written for. (b) is tempting and provably
+  content-preserving — if the two files are identical once CR is removed, the copy *is* the
+  kit's — but it makes `install.sh` write into a file the user already has, and **copy-if-absent
+  is the kit's load-bearing promise**. A promise that holds except for whitespace is a promise
+  with a precedent attached, and the next exception argues from this one. (c) closes the actual
+  complaint, which was never that the file went unrepaired but that the diagnosis was
+  unreadable.
+- **Consequences** — the `version` branch now compares both sides with CR removed before
+  deciding what to say. Smoke asserts three things about it, added after the gate caught this
+  entry claiming coverage that did not yet exist: an upgrade over a CRLF copy is named by its
+  line endings, that same copy is *not* reported as ordinary drift, and a real content edit
+  still is. The file stays as the adopter left it, and the message carries the exact
+  command. `.gitattributes` additionally gains `.attest/*.md text eol=lf`, and `install.sh`
+  lands the same pin: the guard parses two lines out of a record byte-exactly (ADR-0037), so on
+  a CRLF checkout it fails closed with a reason that blames the record's age rather than its
+  line endings — fail-closed, but a false diagnosis is still a defect.
+
+## ADR-0045 — the log's third relation is a decision, and ships with the kit · 2026-09-07 · Accepted
+
+- **Context** — this log grew a third relation, `Narrows: ADR-N`, and started using it (ADR-0040,
+  and every entry above). It was added straight to the header rules with no entry of its own: no
+  alternatives weighed, no record of why. Worse, it never left attest — the shipped `DECISIONS.md`
+  template and `.claude/skills/decision/SKILL.md` still describe two moves, `Supersedes` and the
+  `Status` flip. The same series propagated its other invariants into the kit faithfully, so what
+  diverged here is exactly what the kit sells: attest's practice ran ahead of attest's rules, and
+  `/gate`'s `/decision` pass is what noticed.
+- **Options** — (a) drop `Narrows` and use `Supersedes in part`; (b) keep it in attest only, as
+  a house style; (c) record the choice and ship the relation in the kit.
+- **Decision** — (c).
+- **Why** — (a) is wrong on the merits: `Supersedes in part` says half the decision is
+  **reversed**, and that is not what happens here. In every case this log reached for `Narrows`,
+  the old decision still stands entirely — its *scope* turned out smaller than its text claimed.
+  Calling that a partial reversal would misdescribe five entries and flip a `Status` that should
+  not move. (b) is the divergence itself, made permanent: a kit whose own log uses a grammar the
+  kit does not teach is a kit that has stopped dogfooding one of its documents.
+- **Consequences** — `DECISIONS.md` and `decision/SKILL.md` now name all three relations, say
+  that only `Supersedes` earns the `Status` flip, and say plainly what `Narrows` is *for*: the
+  entry whose reasoning was right and whose wording was too broad — the case where people reach
+  for editing the old text, which is the one thing the log cannot allow. Known and accepted: the
+  relation is a field on the **new** entry only, so a reader landing on the old one still gets no
+  forward pointer. Adding one would mean writing into a landed entry, which costs an exception to
+  append-only that a navigation convenience does not justify.
+
+## ADR-0046 — what the guard's trace can hold, stated as the code has it · 2026-09-07 · Accepted
+
+  Narrows: ADR-0038 (every branch of the guard leaves a line).
+
+- **Context** — ADR-0038 records the sanitiser's keep-set as `@ . - _ : =`. The code keeps more:
+  `tr -c 'A-Za-z0-9 ._/:=@-'` also keeps the **space** and the **slash**, which together mean a
+  trace line can carry whole paths and filenames. The series corrected this in `GUIDE.md` and
+  `COMPLIANCE.md` but not in the entry, and the entry is append-only, so the correction cannot
+  be made where the error is.
+- **Options** — (a) leave it: the shipped documents are right and they are what people read;
+  (b) edit ADR-0038; (c) append an entry that narrows it.
+- **Decision** — (c).
+- **Why** — (a) leaves the decision log — the one artefact whose whole value is being a truthful
+  record — carrying a claim about the code that is smaller than the code. (b) is the mutation
+  append-only exists to forbid, and this is not one of the two sanctioned ones. (c) is what
+  ADR-0045 just made the grammar for.
+- **Consequences** — the keep-set is `A-Za-z0-9`, **space**, `.` `_` `/` `:` `=` `@` `-`. A trace
+  line can therefore hold a path a matched command mentioned; it cannot hold quotes, backticks,
+  `$`, or anything else that could break the JSON or smuggle a substitution. That is the same
+  bound the prompt reason carries, since both come from the one `tr` — which was the property
+  ADR-0038 was really asserting, stated correctly here.

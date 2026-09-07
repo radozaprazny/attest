@@ -124,11 +124,62 @@ says "an upload asks too"                    "$(guard 'curl --upload-file x http
 if [ -z "$(guard 'git push --dry-run')" ]; then ok "a dry run publishes nothing and passes"; else fail "a dry run publishes nothing and passes"; fi
 # ...but the flag may belong to a different call than the one that ships
 says "a dry run chained to a real push still asks" "$(guard 'git push --dry-run && git push origin main')" 'permissionDecision":"ask'
+# --- what the record has to SAY, not merely that it exists (ADR-0037) -----------------
+rm -f "$S"/.attest/ship-*.md
+: > "$S/.attest/ship-20260904-000000-$SHA.md"
+says "an empty record for HEAD does not clear the guard" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
+says "a record reporting a blocker does not clear it either" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+printf -- '- HEAD: %s (main)\n- findings: 10 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
+says "…and 10 blockers is not read as 0" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
+if [ -z "$(guard 'git push origin main')" ]; then ok "a clean record for HEAD clears it"; else fail "a clean record for HEAD clears it"; fi
+# The HEAD: line has to name THIS sha, not just be present
+printf -- '- HEAD: deadbee (main)\n- findings: 0 blocker\n' > "$S/.attest/ship-20260904-000000-$SHA.md"
+says "a record whose HEAD line names another commit does not clear it" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+# The kit's own shipped records must satisfy the parser the guard uses
+for rec in "$KIT"/.attest/ship-*.md; do
+  [ -e "$rec" ] || continue
+  rsha="$(basename "$rec" .md)"; rsha="${rsha##*-}"
+  # Shape, not verdict: on the day /audit-history honestly records a blocker, a verdict test
+  # would fail on something that is not a defect — and the pressure would be to edit an
+  # append-only record.
+  check "the kit's own $(basename "$rec") is readable by the guard" \
+    sh -c "sed -n '/^- HEAD:/{p;q;}' '$rec' | grep -q '^- HEAD: $rsha' && sed -n '/^- findings:/{p;q;}' '$rec' | grep -q '^- findings:'"
+done
+
+rm -f "$S"/.attest/ship-*.md   # the deadbee record above is still present and would fail below
+# EVERY record for the sha must be clean, not merely one of them (ADR-0037). The glob expands
+# lexicographically, so "the first clean one wins" meant the OLDEST won — and quick-scan-then-
+# full-scan is the workflow the guard's own prompt recommends.
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260101-000000-$SHA.md"
+printf -- '- HEAD: %s (main)\n- findings: 3 blocker\n' "$SHA" > "$S/.attest/ship-20260909-235959-$SHA.md"
+says "an older clean record does not override a newer blocker" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260909-235959-$SHA.md"
+if [ -z "$(guard 'git push origin main')" ]; then ok "two clean records for the sha still clear it"; else fail "two clean records for the sha still clear it"; fi
+# The parser reads the FIRST header line of each kind — prose at column 0 must not stand in
+printf -- '- HEAD: %s (main)\n- findings: 2 blocker\n\nNote:\n- findings: 0 blocker (previous run)\n' "$SHA" > "$S/.attest/ship-20260909-235959-$SHA.md"
+says "prose at column 0 cannot stand in for the header line" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+rm -f "$S"/.attest/ship-*.md
+
+# --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
+rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md
+guard 'git push --dry-run' >/dev/null
+says "a dry run is traced, not silent" "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' dryrun '
+rm -f "$S/.attest/tmp/ship-guard.log"
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
+guard 'git push origin main' >/dev/null
+says "a record that fails the check is traced as blocked, not as a bare ask" \
+  "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' blocked '
+lines=$(grep -c . "$S/.attest/tmp/ship-guard.log" 2>/dev/null || echo 0)
+if [ "$lines" -eq 1 ]; then ok "one decision writes exactly one trace line"; else fail "one decision writes exactly one trace line (got $lines)"; fi
+rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md
+
 # A record for SOME other commit must not clear this one — the sha in the name is the check.
 mkdir -p "$S/.attest"; : > "$S/.attest/ship-20260101-000000-deadbee.md"
 says "a record for another commit does not clear the guard" "$(guard 'git push origin main')" 'permissionDecision":"ask'
-: > "$S/.attest/ship-20260828-120000-$SHA.md"
-if [ -z "$(guard 'git push origin main')" ]; then ok "a record for THIS commit clears the guard"; else fail "a record for THIS commit clears the guard"; fi
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260828-120000-$SHA.md"
+if [ -z "$(guard 'git push origin main')" ]; then ok "a clean record for THIS commit clears the guard"; else fail "a clean record for THIS commit clears the guard"; fi
 # Emitted JSON must be parseable — a malformed decision is worse than none. The command is
 # deliberately hostile: quotes, backslashes and a substitution the guard must never expand.
 rm -f "$S/.attest/ship-20260828-120000-$SHA.md"
@@ -177,7 +228,7 @@ check "an ask is traced"                             test -f "$LOG"
 says "…with its decision and the sha it judged"      "$(cat "$LOG")" "ask $GSHA"
 check "the trace sits in the ignored scratch, not beside the records" test ! -e "$G/.attest/ship-guard.log"
 # The pass is the case that looked like a dead hook, so it must be traced too.
-: > "$G/.attest/ship-20260831-000000-$GSHA.md"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$GSHA" > "$G/.attest/ship-20260831-000000-$GSHA.md"
 tguard 'git push origin main' >/dev/null
 says "a pass is traced too"                          "$(tail -1 "$LOG")" "pass $GSHA"
 if [ "$(grep -c . "$LOG")" -eq 2 ]; then ok "one line per matched command, no more"; else fail "one line per matched command, no more"; fi
@@ -186,6 +237,74 @@ rm -f "$G/.attest/ship-20260831-000000-$GSHA.md"
 chmod 500 "$G/.attest/tmp"
 says "an unwritable scratch still yields a decision" "$(tguard 'git push origin main')" 'permissionDecision":"ask'
 chmod 700 "$G/.attest/tmp"
+
+# --- 3b. line endings: a CRLF source must not install a CRLF hook (ADR-0039) -----------
+echo "install.sh — CRLF:"
+check "the kit ships .gitattributes pinning shell to LF" \
+  sh -c "grep -Eq '^\*\.sh[[:space:]]+text eol=lf' '$KIT/.gitattributes'"
+check "…covering the hooks directory too" \
+  sh -c "grep -q 'claude/hooks' '$KIT/.gitattributes'"
+CR="$WORK/crlfkit"; mkdir -p "$CR"
+cp -r "$KIT/.claude" "$CR/"; cp "$KIT"/*.md "$KIT/install.sh" "$CR/"
+# awk, not `sed 's/$/\r/'`: that is a GNU-ism — BSD/macOS sed inserts a literal `r`, the
+# fixture then holds no CR at all, and the whole block would pass without testing anything.
+for f in "$CR"/.claude/hooks/*.sh; do
+  awk '{ printf "%s\r\n", $0 }' "$f" > "$f.crlf" && mv "$f.crlf" "$f"
+done
+if grep -q "$(printf '\r')" "$CR/.claude/hooks/ship_guard.sh"; then
+  ok "the CRLF fixture really holds CR"
+else
+  fail "the CRLF fixture really holds CR"
+fi
+CRT="$WORK/crlftarget"; mkdir -p "$CRT"
+"$CR/install.sh" "$CRT" >/dev/null 2>&1 || true
+if grep -q "$(printf '\r')" "$CRT/.claude/hooks/ship_guard.sh" 2>/dev/null; then
+  fail "a CRLF source installs an LF hook"
+else
+  ok "a CRLF source installs an LF hook"
+fi
+check "…and the installed hook is still valid shell" sh -n "$CRT/.claude/hooks/ship_guard.sh"
+# An UPGRADE over an existing CRLF hook takes the other branch entirely, and used to call a
+# whitespace-only difference "drift" with a "diff against …" most tools render as identical —
+# for a file that exits 2 under dash and blocks every Bash call (attest ADR-0044). Both
+# directions, because naming the CRLF case is worthless if a real edit stops reading as drift.
+CRU="$WORK/crlfupgrade"; mkdir -p "$CRU"
+"$KIT/install.sh" "$CRU" >/dev/null
+sed -i.bak 's/$/\r/' "$CRU/.claude/hooks/ship_guard.sh" 2>/dev/null || \
+  { tr -d '\r' < "$CRU/.claude/hooks/ship_guard.sh" | sed 's/$/\r/' > "$CRU/x" && mv "$CRU/x" "$CRU/.claude/hooks/ship_guard.sh"; }
+rm -f "$CRU/.claude/hooks/ship_guard.sh.bak"
+cru_out="$(run_install "$CRU")"
+says "a CRLF-only copy is named, not called drift"  "$cru_out" 'LINE ENDINGS'
+says_not "…and is not reported as ordinary drift"   "$cru_out" 'ship_guard.sh — yours kept, but it DIFFERS'
+printf '\n# an edit of my own\n' >> "$CRU/.claude/hooks/session_declaration.sh"
+cru_out2="$(run_install "$CRU")"
+says "a real content edit still reads as drift"     "$cru_out2" 'session_declaration.sh — yours kept, but it DIFFERS'
+# ...and the adopter's own next checkout must not undo it (ADR-0039)
+GA="$WORK/gitattr"; mkdir -p "$GA"
+"$KIT/install.sh" "$GA" >/dev/null
+check "the LF attribute lands in the target"        grep -q 'text eol=lf' "$GA/.gitattributes"
+check "…scoped to the kit's own hooks"              grep -q 'claude/hooks' "$GA/.gitattributes"
+"$KIT/install.sh" "$GA" >/dev/null
+# `|| echo 0`: grep -c exits 1 on zero matches, and under `set -e` that ends the run — which
+# once cost this suite 75 of its assertions, silently, including the regression test for a
+# destructive bug. Every count in this file is guarded for that reason.
+# The installer lands two attributes now — the hooks (ADR-0039) and the records the guard
+# parses byte-exactly (ADR-0037). Count each ONE, not the total: a total is the assertion that
+# breaks every time the kit legitimately pins one more path, which teaches the reader to raise
+# the number rather than ask why it moved.
+ga_hooks=$(grep -c '^\.claude/hooks/\*' "$GA/.gitattributes" 2>/dev/null || echo 0)
+ga_recs=$(grep -c '^\.attest/\*\.md' "$GA/.gitattributes" 2>/dev/null || echo 0)
+if [ "$ga_hooks" -eq 1 ] && [ "$ga_recs" -eq 1 ]; then ok "a re-run duplicates neither attribute line"; else fail "a re-run duplicates neither attribute line (hooks=$ga_hooks records=$ga_recs)"; fi
+check "the blanket *.sh rule is NOT written into your repo" \
+  sh -c "! grep -qE '^[*][.]sh' '$GA/.gitattributes'"
+# A pattern the adopter already decided about is left alone — globs are not regexes, and
+# treating them as one is what duplicated these lines in the first draft.
+GA2="$WORK/gitattr-own"; mkdir -p "$GA2"; printf '*.sh text=auto\n' > "$GA2/.gitattributes"
+"$KIT/install.sh" "$GA2" >/dev/null
+check "an existing *.sh rule of yours is not overruled" grep -qx '\*.sh text=auto' "$GA2/.gitattributes"
+own_sh=$(grep -c '^\*\.sh' "$GA2/.gitattributes" 2>/dev/null || echo 0)
+if [ "$own_sh" -eq 1 ]; then ok "…and nothing is appended under it"; else fail "…and nothing is appended under it ($own_sh)"; fi
+check "…while the hooks pattern still lands"        grep -q 'claude/hooks' "$GA2/.gitattributes"
 
 # --- 4. fresh install, then a re-run that must change nothing --------------------------
 echo "install.sh — idempotency:"
@@ -335,8 +454,34 @@ says "a stale attest-GUIDE.md gets the refresh hint" "$(run_install "$T9")" 'att
 echo "template-cleanup:"
 GEN="$WORK/generated"; mkdir -p "$GEN"
 cp -r "$KIT/.claude" "$GEN/"; cp "$KIT"/*.md "$GEN/"; cp "$KIT/install.sh" "$GEN/"
+# Dotfiles too: `cp "$KIT"/*.md` does not glob them, but the template button copies the whole
+# tree — which is exactly how a blanket `*.sh` rule reached adopters unseen (attest ADR-0043).
+cp "$KIT/.gitattributes" "$GEN/" 2>/dev/null || true
+# ...and a line of the adopter's own, added under the kit's header the way a late run would find
+printf '*.md diff=markdown\n' >> "$GEN/.gitattributes"
 cp "$KIT/LICENSE" "$GEN/"; mkdir -p "$GEN/docs" "$GEN/scripts" "$GEN/.github/workflows"
 cp "$KIT"/docs/*.md "$GEN/docs/"; cp "$KIT/scripts/smoke.sh" "$KIT/scripts/template-cleanup.sh" "$GEN/scripts/"
+# attest's own audit records: the generated repo must not inherit them (ADR-0041)
+mkdir -p "$GEN/.attest"; cp "$KIT"/.attest/*.md "$GEN/.attest/" 2>/dev/null || true
+gen_before=$( { find "$GEN/.attest" -maxdepth 1 -name '*-*.md' 2>/dev/null || true; } | wc -l )
+# The fixture must be a REAL repository with its own history: the discriminator is whether the
+# sha in a record's name resolves here, and outside a repo `git cat-file` fails for every
+# record alike — so a non-repo fixture would assert the right outcome through the wrong path,
+# which is how the first version of this shipped a destructive bug past a green suite
+# (attest ADR-0041).
+git -C "$GEN" init -q .
+git -C "$GEN" config user.email adopter@example.invalid
+git -C "$GEN" config user.name adopter
+git -C "$GEN" add -A >/dev/null 2>&1 || true
+git -C "$GEN" commit -qm "the adopter's own first commit" >/dev/null 2>&1 || true
+GEN_SHA="$(git -C "$GEN" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+printf -- '# my own scan\n- kit: 0.5.0\n- HEAD: %s (main)\n- findings: 0 blocker\n' "$GEN_SHA" \
+  > "$GEN/.attest/ship-20260904-100000-$GEN_SHA.md"
+# Names the kit never writes are the adopter's by construction. Feeding "notes" or "rerun" to
+# `git cat-file` merely fails, which under a delete-on-failure rule takes them (attest ADR-0041).
+for own in gate-notes.md gate-2026-09-05-pre-release.md "ship-20260904-100000-$GEN_SHA-rerun.md"; do
+  printf -- '- kit: 0.5.0\n- a note of my own\n' > "$GEN/.attest/$own"
+done
 cp "$KIT/.github/workflows/ci.yml" "$GEN/.github/workflows/"
 # what the user added before the workflow ever ran
 echo 'my notes' > "$GEN/docs/design.md"; echo 'echo deploy' > "$GEN/scripts/deploy.sh"
@@ -344,6 +489,17 @@ echo 'my notes' > "$GEN/docs/design.md"; echo 'echo deploy' > "$GEN/scripts/depl
 check "attest's own docs are gone"        test ! -e "$GEN/docs/attest-devlog.md"
 check "attest's installer is gone"        test ! -e "$GEN/install.sh"
 check "attest's own CI is gone"           test ! -e "$GEN/.github/workflows/ci.yml"
+# The kit needs a blanket `*.sh` pin for its OWN shell; your repo must never inherit it, or the
+# kit is editing your code through a rule you never wrote (attest ADR-0043).
+check "the blanket *.sh pin does not survive into your repo" \
+  sh -c "! grep -qE '^[*][.]sh' '$GEN/.gitattributes'"
+check "…while the kit's own hooks stay pinned"  grep -q 'claude/hooks' "$GEN/.gitattributes"
+# The narrowing must not take the OTHER kit-scoped pin with it: the guard parses a record
+# byte-exactly, so losing this on the template path hands back the CRLF misdiagnosis ADR-0044
+# closed on the installer path (attest ADR-0043).
+check "…and so does the record pin the guard needs" grep -q '^[.]attest/[*][.]md' "$GEN/.gitattributes"
+# Surgical, not a rewrite: a line the adopter added under attest's header survives a late run.
+check "a line of your own in .gitattributes survives" grep -q '^\*[.]md diff=markdown' "$GEN/.gitattributes"
 check "YOUR docs survive"                 test -f "$GEN/docs/design.md"
 check "YOUR scripts survive"              test -f "$GEN/scripts/deploy.sh"
 check "the kit itself is left in place"   test -f "$GEN/.claude/skills/gate/SKILL.md"
@@ -352,6 +508,99 @@ check "the ship guard is left in place"      test -f "$GEN/.claude/hooks/ship_gu
 # The template path keeps compliance on purpose: a generated repo has no install.sh to re-run,
 # so removing it would be the one state a user cannot undo. /business closes the gap instead.
 check "compliance is left for /business to rule on" test -f "$GEN/COMPLIANCE.md"
+# attest's own audit records are attest's history, not the generated repo's (ADR-0041)
+if [ "${gen_before:-0}" -gt 0 ]; then ok "the fixture really carried attest's records ($gen_before)"; else fail "the fixture really carried attest's records"; fi
+# `|| true` inside the group: the suite runs under `set -o pipefail`, and after a clean sweep
+# the directory itself is gone, so find exits non-zero and would take the whole run with it.
+# Attest's records name attest's commits, which do not exist here; the adopter's names one that
+# does. Both halves are asserted — "all gone" alone would pass on a script that deletes blindly.
+# Count by exclusion of the adopter's known fixtures, not by sha: two of them deliberately
+# carry no sha at all, which is the property under test.
+OWN_RECORDS="ship-20260904-100000-$GEN_SHA.md gate-notes.md gate-2026-09-05-pre-release.md ship-20260904-100000-$GEN_SHA-rerun.md"
+att_left=0
+for f in $( { find "$GEN/.attest" -maxdepth 1 -name '*-*.md' 2>/dev/null || true; } ); do
+  case " $OWN_RECORDS " in *" $(basename "$f") "*) continue ;; esac
+  att_left=$((att_left + 1))
+done
+if [ "$att_left" -eq 0 ]; then ok "attest's own .attest records are gone"; else fail "attest's own .attest records are gone ($att_left left)"; fi
+check "the adopter's own record survives the sweep" test -f "$GEN/.attest/ship-20260904-100000-$GEN_SHA.md"
+for own in gate-notes.md gate-2026-09-05-pre-release.md "ship-20260904-100000-$GEN_SHA-rerun.md"; do
+  check "…and so does $own — its tail is not a sha" test -f "$GEN/.attest/$own"
+done
+# ...and in a SHALLOW clone git answers about HEAD and nothing else. `actions/checkout`
+# defaults to `fetch-depth: 1`, and a record names the commit it gated — an ANCESTOR of HEAD by
+# ADR-0033, never HEAD itself. So every one of the adopter's records fails to resolve and the
+# sweep would take all of them, unattended, with a write token. The fixture above cannot see
+# this: it has a single commit, so its record names HEAD (attest ADR-0042).
+SHAL="$WORK/shallow-src"; mkdir -p "$SHAL/.attest" "$SHAL/scripts"
+cp "$KIT/install.sh" "$SHAL/"; cp "$KIT/scripts/template-cleanup.sh" "$SHAL/scripts/"
+cp "$KIT/README.md" "$KIT/LICENSE" "$SHAL/" 2>/dev/null || true
+git -C "$SHAL" init -q .
+git -C "$SHAL" config user.email adopter@example.invalid
+git -C "$SHAL" config user.name adopter
+echo one > "$SHAL/f1"; git -C "$SHAL" add -A >/dev/null 2>&1; git -C "$SHAL" commit -qm first >/dev/null 2>&1
+SHAL_SHA="$(git -C "$SHAL" rev-parse --short HEAD 2>/dev/null || echo unknown)"
+# the adopter's own record, naming the commit it gated — which the next commit makes an ancestor
+printf -- '# my own scan\n- kit: 0.5.0\n- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHAL_SHA" \
+  > "$SHAL/.attest/ship-20260904-100000-$SHAL_SHA.md"
+cp "$KIT"/.attest/gate-*.md "$SHAL/.attest/" 2>/dev/null || true
+echo two > "$SHAL/f2"; git -C "$SHAL" add -A >/dev/null 2>&1; git -C "$SHAL" commit -qm second >/dev/null 2>&1
+for mode in full shallow; do
+  CL="$WORK/clone-$mode"; rm -rf "$CL"
+  if [ "$mode" = full ]; then
+    git clone -q "file://$SHAL" "$CL" 2>/dev/null || true
+  else
+    git clone -q --depth 1 "file://$SHAL" "$CL" 2>/dev/null || true
+  fi
+  # NOT `ok`: a pass for a fixture that never ran is how a suite goes green over a destructive
+  # bug, which the comment above the counts already records costing this file 75 assertions.
+  if [ ! -d "$CL/.attest" ]; then fail "clone fixture built ($mode) — it did not"; continue; fi
+  (cd "$CL" && bash scripts/template-cleanup.sh >/dev/null 2>&1) || true
+  mine="$CL/.attest/ship-20260904-100000-$SHAL_SHA.md"
+  theirs=$( { find "$CL/.attest" -maxdepth 1 -name 'gate-*.md' 2>/dev/null || true; } | wc -l )
+  if [ "$mode" = shallow ]; then
+    # git cannot tell whose record is whose here, so it must take nothing — not even attest's
+    if [ -f "$mine" ] && [ "$theirs" -gt 0 ]; then
+      ok "a shallow clone keeps every record, yours and the kit's alike"
+    else
+      fail "a shallow clone keeps every record (mine=$([ -f "$mine" ] && echo yes || echo GONE) kit=$theirs)"
+    fi
+  else
+    # ...and with the full history the sweep still does the job it exists for
+    if [ -f "$mine" ] && [ "$theirs" -eq 0 ]; then
+      ok "a full clone still sweeps the kit's records and keeps your ancestor-named one"
+    else
+      fail "a full clone sweeps correctly (mine=$([ -f "$mine" ] && echo yes || echo GONE) kit=$theirs)"
+    fi
+  fi
+done
+
+# ...and outside a repository the sweep must remove nothing at all
+NOGIT="$WORK/nogit"; mkdir -p "$NOGIT/.attest" "$NOGIT/scripts"
+cp "$KIT/install.sh" "$NOGIT/"; cp "$KIT/scripts/template-cleanup.sh" "$NOGIT/scripts/"
+cp "$KIT"/.attest/*.md "$NOGIT/.attest/" 2>/dev/null || true
+: > "$NOGIT/.attest/ship-20260904-000000-cafebabe.md"
+n_before=$( { find "$NOGIT/.attest" -maxdepth 1 -name '*-*.md' 2>/dev/null || true; } | wc -l )
+(cd "$NOGIT" && bash scripts/template-cleanup.sh >/dev/null 2>&1) || true
+n_after=$( { find "$NOGIT/.attest" -maxdepth 1 -name '*-*.md' 2>/dev/null || true; } | wc -l )
+if [ "$n_before" -eq "$n_after" ] && [ "$n_before" -gt 0 ]; then
+  ok "outside a git checkout the sweep removes nothing ($n_before kept)"
+else
+  fail "outside a git checkout the sweep removes nothing ($n_before -> $n_after)"
+fi
+# Assert the SHAPE, not a domain allowlist: a hard-coded list passes any other domain and any
+# third party's address, and writing the maintainer's domain here would add the very kind of
+# in-content occurrence this series removed. `.invalid` is reserved by RFC 2606 and is what the
+# fixtures use, so it is the only exemption.
+# `|| true` on both greps: under `set -o pipefail` a grep that finds nothing exits 1, and
+# finding nothing is the passing case here.
+stray=$( { grep -rhoE '[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}' "$GEN" 2>/dev/null || true; } |
+  { grep -vE '@(example|test|invalid)\.|\.invalid$|@noreply\.' || true; } | sort -u | head -5)
+if [ -z "$stray" ]; then
+  ok "no real address survives anywhere in the generated repo"
+else
+  fail "no real address survives anywhere in the generated repo (found: $stray)"
+fi
 check "attest's LICENSE became a skeleton" grep -q '<YEAR>' "$GEN/LICENSE"
 check "attest's README became a stub"      grep -q '^# <your project>' "$GEN/README.md"
 # Files of your own that happen to carry attest's names must survive too.

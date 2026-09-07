@@ -15,7 +15,7 @@ them and is never absent when an audit runs.
 > Those citations are provenance for a rule, never a file to look up in *your* repo; your own
 > log is `DECISIONS.md` and its numbering is unrelated.
 
-Kit version: 0.4.0 (the kit's one version marker — it lives in this file because the ladder
+Kit version: 0.5.0 (the kit's one version marker — it lives in this file because the ladder
 installs with every audit consumer, so the version travels with the kit and can never desync
 from the contract; attest ADR-0018. `install.sh` prints it; a `/gate` run record cites it.
 Bump it when cutting a release.)
@@ -146,11 +146,19 @@ Every audit returns the same shape:
 sanctioned artifacts exist, both of them records *that* a gate ran and what it returned:
 `/gate` appends a dated run record under `.attest/` (attest ADR-0016), and `/audit-history`
 appends one of its own — `ship-…-<short-HEAD-sha>.md` — which the `PreToolUse` ship guard
-reads before anything leaves the machine (attest ADR-0028). `.attest/` therefore holds
+reads before anything leaves the machine (attest ADR-0028, narrowed by ADR-0037: the guard reads
+the record's `HEAD:` and `findings: 0 blocker` lines, so passing means *audited **and** clean*). `.attest/` therefore holds
 append-only records plus an ignored `.attest/tmp/` for anything transient: the gate's
 fallback material, which it deletes when it is done, and the ship guard's decision trace,
 which it keeps (attest ADR-0026, ADR-0034). Whatever writes there removes its **own files**,
-never the directory. The document audits
+never the directory. **Two mutations of a record itself are sanctioned, both named, and nothing
+else is:** redacting personal data a record should never have carried, leaving a visible mark
+and saying what went, when and under which entry — **the finding, its counts and its verdict are
+never touched, and it sanctions one mutation of one record, not a licence to tidy `.attest/`**
+(ADR-0040); and `template-cleanup.sh` sweeping attest's own records out of a repo generated from
+the template button (ADR-0041) — **the sweep** never touches a record in the project that
+wrote it, while the redaction is precisely a project editing one of its own, once, in the open.
+The document audits
 inside the gate still write nothing at all: they have no `Write` tool (attest ADR-0017).
 
 Do not inflate a minor into a blocker to look thorough, and do not invent findings to avoid

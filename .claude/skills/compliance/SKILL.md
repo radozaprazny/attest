@@ -73,6 +73,14 @@ never as a verdict for either side. Cite which findings were MCP-verified in §9
 
 > **A file whose sections are still `<placeholder>` text counts as absent.** The kit ships
 > `COMPLIANCE.md` as a skeleton — bootstrap over it, do not diff against it.
+>
+> **One thing in the skeleton is not a placeholder: carry it forward.** If this project uses the
+> kit's ship guard, `.attest/tmp/ship-guard.log` is a local store the adopter did not create —
+> every publish/submit/upload command the guard matched, with addresses, credentialed URLs and
+> file paths surviving verbatim. It is gitignored and per-checkout, and nothing in the kit prunes
+> it. Write it into §7 with the retention line *"no automatic expiry; manual deletion, per
+> machine"*. Bootstrapping over the template would otherwise drop the only notice of it (attest
+> ADR-0038).
 
 1. **Read `BUSINESS.md`** — its **Archetype** and **Non-goals**. If `BUSINESS.md` or the
    Archetype line is missing, recommend running `/business` first, or derive a **provisional**

@@ -121,8 +121,16 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   create`, `npm publish`, `twine upload`, `cargo publish`, `docker push`, a Kaggle submit,
   `scp`/`rsync`, `aws s3 cp`, `curl --upload-file` — plus the one that changes **who may read**
   what you already sent: `gh repo edit --visibility` and `gh repo create`. On a hit it looks
-  under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha. If there
-  is none, it answers with `permissionDecision: "ask"` and a reason.
+  under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha **and
+  reads it** (see *"What the record has to prove"* below). Anything short of a clean record for
+  this HEAD answers with `permissionDecision: "ask"`, and the reason says which of the two it
+  was — no record, or a record that does not attest a clean scan.
+- **The list is literal, and that is the coverage.** It is a `case` of fixed substrings, not a
+  category of command. `git -C … push`, `git --no-pager push`, `npm run release`, `make deploy`
+  and a deploy script of your own do **not** match, and a non-matching command leaves no trace
+  line either — so an empty log is not proof the hook is alive, only that nothing it knows about
+  ran. This is a net for *forgetting*, not for variants; widen it by adding your own project's
+  commands to that `case`.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
@@ -135,9 +143,12 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   boundary real without making it absolute.
 - **It asks, it never forbids.** The answer is an ordinary permission prompt you can approve.
   A guard that cannot be overridden gets deleted; one that states what is missing gets used.
-- **The sha in the record name is the point.** The question is *"was this state audited"*, not
-  *"was this repo ever audited"* — which is why `/audit-history` writes
-  `.attest/ship-<date>-<time>-<short-sha>.md` even when the verdict is clean.
+- **What the record has to prove.** The guard matches the sha in the record's *name*, then
+  reads two lines inside it: `- HEAD: <sha> …` and `- findings: 0 blocker …`. So the question is
+  *"was this state audited **and** did it come back clean"* — not *"was this repo ever audited"*,
+  and not *"does a file exist"*. A record reporting a blocker does not open the door; neither
+  does an empty one (attest ADR-0037). That is why `/audit-history` writes a record even when the
+  verdict is clean: a clean ship is the state the guard has to be able to recognise.
 - **It leaves a trace.** Every matched command appends one line — UTC timestamp, decision,
   HEAD sha, sanitised command — to `.attest/tmp/ship-guard.log`, the **pass** as well as the ask.
   A hook that decides silently cannot be told apart from one that was never registered, which is
@@ -171,12 +182,30 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   it is one `PostToolUse` entry in `.claude/settings.json` pointing at your own formatter. The
   kit simply does not ship one, and will not install one over your toolchain (attest ADR-0027).
 
+> **What the trace can hold.** The guard's log line carries the matched command with only
+> JSON-breaking characters removed — `@ . - _ : = /` and the space all survive, which is what an
+> address, a credentialed URL **and a filesystem path** are made of. Seven of the matched
+> patterns are local-file transfers whose argument is a path, so
+> `aws s3 cp /home/alice/patients-2026.csv s3://…` lands verbatim as readily as
+> `git send-email --to alice@example.com` does, and a filename can name a data subject or imply
+> a special category. Up to 120 characters, appended to `.attest/tmp/ship-guard.log`. That file is gitignored and never
+> shipped — but unlike the permission prompt it is **persistent and unbounded**, so deleting it
+> is the retention control, and in a regulated project it is a local store to declare rather than
+> to discover (`COMPLIANCE.md` §7).
+
 > **What these two hooks send.** Both put text into the model's context: the declaration hook
 > prints your non-goals and live state at every session start, and the ship guard puts the
 > matched command into the permission prompt. In a **regulated** project that is a data flow
 > like any other — if your control documents can contain personal data, name the destination in
 > `COMPLIANCE.md` (§7, sub-processors / transfers). Neither hook sends anything anywhere by
 > itself; both only print, and what reaches the provider is whatever your session already does.
+
+> **Reading the trace.** Four words: `pass` (a clean record cleared it) · `blocked` (a record
+> for this commit exists and does not attest a clean scan) · `ask` (no record at all) ·
+> `dryrun` (waved through as a simple dry run). `blocked` and `ask` are both a permission
+> prompt — the difference is what is missing, and afterwards only the log can tell them apart
+> (attest ADR-0038). A command the matcher does not recognise writes **no** line, so an empty
+> log means "nothing I know about ran", not "the hook is dead".
 
 > **The hook pattern:** *event (when) → your shell command (what)*. Exit `2` = block the
 > action; a `PreToolUse` hook can also print JSON with `permissionDecision: "ask"` to prompt
@@ -417,7 +446,16 @@ one output shape and one severity ladder so they read as a family:
 
 That is the whole procedure — do **not** hand-copy the files. The script is **copy-if-absent**:
 every doc, skill, hook and `settings.json` is installed only if the target does not already
-have it, and `.gitignore` is **appended to** rather than replaced.
+have it, and `.gitignore` is **appended to** rather than replaced. It appends **two** lines to
+`.gitattributes` too — `.claude/hooks/* text eol=lf` and `.attest/*.md text eol=lf`. Both are
+scoped to paths the kit itself owns and no wider, because `text` normalises on `git add` and a
+blanket `*.sh` would rewrite your own scripts (attest ADR-0039); the second exists because the
+ship guard parses two lines out of a record byte-exactly, so a CRLF record fails closed with a
+reason that blames its age instead of its line endings (attest ADR-0037, ADR-0044). If you have
+already ruled on either pattern, it is left alone. The template path reaches the same place by
+subtraction: the kit's own `.gitattributes` carries a blanket `*.sh` pin it needs for its own
+shell, and `template-cleanup.sh` drops exactly that line from a generated repo (attest
+ADR-0043).
 
 **What it prints** is grouped by capability, not by path (attest ADR-0031): one line per
 group — documents, commands, checks, guards, manual — with `✓` for *landed*, `·` for
@@ -502,8 +540,8 @@ single straight line.
   the posture (`COMPLIANCE.md`). It reads the archetype `/business` recorded.
 - From here on the two hooks work without you: the **declaration hook** puts your non-goals
   in front of the agent at every session start, and the **ship guard** asks before a push or a
-  submit that no `/audit-history` run has cleared (PART 2) — it never forbids; the answer is an
-  ordinary permission prompt.
+  submit that no `/audit-history` run has cleared — for the commands on its literal list, and it
+  never forbids; the answer is an ordinary permission prompt (PART 2.2).
 
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
@@ -528,8 +566,8 @@ single straight line.
   `.attest/ship-…-<HEAD sha>.md`.
 - `/audit-history full` — the whole-history scan, **before a public release** (a secret or a
   name in *any* old commit, not just `HEAD`).
-- You no longer have to remember either: the ship guard asks at the moment the command that
-  publishes is about to run, and names what is missing (PART 2.2).
+- You no longer have to remember either: for the commands on its literal list, the ship guard
+  asks at the moment one of them is about to run and names what is missing (PART 2.2).
 
 > **Reading key:** the SETUP row runs **once**; the PER-CHANGE loop repeats **every commit**;
 > the SHIP gate fires only when code **leaves the machine**. `/compliance` appears in both —

@@ -44,6 +44,13 @@ jobs:
       # and pushes a commit into someone else's repo, so a mutable tag is the last thing it
       # should resolve through.
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          # A shallow checkout (the action's default, fetch-depth: 1) holds only HEAD, so the
+          # record sweep in template-cleanup.sh cannot tell attest's records from the
+          # adopter's — every sha but HEAD's fails to resolve. The script now refuses to
+          # delete anything in that case, so this is the belt to its braces: with the full
+          # history the sweep can do the job it was written for (attest ADR-0042).
+          fetch-depth: 0
 
       - name: Remove attest's own files
         run: |
