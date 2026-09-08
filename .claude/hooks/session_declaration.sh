@@ -28,12 +28,34 @@ NX_MAX=8               # next steps
 BUSINESS="${ATTEST_BUSINESS:-BUSINESS.md}"
 CARRIER="${ATTEST_THREAD_CARRIER:-PROGRESS.md}"
 
+# ...and what those sections are CALLED. The defaults are the kit's English headings, which is
+# a SILENT failure for a project whose documents are written in another language: the hook
+# reads the file, matches nothing, prints nothing — and from inside the session that is
+# indistinguishable from a hook which was never registered. That is the same ambiguity ADR-0034
+# removed for the ship guard, and a heading is the same class of assumption as the paths above,
+# so it gets the same knob (attest ADR-0047).
+#
+# Each value is an awk regex matched against the whole `## …` heading line, so a plain literal
+# works ("Stav" finds "## Stav k 7. 9."). The SECTION ITSELF must still be at level 2: the body
+# runs until the next `## `, so a level-3 heading is where a section's own subheadings live and
+# treating one as a section start would end its parent at the first subsection.
+NG_PAT="${ATTEST_NONGOALS_HEADING:-[Nn]on-goals}"
+ST_PAT="${ATTEST_STATE_HEADING:-[Cc]urrent state}"
+NX_PAT="${ATTEST_NEXT_HEADING:-^##[[:space:]]*[Nn]ext}"
+
 # section <file> <heading-regex> — the body between a matching "## …" heading and the next one.
 # Unfilled template bodies are dropped: a placeholder line is <angle-bracketed> or an HTML
 # comment, and a section holding nothing else has not been declared yet, so it says nothing.
 section() {
   [ -r "$1" ] || return 0
-  awk -v pat="$2" '
+  # The pattern travels in the ENVIRONMENT, not through `awk -v`. `-v` runs its value through
+  # escape processing first, so a user escaping a metacharacter the obvious way — `Stav \(WIP\)`
+  # — hands awk `Stav (WIP)`, which is a grouping and matches something else entirely; the
+  # escape has to be DOUBLED to survive, which nobody guesses. The resulting non-match is
+  # silent, and awk's own warning about it goes to the stderr this call discards. ENVIRON[]
+  # passes the bytes through untouched, so one backslash means one backslash (attest ADR-0047).
+  ATTEST_HEADING_PAT="$2" awk '
+    BEGIN { pat = ENVIRON["ATTEST_HEADING_PAT"] }
     /^##[^#]/ { inside = ($0 ~ pat) ? 1 : 0; next }
     inside {
       if ($0 ~ /^[[:space:]]*$/)    { pending = 1; next }
@@ -56,9 +78,9 @@ trunc() {
   '
 }
 
-NONGOALS="$(section "$ROOT/$BUSINESS" '[Nn]on-goals' 2>/dev/null || true)"
-STATE="$(section "$ROOT/$CARRIER" '[Cc]urrent state' 2>/dev/null || true)"
-NEXT="$(section "$ROOT/$CARRIER" '^##[[:space:]]*[Nn]ext' 2>/dev/null || true)"
+NONGOALS="$(section "$ROOT/$BUSINESS" "$NG_PAT" 2>/dev/null || true)"
+STATE="$(section "$ROOT/$CARRIER" "$ST_PAT" 2>/dev/null || true)"
+NEXT="$(section "$ROOT/$CARRIER" "$NX_PAT" 2>/dev/null || true)"
 
 [ -n "$NONGOALS$STATE$NEXT" ] || exit 0
 

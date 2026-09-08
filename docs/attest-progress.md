@@ -108,7 +108,13 @@ way; so is the one above it.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
-0.5.0** (`.claude/skills/_shared/audit-ladder.md`); `v0.4.0` is the last tag.
+0.6.0** (`.claude/skills/_shared/audit-ladder.md`); `v0.5.0` is the last tag.
+
+**Why 0.6.0 and not 0.5.1.** 0.5.0 shipped a declaration hook whose reach stopped at the
+language of its own documents; ADR-0047 makes the three headings configurable, which is a new
+capability an adopter can depend on, not a repair of one that was stated and broken. `v0.5.0`
+was tagged at `2d381f5` first, so the number is not left orphaned by the bump — the marker on
+`main` said 0.5.0 to anyone who cloned it, and the tag is what makes that true afterwards.
 
 0.4.0 rather than a `v0.3.0` tag on the same tree: three adopter-visible changes landed in
 shipped files after 0.3.0 reached `main` and none of them bumped the line — the guard writes a
@@ -122,7 +128,7 @@ Baseline green; every number below re-measured 2026-09-07 — shellcheck is not 
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 166 passed, 0 failed
+./scripts/smoke.sh                                    # 177 passed, 0 failed
 ./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore + 2 .gitattributes = 20 items
 ./install.sh --compliance "$EMPTY"                    # 22 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 on this branch —
@@ -246,9 +252,10 @@ aesthetic:
   gitignored). The shipped `.claude/settings.json` stays generic on purpose — it is the
   consumer's file, and attest's own paths must never ride out in it. Same ADR-0006 tension
   `/gate` solves with `$DOCS`. Attest has no `docs/attest-business.md`, so only the carrier
-  half applies here. It **is** now set locally. `smoke.sh` unsets both overrides at the top for
-  that reason: with the carrier exported, the declaration fixtures read this file instead of the
-  documents the test wrote, and four assertions failed for a purely ambient reason.
+  half applies here. It **is** now set locally. `smoke.sh` unsets all five overrides at the top
+  for that reason — the two paths and, since ADR-0047, the three headings: with the carrier
+  exported, the declaration fixtures read this file instead of the documents the test wrote, and
+  four assertions failed for a purely ambient reason.
 - **A ship record never names the commit that contains it** — `3481531` carries the record for
   `8a7d45a`, and that is now the declared rule, not an accident (ADR-0033). Read `.attest/` by the
   sha *in the name*, never by the commit the file sits in, and never make the two line up.
