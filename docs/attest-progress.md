@@ -173,14 +173,19 @@ aesthetic:
 
 ## Next
 
-- **Going public — what is left.** The repo is private, and both `METHOD.md` and anything that
-  links to it assume it is not. Done: the carrier above fixed, `v0.6.0` tagged at `dfa2255`,
-  merged branches pruned. Before the flip, `/audit-history full` — a pattern scan on 2026-09-09
-  over **all 431 blobs in every commit and branch** (private keys, cloud/API/token formats, JWT,
-  e-mail, local paths, IBAN, national identifiers) returned only synthetic values
-  (`@example.invalid`, `alice@example.com`, `/home/alice`) plus the maintainer's own address in
-  one ship record, which every commit's author field already carries. What is left for the skill
-  is the judgment layer a pattern cannot reach: a name, a client, a sentence.
+- **Going public — one step left.** The repo is still private, and both `METHOD.md` and anything
+  linking to it assume it is not. Cleared on 2026-09-09: the carrier above fixed · `v0.6.0`
+  tagged at `dfa2255` and pushed · `docs/method` opened as **PR #12** · `/audit-history full`
+  run over **all 431 blobs in every commit, branch and tag** — **0 blocker, 0 major, 1 minor**,
+  record `.attest/ship-20260909-211730-5c79205.md`. The minor is the maintainer's own address
+  surviving in the blob one commit behind ADR-0040's redaction (`50e9893`); it stays, because
+  purging it means rewriting every sha the `.attest/` filenames, the ship guard and
+  `template-cleanup.sh` all resolve — against a value the author field of 45 commits carries
+  anyway. The stale remote branches were a non-finding: GitHub had auto-deleted them at merge
+  and only the local tracking refs were behind.
+
+  **Left: merge PR #12, then flip the visibility** — in that order, so `main` carries
+  `METHOD.md` before any link points at it.
 
 - **External review, 2026-09-03/04 — the queue it left.** An independent 8-lens analysis of
   `v0.4.0` produced 65 findings; the count is an artefact of merging the lenses, so what follows
