@@ -173,20 +173,21 @@ aesthetic:
 
 ## Next
 
-- **Going public — one step left.** The repo is still private, and both `METHOD.md` and anything
-  linking to it assume it is not. Cleared on 2026-09-09: the carrier above fixed · `v0.6.0`
-  tagged at `dfa2255` and pushed · `docs/method` opened as **PR #12** · `/audit-history full`
-  run over **all 431 blobs in every commit, branch and tag** — **0 blocker, 0 major, 1 minor**,
-  record `.attest/ship-20260909-211730-5c79205.md`. The minor is the maintainer's own address
-  surviving in the blob one commit behind ADR-0040's redaction (`50e9893`); it stays, because
-  purging it means rewriting every sha the `.attest/` filenames, the ship guard and
-  `template-cleanup.sh` all resolve — against a value the author field of 45 commits carries
-  anyway. The stale remote branches were a non-finding: GitHub had auto-deleted them at merge
-  and only the local tracking refs were behind.
+- **Public since 2026-09-09.** `radozaprazny/attest` is public; `main` carries `METHOD.md`, and
+  `v0.6.0` is tagged at `dfa2255`. Cleared before the flip: the carrier fixed · PR #12 merged as
+  `a0fb1d7` · `/audit-history full` over **all 431 blobs in every commit, branch and tag** —
+  **0 blocker, 0 major, 1 minor**, record `.attest/ship-20260909-211730-5c79205.md`. The minor is
+  the maintainer's own address surviving in the blob one commit behind ADR-0040's redaction
+  (`50e9893`); it stays, because purging it means rewriting every sha the `.attest/` filenames,
+  the ship guard and `template-cleanup.sh` all resolve — against a value the author field of 45
+  commits carries anyway. The stale remote branches were a non-finding: GitHub had auto-deleted
+  them at merge and only the local tracking refs were behind.
 
-  **Left: merge PR #12, then flip the visibility** — in that order, so `main` carries
-  `METHOD.md` before any link points at it.
-
+  **What being public changes for the kit, unresolved:** the audit records under `.attest/` are
+  now readable by anyone, and so is every finding they name. That was fine while the repo was
+  private and is a standing question now — ADR-0016 makes the record the evidence, ADR-0040 made
+  redaction a marked exception, and nothing yet says what an adopter's public repo should do with
+  a record that names a real finding in their code.
 - **External review, 2026-09-03/04 — the queue it left.** An independent 8-lens analysis of
   `v0.4.0` produced 65 findings; the count is an artefact of merging the lenses, so what follows
   is the triage, not the list. Each was reproduced here on Linux before being written down. The
