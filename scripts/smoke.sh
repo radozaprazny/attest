@@ -536,12 +536,14 @@ for own in gate-notes.md gate-2026-09-05-pre-release.md "ship-20260904-100000-$G
   printf -- '- kit: 0.5.0\n- a note of my own\n' > "$GEN/.attest/$own"
 done
 cp "$KIT/.github/workflows/ci.yml" "$GEN/.github/workflows/"
+cp "$KIT/METHOD.md" "$GEN/"
 # what the user added before the workflow ever ran
 echo 'my notes' > "$GEN/docs/design.md"; echo 'echo deploy' > "$GEN/scripts/deploy.sh"
 (cd "$GEN" && bash scripts/template-cleanup.sh >/dev/null)
 check "attest's own docs are gone"        test ! -e "$GEN/docs/attest-devlog.md"
 check "attest's installer is gone"        test ! -e "$GEN/install.sh"
 check "attest's own CI is gone"           test ! -e "$GEN/.github/workflows/ci.yml"
+check "attest's METHOD.md is gone"        test ! -e "$GEN/METHOD.md"
 # The kit needs a blanket `*.sh` pin for its OWN shell; your repo must never inherit it, or the
 # kit is editing your code through a rule you never wrote (attest ADR-0043).
 check "the blanket *.sh pin does not survive into your repo" \

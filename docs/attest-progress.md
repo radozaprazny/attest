@@ -7,11 +7,18 @@
 
 ## Current state
 
-The **guard-truthfulness series (phase 12)** is committed on `fix/guard-trace-and-semantics` as
-`d91f69f`; **PR #10** opened 2026-09-06, CI green. (Written per ADR-0036 — a claim the merge
-leaves standing. The previous wording said *"uncommitted at the time of writing"* and was false
-within the hour, in the repo that wrote that rule; the `SessionStart` hook then loaded the
-falsehood into the next session as binding, which is exactly the failure ADR-0036 names.)
+**`METHOD.md` — the method without the tool (ADR-0048)** is committed on `docs/method`. One
+root document states the spine, the ten properties that make it work, the four host primitives an
+implementation needs, and what it costs — tool-neutral, no code, and deliberately **no adapter**
+for any other agent: an adapter would keep attest's name and drop its guarantee. It is attest's
+identity, so `install.sh` never copies it and `template-cleanup.sh` removes it in a generated
+repo by content guard. `smoke.sh` 156 → **179** assertions; shellcheck clean.
+
+The **guard-truthfulness series (phase 12)** merged as **PR #10** (`2d381f5`), and the heading
+overrides (phase 13, ADR-0047) as **PR #11** (`dfa2255`); `main` carries both. (This paragraph
+replaced one reading *"PR #10 opened 2026-09-06, CI green"* — written per ADR-0036, so the merge
+left it standing rather than false, but it was still what the `SessionStart` hook loaded as
+binding two days after it stopped being the state. Stale is recoverable; it is not free.)
 
 It closes the four P0 items an external review of `v0.4.0` left, all of which were reproduced
 here before being touched — and then **five more ADRs (0042–0046) came out of gating it**, two of
@@ -108,7 +115,7 @@ way; so is the one above it.
 
 The kit now needs **`git` and `/bin/sh`** — nothing else. Of what a default install puts in your
 repo, **0** items edit your code, **0** are language-bound, **0** are inert. **Kit version
-0.6.0** (`.claude/skills/_shared/audit-ladder.md`); `v0.5.0` is the last tag.
+0.6.0** (`.claude/skills/_shared/audit-ladder.md`), tagged `v0.6.0` at `dfa2255`.
 
 **Why 0.6.0 and not 0.5.1.** 0.5.0 shipped a declaration hook whose reach stopped at the
 language of its own documents; ADR-0047 makes the three headings configurable, which is a new
@@ -165,6 +172,20 @@ aesthetic:
   private repo. Publishing makes them resolvable without writing a line.
 
 ## Next
+
+- **Going public — one step left.** The repo is still private, and both `METHOD.md` and anything
+  linking to it assume it is not. Cleared on 2026-09-09: the carrier above fixed · `v0.6.0`
+  tagged at `dfa2255` and pushed · `docs/method` opened as **PR #12** · `/audit-history full`
+  run over **all 431 blobs in every commit, branch and tag** — **0 blocker, 0 major, 1 minor**,
+  record `.attest/ship-20260909-211730-5c79205.md`. The minor is the maintainer's own address
+  surviving in the blob one commit behind ADR-0040's redaction (`50e9893`); it stays, because
+  purging it means rewriting every sha the `.attest/` filenames, the ship guard and
+  `template-cleanup.sh` all resolve — against a value the author field of 45 commits carries
+  anyway. The stale remote branches were a non-finding: GitHub had auto-deleted them at merge
+  and only the local tracking refs were behind.
+
+  **Left: merge PR #12, then flip the visibility** — in that order, so `main` carries
+  `METHOD.md` before any link points at it.
 
 - **External review, 2026-09-03/04 — the queue it left.** An independent 8-lens analysis of
   `v0.4.0` produced 65 findings; the count is an artefact of merging the lenses, so what follows

@@ -10,6 +10,10 @@ Built for work in regulated or high-stakes contexts (EU AI Act, GDPR, …), but 
 to anyone who wants a repo that answers *the questions an auditor asks, not just the
 ones a compiler does*.
 
+> **Want the idea without the tool?** [`METHOD.md`](METHOD.md) states the method on its own —
+> the spine, the ten properties that make it work, and the four primitives an implementation
+> needs from its host. No code, no Claude, MIT.
+
 ## The spine
 
     intent  →  boundaries  →  decisions  →  compliance  →  clean history

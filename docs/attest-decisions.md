@@ -1337,3 +1337,44 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   fail-open on a regex awk refuses to compile, since user input reaches a regex engine here for
   the first time. The two subtleties above are pinned by assertions that were checked against a
   deliberately broken build: reverting either one turns exactly one case red.
+
+## ADR-0048 — the method is stated tool-neutrally; no adapter is shipped for it · 2026-09-09 · Accepted
+
+  Relates to: ADR-0008 (one root commit), ADR-0031 (nothing of attest's identity is installed).
+
+- **Context** — the recurring outside suggestion, in its strongest form from a review of the
+  repo this month: split the kit into a vendor-neutral core plus adapters for Codex, Copilot and
+  Cursor, add a YAML manifest as an open standard, and run the audits in CI as a required
+  status check. The premise is right — the value is the spine, not the Claude wiring — and the
+  conclusion does not follow from it. What makes the kit *enforce* rather than *suggest* is four
+  primitives the host has to provide: context injected at session start, an action interceptable
+  before it runs, a reviewer that is read-only by capability, and documents read on demand. The
+  other hosts named give an instructions file. An adapter would keep the name and drop the
+  guarantee.
+- **Options** — (a) ship adapters for the other agents; (b) ship nothing and stay silent, the
+  method readable only by reading the implementation; (c) state the method in one tool-neutral
+  document, ship no adapter, and require any implementation to say which of the four primitives
+  its host actually has.
+- **Decision** — (c). `METHOD.md` at the root: the spine, ten properties, the four primitives,
+  the costs. No code, no per-agent claim, MIT.
+- **Why** — (a) sells *encouraged* as *enforced*, which for a kit whose product is a guarantee
+  is not a smaller version of the thing but a different thing wearing its name; the moment a
+  README carries a "Codex ✓" row, the distinction an auditor asks about is gone. (b) leaves the
+  transferable part — the ten properties, which are host-independent and were expensive to
+  learn — legible only to someone willing to read a kit for a tool they do not use. (c) costs
+  one document and nothing at runtime, and it is the honest split: the method is portable, the
+  enforcement is not, and the document says so in those words.
+- **Consequences** — `METHOD.md` is attest's identity, so it follows README and LICENSE:
+  `install.sh` never copies it, and `scripts/template-cleanup.sh` removes it in a generated repo
+  **by content guard**, not by name — `METHOD.md` is a generic enough name that an adopter may
+  write their own, and the guard matches the file's own first line the way the `smoke.sh` and
+  `ci.yml` arms do. One case in `scripts/smoke.sh` pins the removal.
+
+  Two claims in the document are load-bearing and both are stated with their limits, because
+  this is the file most likely to be read by someone who has never seen the repo. The dogfood
+  result is quoted **with its sample size attached** — six faults, two sandboxes — the way
+  `README.md` already quotes it. And property 10 (only reproducible checks may block a merge;
+  a model's judgment advises) is written as a property of the method rather than a limitation of
+  this kit, which is what it is: it is also the reason no CI gate over the judgment passes is
+  planned, and the reason the one deterministic thing the gate does produce — a run record tied
+  to a commit — is the part that could become a required check.
