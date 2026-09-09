@@ -34,6 +34,11 @@ fi
 if grep -q "^# ci.yml — attest's OWN gate" .github/workflows/ci.yml 2>/dev/null; then
   rm -f .github/workflows/ci.yml
 fi
+# METHOD.md is attest's own statement of the method, not the adopter's — and the name is
+# generic enough that a project may well write its own. Same content guard as above.
+if grep -q '^# METHOD.md — the method, without the tool' METHOD.md 2>/dev/null; then
+  rm -f METHOD.md
+fi
 # rmdir, never rm -rf: a directory that still holds files of yours is left exactly as it is.
 rmdir docs 2>/dev/null || true
 
