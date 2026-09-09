@@ -119,8 +119,21 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
    - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
-   - findings: <n> blocker · <n> major · <n> minor · <n> nit <(owner per finding, one line each)>
+   - findings: <n> blocker · <n> major · <n> minor · <n> nit
+     - <severity> · <owning pass> · <class of thing> · <path>   (one line per blocker and major)
+     - <severity> ×<n> · <owning passes>                        (minors and nits, by count)
+   - detail: the session output; a durable copy under `.attest/tmp/` (ignored) if you want one
    ```
+
+   **The record is an attestation, not a report (attest ADR-0049).** One line per blocker and
+   major — severity, the pass that owns it, the class of the thing, and the **path**. No line
+   numbers, no quoted values, no narrative of what was wrong or how it was repaired. The reason
+   is that this file travels: it is committed, so it publishes the moment the repository does,
+   and a dated, pre-indexed inventory of every weakness a codebase has had is a gift to the next
+   person who reads it with bad intent. What the fix was is already in the commit that made it;
+   what the finding was belongs to the person at the keyboard. A project whose findings *are*
+   its documentation may say so in its own `CLAUDE.md` and write more — the default is narrow,
+   because the safe default is the one that survives being forgotten.
 
    **If a run was not recorded when it happened, record it late — and say so.** Keep the run's
    own timestamp in the filename when you know it; when you do not, use the time you are

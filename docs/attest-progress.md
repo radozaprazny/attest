@@ -12,7 +12,7 @@ root document states the spine, the ten properties that make it work, the four h
 implementation needs, and what it costs — tool-neutral, no code, and deliberately **no adapter**
 for any other agent: an adapter would keep attest's name and drop its guarantee. It is attest's
 identity, so `install.sh` never copies it and `template-cleanup.sh` removes it in a generated
-repo by content guard. `smoke.sh` 156 → **179** assertions; shellcheck clean.
+repo by content guard. `smoke.sh` **180** assertions, 0 failed; shellcheck clean. That total moves on its own: one case at `smoke.sh:194` runs per shipped `ship-*.md` record, checking each stays readable by the guard's parser — so the number counts the repo's records too, and quoting it as a fixed figure is how a true line goes stale (ADR-0044's lesson, one file over).
 
 The **guard-truthfulness series (phase 12)** merged as **PR #10** (`2d381f5`), and the heading
 overrides (phase 13, ADR-0047) as **PR #11** (`dfa2255`); `main` carries both. (This paragraph
@@ -183,11 +183,18 @@ aesthetic:
   commits carries anyway. The stale remote branches were a non-finding: GitHub had auto-deleted
   them at merge and only the local tracking refs were behind.
 
-  **What being public changes for the kit, unresolved:** the audit records under `.attest/` are
-  now readable by anyone, and so is every finding they name. That was fine while the repo was
-  private and is a standing question now — ADR-0016 makes the record the evidence, ADR-0040 made
-  redaction a marked exception, and nothing yet says what an adopter's public repo should do with
-  a record that names a real finding in their code.
+  **What being public changed for the kit — resolved the same day (ADR-0049).** The `.attest/`
+  records are readable by anyone now, and a `/gate` record as the kit wrote them is a running
+  narrative of every finding: what was wrong, where, how it was repaired. Harmless here, where
+  the findings *are* the documentation; for an adopter it is a dated, pre-indexed inventory of
+  every weakness their code has had, published by a kit they installed to be safer. Records are
+  now written at **attestation altitude** — HEAD, kit version, passes, verdict, counts, and one
+  line per blocker and major (severity · pass · class · path), with the narrative going to the
+  session and, if wanted durably, to the ignored `.attest/tmp/`. The two machine-parsed lines are
+  untouched, so `ship_guard.sh` is unchanged and every record already written still clears it.
+  Kit **0.7.0**: it changes what the kit writes into an adopter's repo, which is adopter-visible
+  even though nothing breaks. `v0.6.0` stays tagged at `dfa2255` so the number is not orphaned.
+
 - **External review, 2026-09-03/04 — the queue it left.** An independent 8-lens analysis of
   `v0.4.0` produced 65 findings; the count is an artefact of merging the lenses, so what follows
   is the triage, not the list. Each was reproduced here on Linux before being written down. The
@@ -260,6 +267,14 @@ aesthetic:
   makes it useful. Re-read it at each release instead.
 
 ## Notes / standing constraints
+
+- **attest widens ADR-0049 for its own records.** The rule is that a run record names findings
+  at attestation altitude, because it publishes with the repo; a project whose findings are its
+  own documentation may write more, and say so in its `CLAUDE.md`. attest has no filled
+  `CLAUDE.md` of its own (ADR-0006 — the root one is the consumer's template), so the widening
+  is declared here: attest's records keep their narrative, since every finding in them is already
+  public in `docs/attest-decisions.md` and the point of this repo is to show the gate working.
+  The records written before 2026-09-09 keep theirs regardless — `.attest/` is append-only.
 
 - **attest's own regulatory posture: out of scope.** No personal data beyond the maintainer's
   own — his authorship on every commit, and what ADR-0040 redacted from one record — no third
