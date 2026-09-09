@@ -7,7 +7,7 @@
 
 ## Current state
 
-**`METHOD.md` — the method without the tool (ADR-0048)** is committed on `docs/method`. One
+**`METHOD.md` — the method without the tool (ADR-0048)** is on `main` (PR #12, `a0fb1d7`). One
 root document states the spine, the ten properties that make it work, the four host primitives an
 implementation needs, and what it costs — tool-neutral, no code, and deliberately **no adapter**
 for any other agent: an adapter would keep attest's name and drop its guarantee. It is attest's
@@ -192,8 +192,9 @@ aesthetic:
   line per blocker and major (severity · pass · class · path), with the narrative going to the
   session and, if wanted durably, to the ignored `.attest/tmp/`. The two machine-parsed lines are
   untouched, so `ship_guard.sh` is unchanged and every record already written still clears it.
-  Kit **0.7.0**: it changes what the kit writes into an adopter's repo, which is adopter-visible
-  even though nothing breaks. `v0.6.0` stays tagged at `dfa2255` so the number is not orphaned.
+  Kit **0.7.0**, shipped in PR #13 (`68a3f58`) and tagged `v0.7.0` there: it changes what the kit
+  writes into an adopter's repo, which is adopter-visible even though nothing breaks. `v0.6.0`
+  stays tagged at `dfa2255` so that number is not orphaned by the bump either.
 
 - **External review, 2026-09-03/04 — the queue it left.** An independent 8-lens analysis of
   `v0.4.0` produced 65 findings; the count is an artefact of merging the lenses, so what follows
