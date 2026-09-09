@@ -1378,3 +1378,54 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   this kit, which is what it is: it is also the reason no CI gate over the judgment passes is
   planned, and the reason the one deterministic thing the gate does produce — a run record tied
   to a commit — is the part that could become a required check.
+
+## ADR-0049 — a run record is an attestation, not a report · 2026-09-09 · Accepted
+
+  Extends: ADR-0016 (the gate appends a record), ADR-0026 (`.attest/` is append-only plus one
+  ignored scratch), ADR-0040 (a record may be redacted once, visibly, for personal data).
+
+- **Context** — the records are committed, which is the whole point of ADR-0016: *"the gate ran"*
+  has to be a fact in the repository rather than a memory. Committed means published the moment
+  the repository is — and this repository went public on 2026-09-09, which is what surfaced the
+  question. A `/gate` record as the kit has been writing them is a continuous narrative of every
+  finding: what was wrong, in which file, how it was repaired. A `/audit-history` record is worse
+  in kind — it is the one artefact in the kit that can state in public, with a date, exactly
+  where a secret used to live. For attest that is harmless and even useful: its findings are its
+  documentation, and every one of them is already in an ADR. For an adopter it is a dated,
+  pre-indexed inventory of every weakness their codebase has had, published by a kit they
+  installed to make them safer. Nothing in ADR-0016, ADR-0026 or ADR-0040 says a word about it:
+  ADR-0040 governs personal data in a record, not the record's altitude.
+- **Options** — (a) leave it and warn in `GUIDE.md`, telling adopters to `.gitignore` the records
+  if they mind (the guard reads them from disk, so an untracked record still works); (b) make the
+  detail conditional on whether the repository has a public remote, degrading to a summary when
+  it does; (c) narrow what every record carries: an attestation — HEAD, kit version, which passes
+  ran, the verdict, the counts, and **one line per blocker and major** giving severity, owning
+  pass, class and path — with the narrative going to the session and, if wanted durably, to the
+  ignored `.attest/tmp/`.
+- **Decision** — (c), universally, no configuration. A project whose findings are its own
+  documentation may widen it in its `CLAUDE.md`; attest's own widening is the standing note in
+  `docs/attest-progress.md`, since attest has no filled `CLAUDE.md` of its own (ADR-0006).
+- **Why** — (a) moves the consequence onto the adopter at exactly the moment they have least
+  context, and the kit's own non-goal is that nothing it installs should surprise you later; it
+  also answers a data question with documentation, which is the shape of fix this log keeps
+  rejecting. (b) is the most correct rule on paper and the wrong one here: the check would be
+  performed by a model following prose, so it fails silently and in the exposing direction — the
+  failure mode ADR-0038 and ADR-0042 were both written about, and a privacy rule that fails open
+  is not a privacy rule. (c) needs no detection, no configuration and no per-repo judgment, and
+  it costs almost nothing that matters: the evidence value of a record is *that the gate ran over
+  this sha and what it concluded*, which survives intact — what the fix was is already in the
+  commit that made it, and who needed the detail was in the session when it was produced.
+- **Consequences** — the record shape in `gate/SKILL.md` and `audit-history/SKILL.md`, and both
+  descriptions in `GUIDE.md`. **The two machine-parsed lines are untouched** (`- HEAD:`,
+  `- findings: <n> blocker …`), so `ship_guard.sh` needs no change and every existing record
+  still clears it — this narrows what goes *around* the interface, not the interface (ADR-0037).
+  `.attest/` is append-only, so the records already written keep their narrative; the rule binds
+  what is written from here on, which is what append-only means. Kit **0.7.0**: it changes what
+  the kit writes into an adopter's repository, which is adopter-visible even though nothing
+  breaks.
+
+  What this deliberately does **not** do is give the adopter a knob. A switch would have to
+  default one way, and whichever way it defaulted would be the setting most repositories ran
+  under — so the choice is between a narrow default with a documented widening, and a wide
+  default nobody revisits. The kit's own rule about guards applies to records too: the safe
+  behaviour has to be the one that survives being forgotten.

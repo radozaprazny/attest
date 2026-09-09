@@ -296,7 +296,9 @@ one output shape and one severity ladder so they read as a family:
   record is the git history itself) and never rewrites history — it reports and recommends.
 - **Its one write:** a dated run record, `.attest/ship-<date>-<time>-<short HEAD sha>.md`,
   appended **even when the verdict is clean** — that is what the `PreToolUse` ship guard
-  reads before a push or a submit (PART 2.2). Nothing else on disk is touched.
+  reads before a push or a submit (PART 2.2). Nothing else on disk is touched. Like `/gate`'s,
+  it names findings at **attestation altitude** — severity, class, path; never the value and
+  never the line, because the record publishes with the repo (attest ADR-0049).
 
 ### 3.5 `/compliance` — creates/maintains/audits `COMPLIANCE.md`
 - **How:** `/compliance` bootstraps/updates the posture; `/compliance audit` checks whether a
@@ -314,8 +316,9 @@ one output shape and one severity ladder so they read as a family:
   merges the findings under the shared ladder + ownership contract into **one** verdict.
 - **What for:** the whole per-change gate in one invocation. Touches no document and
   no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
-  passes, verdict — the attestation that the gate ran (attest ADR-0016; stage it with the
-  commit it gates). The document audits run in the `doc-auditor` agent — no Bash/Edit/Write,
+  passes, verdict, and findings at **attestation altitude** (severity · pass · class · path,
+  never values or line numbers — the record publishes with the repo; attest ADR-0049) — the
+  attestation that the gate ran (attest ADR-0016; stage it with the commit it gates). The document audits run in the `doc-auditor` agent — no Bash/Edit/Write,
   read-only **by capability** (attest ADR-0017; see 4.2). A missing piece degrades to a
   note, never a failure.
 - **Not included:** `/audit-history` — that is the **ship** gate; run it before a push.

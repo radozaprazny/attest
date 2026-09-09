@@ -134,7 +134,13 @@ state is clean"* are different claims and only the second one should open the do
 from `git rev-parse --short HEAD` so the name and the line agree.
 
 Around those two lines write the date, the kit version (from the shared ladder), the mode
-(`default` or `full`), the verdict, what was scanned and any remediation. **The short SHA in the
+(`default` or `full`), the verdict, what was scanned and any remediation — **at the altitude of
+an attestation, not a report** (attest ADR-0049): one line per blocker and major, giving the
+severity, the class of the thing and the path, with the commit for a history-only hit. Never the
+value, never the line number, never an excerpt. This record is committed, so it publishes with
+the repository — and a ship record is the one file in this kit that would otherwise state in
+public, with a date, exactly where a secret used to live. The full evidence goes to the session,
+where the person who has to rotate the key is. **The short SHA in the
 filename is load-bearing** — the `PreToolUse` ship guard (`.claude/hooks/ship_guard.sh`) looks for a record
 matching the *current* HEAD before a push, a submit or an upload, and then **reads the two lines
 above**, so the question it answers is *"was this state audited and did it come back clean"* —
