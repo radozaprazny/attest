@@ -355,9 +355,10 @@ group_reset
 # next commit, with a rule this installer wrote. `.claude/hooks/*` covers every executable the
 # kit puts in the repo, which is the whole of what ADR-0039 is about (attest ADR-0039).
 ensure_attribute ".claude/hooks/* text eol=lf"
-# The ship guard parses two lines out of a record byte-exactly (ADR-0037); a CRLF record fails
-# closed with a reason that blames its age rather than its line endings. Narrow, like the line
-# above: `.attest/` is the kit's own directory, never the user's source.
+# The ship guard reads two lines out of a record (ADR-0037) and strips CR first (ADR-0050), so
+# this is belt and braces: it keeps records byte-identical across checkouts rather than standing
+# alone between Windows and a false diagnosis. Narrow, like the line above: `.attest/` is the
+# kit's own directory, never the user's source.
 ensure_attribute ".attest/*.md text eol=lf"
 
 ensure_ignore ".claude/settings.local.json"

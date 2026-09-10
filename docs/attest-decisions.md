@@ -1429,3 +1429,94 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   under — so the choice is between a narrow default with a documented widening, and a wide
   default nobody revisits. The kit's own rule about guards applies to records too: the safe
   behaviour has to be the one that survives being forgotten.
+
+## ADR-0050 — a record is matched by what it says, at any abbreviation · 2026-09-10 · Accepted
+
+  Narrows: ADR-0037 (the guard reads the record's content), ADR-0034 (the guard leaves a trace).
+  Supersedes the CRLF reasoning in ADR-0039, not its pin.
+
+- **Context** — an external review of `v0.7.0` reproduced a defect the smoke suite could not see,
+  and it was reproduced again here before anything was touched. The guard globbed
+  `.attest/ship-*"$SHA"*.md` and compared `- HEAD: $SHA` byte for byte, with `$SHA` from
+  `git rev-parse --short HEAD`. **`--short` has no stable length**: `core.abbrev` is a config
+  value a colleague's global gitconfig may set, and git widens the default as a repository
+  grows. When the two sides disagree the guard fails **closed** — but with a false reason, in
+  both directions: a record written at 7 read by a guard at 10 produces *"no /audit-history run
+  record for HEAD"* while the record sits right there; a record written at 8 read by a guard at 7
+  is found by the glob and rejected by the arm, producing *"one of them reports a blocker, or
+  predates the record format"* when it reports neither and predates nothing. ADR-0037 exists
+  precisely so this hook stops giving false diagnoses. Every fixture in `smoke.sh` used one
+  `--short` on both sides, so the suite could not see it. The same review found the CRLF claim in
+  `.gitattributes` and `install.sh` — that on a CRLF checkout *"the `- HEAD:` arm never
+  matches"* — and measurement here confirmed it false for the shape `/audit-history` actually
+  writes: the CR lands after `(branch)`, where the arm's own `*` swallows it. Only a bare
+  `- HEAD: <sha>` failed.
+- **Options** — (a) pin the abbreviation, writing `--short=12` into the skill and the guard;
+  (b) keep the filename match and widen the glob; (c) stop matching bytes and match meaning —
+  read the sha out of the record's `- HEAD:` line and accept it when it is a prefix, seven hex or
+  longer, of the full `git rev-parse HEAD`.
+- **Decision** — (c), with `tr -d '\r'` on both parsed lines, and the trace gaining the payload's
+  `permission_mode` as a fifth column.
+- **Why** — (a) is a rule two tools have to keep agreeing on forever, and it is unenforceable
+  where it matters: the record may have been written by an older kit, on another machine, by
+  someone whose git decided differently. (b) treats the filename as the interface, which is what
+  ADR-0037 already rejected once for the verdict — a name cannot carry a fact the machine
+  depends on. (c) needs no agreement at all: an abbreviated sha *means* "a prefix of this
+  commit", so the guard now asks the question the data already answers. The CR strip removes the
+  last byte-exactness from the parse, which is why the CRLF claim can simply be deleted rather
+  than restated: line endings are a property of a checkout, never of a verdict. The trace column
+  closes the other half of the ambiguity ADR-0034 was written for — *"the hook did not fire"* and
+  *"the hook fired and the mode auto-approved it"* were still indistinguishable afterwards, and
+  the mode costs one `sed`.
+- **Consequences** — `ship_guard.sh` reads every `.attest/ship-*.md`, not a sha-shaped glob, and
+  decides membership per record; the filename keeps its sha **for people** and is no longer
+  load-bearing. Seven hex is the floor: shorter is a coincidence waiting to happen. Uppercase is
+  folded — **after** the match, not before, which is the bug the first draft shipped: folding the
+  line turns `- HEAD:` into `- Head:` (H is not in `A-F`; E, A and D are), so the anchor stops
+  matching and every record goes invisible. The fixture that caught it was the control case, the
+  one combination that had worked for months. Eleven new `smoke.sh` cases fail against the
+  pre-series hooks; the CRLF template case deliberately **passes** there, because it always did
+  and the claim was the thing that was wrong. The header's *"fail-open everywhere"* now says what
+  the code does: outside a git checkout the guard **asks**, because with no HEAD "audited" and
+  "unaudited" are the same observation. `.gitattributes` keeps the `.attest/*.md` pin as belt and
+  braces, with its reasoning rewritten.
+
+## ADR-0051 — writing the evidence is itself a decision · 2026-09-10 · Accepted
+
+  Extends: ADR-0016 (the record is the evidence), ADR-0033 (it is written before the push),
+  ADR-0049 (it is an attestation).
+
+- **Context** — the same review named the kit's most uncomfortable gap, and it holds. The ship
+  guard's decision is read out of a record that is an ordinary untracked markdown file. Nothing
+  signs it. `disable-model-invocation: true` stops the model *invoking* `/audit-history`; it says
+  nothing about writing a file, and the guard's `PreToolUse` matcher is `Bash`, so the `Write`
+  tool never met it. In a permission mode where file edits inside the working directory are
+  auto-approved — the common case — an agent could write `.attest/ship-<sha>.md` saying
+  `0 blocker`, push, and the guard would pass it silently. Nobody has to be malicious for this to
+  matter: the same path is open to a prompt injection carried in the repository's own content.
+  The kit sells *"read-only by capability, not promise"* and had, at its single most load-bearing
+  artefact, a promise.
+- **Options** — (a) document it and leave it; (b) sign or otherwise bind records to the run that
+  produced them; (c) a second `PreToolUse` hook on `Write|Edit` that asks when the path is a ship
+  record, plus an arm in the existing guard for the shell shapes that write one, plus a written
+  threat model.
+- **Decision** — (c). `record_guard.sh`, matcher `Write|Edit`; `ship_guard.sh` gains an arm for
+  `>`, `tee`, `cp` and `mv` into `.attest/ship-*`; `README.md` gains *"What it does not defend
+  against"* and `METHOD.md` says the same in its own terms.
+- **Why** — (b) is the honest fix and the kit cannot have it: any secret the signer holds is
+  reachable by whatever runs in the session, so it would sign forgeries with the same key, and a
+  signature nobody verifies is decoration. (a) leaves the strongest claim in the README standing
+  on the weakest mechanism. (c) is worth stating precisely, because it is easy to oversell:
+  **it does not make forgery impossible.** It converts writing the evidence into a prompt at the
+  moment the human still knows whether an audit ran — which is strictly earlier and better
+  informed than the same click at push time, when the context is gone. That is a real
+  improvement and a small one, and the README now says which it is.
+- **Consequences** — one extra prompt per `/audit-history` run, which is the price of the record
+  meaning anything; that cost is documented in GUIDE 2.3 rather than hidden. **Gate records are
+  not hooked**: a `gate-*.md` attests a commit-time run no machine reads, so a prompt there would
+  be friction without a decision behind it — the line this hook defends is where a file becomes a
+  machine's answer. Coverage is deliberately partial: an editor, a `python -c`, any writer that
+  is neither the `Write` tool nor a plain shell redirect goes through untouched, and pretending
+  otherwise would be the same overclaim this entry exists to remove. The new hook is POSIX `sh`,
+  fails open on a missing payload or path, and traces to the same log in the same shape, so one
+  file still answers *"what did the guards decide, and under which mode"*.

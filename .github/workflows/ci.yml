@@ -1,7 +1,7 @@
 # ci.yml — attest's OWN gate: the kit that preaches gating gates itself (ADR-0019).
 # Runs the same baseline docs/attest-progress.md documents as manual commands:
 # shellcheck and scripts/smoke.sh. There is no linter step for another language because the
-# kit no longer contains one: both installed hooks are POSIX sh, and install.sh plus scripts/*.sh
+# kit no longer contains one: every installed hook is POSIX sh, and install.sh plus scripts/*.sh
 # are bash that runs once at the author's keyboard — shellcheck covers all of them (ADR-0027).
 #
 # Hard-guarded to attest itself (github.repository), so in template-generated repos the

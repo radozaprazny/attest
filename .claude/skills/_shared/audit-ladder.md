@@ -15,7 +15,7 @@ them and is never absent when an audit runs.
 > Those citations are provenance for a rule, never a file to look up in *your* repo; your own
 > log is `DECISIONS.md` and its numbering is unrelated.
 
-Kit version: 0.7.0 (the kit's one version marker — it lives in this file because the ladder
+Kit version: 0.8.0 (the kit's one version marker — it lives in this file because the ladder
 installs with every audit consumer, so the version travels with the kit and can never desync
 from the contract; attest ADR-0018. `install.sh` prints it; a `/gate` run record cites it.
 Bump it when cutting a release.)
