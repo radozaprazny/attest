@@ -296,7 +296,7 @@ one output shape and one severity ladder so they read as a family:
   state from git, updates PROGRESS, advises `/clear` vs `/compact`.
 - **What for:** one word pours the session state into PROGRESS → then you can `/clear` safely.
 - **When:** before every `/clear`. Nothing warns you any more — the session-length hook is
-  gone (PART 2.3); the declaration hook's *"/checkpoint owns this file"* line is what carries
+  gone (PART 2.4); the declaration hook's *"/checkpoint owns this file"* line is what carries
   the reminder now, at the start of the next session rather than the end of this one.
 
 ### 3.3 `/decision` — records/audits `DECISIONS.md`
