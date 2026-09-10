@@ -7,6 +7,37 @@
 
 ## Current state
 
+**External review of `v0.7.0` — the guard series (ADR-0050, ADR-0051), kit 0.8.0.** An
+independent read of the public repo produced seven findings plus nits; each was reproduced here
+before being touched, and two were reproduced *against* the reviewer's description and came out
+narrower than reported.
+
+- **ADR-0050 — the abbreviation bug is real, and both directions give a false reason.** The guard
+  matched `- HEAD: $SHA` byte for byte with `$SHA` from `--short`, whose length is `core.abbrev`,
+  i.e. a colleague's config. Record at 7 read by a guard at 10 → *"no record for HEAD"* while it
+  sits there; record at 8 read at 7 → *"reports a blocker, or predates the record format"* when
+  it does neither. It now reads the sha out of the record and accepts any prefix of the full
+  `HEAD`, seven hex or longer. The filename keeps its sha for people only.
+- **ADR-0051 — the record is forgeable and the README oversold it.** The guard's matcher is
+  `Bash`, so the `Write` tool went past it; a record is an unsigned untracked file. New
+  `record_guard.sh` on `Write|Edit` makes writing one a prompt, and `README.md` gained *"What it
+  does not defend against"*. Stated honestly there and here: this does **not** make forgery
+  impossible, it moves the prompt to where the human still knows whether the audit ran.
+- **Measured narrower than reported:** the CRLF claim in `.gitattributes` was false only for the
+  *bare* `- HEAD: <sha>` shape — the shape `/audit-history` actually writes always passed, the CR
+  landing where a `*` swallowed it. The pin stays as belt and braces; the reasoning was rewritten
+  and the guard now strips CR, so the claim is moot rather than restated.
+- **Also in:** the trace carries the payload's `permission_mode` (the other half of ADR-0034's
+  ambiguity), and the guard's *"fail-open everywhere"* header now says what the code does —
+  outside a git checkout it asks.
+- **Rejected:** a mandatory `gitleaks`/`trufflehog` run before a record is written. It collides
+  with the non-goal that the kit ships no tool and edits nothing; an optional `- scanner:` line
+  in the record is the version of that idea worth having, and it is not built yet.
+
+`smoke.sh` **201** assertions, 0 failed; **11 of the new ones fail against the pre-series hooks**,
+verified in a worktree — including the case-fold bug the first draft shipped, which the *control*
+fixture caught. shellcheck clean.
+
 **`METHOD.md` — the method without the tool (ADR-0048)** is on `main` (PR #12, `a0fb1d7`). One
 root document states the spine, the ten properties that make it work, the four host primitives an
 implementation needs, and what it costs — tool-neutral, no code, and deliberately **no adapter**

@@ -1,7 +1,7 @@
 # attest — a compliance-native kit for Claude Code
 
 Most Claude Code starters give you convenience. `attest` gives you **governance**:
-living documents, audit-gate skills, and two hooks that run without being asked — together
+living documents, audit-gate skills, and three hooks that run without being asked — together
 they keep an AI-assisted project honest to what you declared: its purpose, its boundaries,
 its decisions, and the rules it must operate under — and prove nothing sensitive leaks when
 you ship.
@@ -70,6 +70,19 @@ substrings, not a category — `git -C … push`, `npm run release` and your own
 match, and widening it means adding them (the whole loop is laid out in
 [`GUIDE.md`](GUIDE.md) PART 9).
 
+## What it does not defend against
+
+**Forgetting, not forgery.** The gates are built for the failure that actually happens: the
+audit you meant to run and didn't, the boundary you declared and drifted past, the key you
+committed at 1am. They are not an adversary model. A ship record is an ordinary untracked file
+— nothing signs it, and any tool that can write a file can write one; the record guard (PART
+2.3) makes that write a **prompt at the moment you still know whether the audit ran**, which is
+earlier and better informed than the same click at push time, but it is not a wall. Likewise the
+document audits are a model reading a diff: they are stable on the primary finding and vary at
+the margins, so they advise a merge, never block one (`METHOD.md` property 10). Where the kit
+does have a real boundary it says so and means it — the document auditors run without Bash,
+Edit or Write, so they *cannot* change the repository rather than being asked not to.
+
 ## Does it hold up?
 
 Dogfooded before shipping: two sandboxes seeded with **known planted faults**, audited by
@@ -90,11 +103,11 @@ enough to name. The four results that matter:
 
 **What it does not ship, on purpose:** no formatter and no language config — nothing in this
 kit edits your code. No warning you cannot act on at the moment it fires, which rules out the
-compaction and session-length nags. No inert `.example` files. Two hooks survive that bar, and
-both *prevent* rather than remind: your non-goals go into context at every session start, and
-the ship guard asks before a push the record does not clear — for the commands on its
-literal list (PART 2.2). **Nothing the kit installs needs an interpreter beyond
-`/bin/sh`** — both hooks are POSIX shell (`install.sh` itself is bash, but it runs once and
+compaction and session-length nags. No inert `.example` files. Three hooks survive that bar, and
+each *prevents* rather than reminds: your non-goals go into context at every session start, the
+ship guard asks before a push the record does not clear — for the commands on its literal list
+(PART 2.2) — and the record guard asks before a ship record is written at all (PART 2.3). **Nothing the kit installs needs an interpreter beyond
+`/bin/sh`** — every hook is POSIX shell (`install.sh` itself is bash, but it runs once and
 installs nothing that depends on it).
 
 Every skill here (a) fits the spine and (b) does something a generic plugin can't —

@@ -122,6 +122,13 @@ launders drift as approval. The commit-time gate costs a model run per commit. T
 passes vary on secondary findings across runs — treat a blocker as reliable and a minor as
 advisory.
 
+The method also has a seam that property 3 does not close. Evidence (property 5) is a file, and a
+file is written by something — so a host that cannot restrain *writing* leaves the attestation
+resting on trust even where the review itself is properly constrained. The honest mitigations are
+to make writing the evidence a decision a human sees, and to say plainly that what you have
+defends against forgetting rather than against forgery. Claiming otherwise would fail the method
+at its own first property: declare what is true, then check reality against the declaration.
+
 And the evidence base is small: the reference implementation was dogfooded on **two sandboxes
 seeded with six known planted faults — 6/6 caught at the right severity, 0 false positives**
 ([the record](docs/attest-devlog.md)). Six faults, two sandboxes. That is a clean sweep, not a

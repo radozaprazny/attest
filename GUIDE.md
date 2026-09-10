@@ -84,7 +84,7 @@ not adopted cost nothing — the skills read them on demand, and an audit degrad
 
 ## PART 2 — Hooks (`.claude/settings.json` + `.claude/hooks/`)
 
-**Two hooks, and the bar they had to clear.** A hook is a shell command the *harness* runs on
+**Three hooks, and the bar they had to clear.** A hook is a shell command the *harness* runs on
 an event — not something Claude decides to do — so it cannot be forgotten. That is its whole
 advantage over a skill, and the kit spends it on exactly two jobs: putting the project's
 boundaries in front of the agent **before** it writes, and asking about data at the moment it
@@ -173,7 +173,26 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   than the one that ships (`git push --dry-run && git push origin main`), so anything holding
   `;` `&&` `||` `|` or a newline is judged as a whole and still asks.
 
-### 2.3 What the kit deliberately does **not** hook
+### 2.3 `PreToolUse` on `Write|Edit` — the record guard (`record_guard.sh`)
+- **How:** before a file is written, the hook looks at `tool_input.file_path`. Anything that is
+  not a `.attest/ship-*.md` passes untouched; a ship record makes it **ask**, naming the file.
+- **Why:** 2.2's decision is read out of that file, and the file is ordinary and untracked —
+  nothing signs it, and `disable-model-invocation: true` stops the model *invoking*
+  `/audit-history`, not *writing a file*. The ship guard matches `Bash`, so the `Write` tool went
+  straight past it. That left the kit's most load-bearing artefact resting on a promise, which
+  is the one thing this kit tells you not to accept (attest ADR-0051).
+- **What it is worth, exactly:** it does not make a forged record impossible. It makes writing
+  one a prompt **at the moment you still know whether an audit ran** — earlier and better
+  informed than the same click at push time. A real capability boundary (a writer that cannot
+  audit, an auditor that cannot write) needs a primitive no host here provides; see
+  `METHOD.md` §"What it costs, and where it is thin".
+- **Cost:** one extra prompt per `/audit-history` run, which is the price of the record meaning
+  anything. A shell redirect into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`) is
+  caught by 2.2's own arm; an editor or `python -c` is not, and is not meant to be.
+- **Gate records are not hooked.** A `gate-*.md` attests a commit-time run that no machine
+  reads, so a prompt there would be friction without a decision behind it.
+
+### 2.4 What the kit deliberately does **not** hook
 - **No formatter.** Anything that rewrites your code after every edit belongs to your own
   toolchain, at your own moment. attest audits; it does not edit (attest ADR-0027).
 - **No warning you cannot act on when it fires.** That rules out the compaction nudge
@@ -204,7 +223,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > is the retention control, and in a regulated project it is a local store to declare rather than
 > to discover (`COMPLIANCE.md` §7).
 
-> **What these two hooks send.** Both put text into the model's context: the declaration hook
+> **What the hooks send.** All three put text into the model's context: the declaration hook
 > prints your non-goals and live state at every session start, and the ship guard puts the
 > matched command into the permission prompt. In a **regulated** project that is a data flow
 > like any other — if your control documents can contain personal data, name the destination in
@@ -552,7 +571,7 @@ single straight line.
   no installer to re-run.
 - `/compliance` — **only if in regulated scope**, and only once it is installed — establish
   the posture (`COMPLIANCE.md`). It reads the archetype `/business` recorded.
-- From here on the two hooks work without you: the **declaration hook** puts your non-goals
+- From here on the hooks work without you: the **declaration hook** puts your non-goals
   in front of the agent at every session start, and the **ship guard** asks before a push or a
   submit that no `/audit-history` run has cleared — for the commands on its literal list, and it
   never forbids; the answer is an ordinary permission prompt (PART 2.2).

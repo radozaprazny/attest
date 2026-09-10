@@ -19,6 +19,15 @@
             "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/ship_guard.sh\""
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh \"$CLAUDE_PROJECT_DIR/.claude/hooks/record_guard.sh\""
+          }
+        ]
       }
     ]
   }

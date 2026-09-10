@@ -46,6 +46,7 @@ run_install() { "$KIT/install.sh" "$@" 2>&1 || true; }
 
 DECL="$KIT/.claude/hooks/session_declaration.sh"
 GUARD="$KIT/.claude/hooks/ship_guard.sh"
+RGUARD="$KIT/.claude/hooks/record_guard.sh"
 
 # --- 0. the kit carries no interpreter dependency --------------------------------------
 echo "kit shape:"
@@ -215,10 +216,86 @@ printf -- '- HEAD: %s (main)\n- findings: 2 blocker\n\nNote:\n- findings: 0 bloc
 says "prose at column 0 cannot stand in for the header line" "$(guard 'git push origin main')" 'permissionDecision":"ask'
 rm -f "$S"/.attest/ship-*.md
 
+# --- a record is matched by what it SAYS, at any abbreviation (ADR-0050) ---------------
+# `--short` has no stable length: `core.abbrev` is config, and git widens the default as a repo
+# grows. Before ADR-0050 the guard globbed `ship-*$SHA*.md` and compared `- HEAD: $SHA` byte for
+# byte, so the two sides disagreeing produced a prompt with a FALSE reason in both directions —
+# "no record for HEAD" while it sat right there, or "reports a blocker" while it reported none.
+# Every case below fails on the pre-ADR-0050 guard; the last two are the controls.
+rm -f "$S"/.attest/ship-*.md
+for _pair in 7:10 8:7 12:7 40:7 7:7; do
+  _rec="${_pair%%:*}"; _cfg="${_pair##*:}"
+  rm -f "$S"/.attest/ship-*.md
+  git -C "$S" config core.abbrev "$_cfg"
+  if [ "$_rec" = 40 ]; then _rs="$(git -C "$S" rev-parse HEAD)"
+  else _rs="$(git -C "$S" rev-parse --short="$_rec" HEAD)"; fi
+  printf -- '- HEAD: %s (main) · tree: clean\n- findings: 0 blocker\n' "$_rs" \
+    > "$S/.attest/ship-20260910-000000-$_rs.md"
+  if [ -z "$(guard 'git push origin main')" ]
+    then ok "a record written at $_rec clears a guard reading at $_cfg"
+    else fail "a record written at $_rec clears a guard reading at $_cfg"; fi
+done
+git -C "$S" config --unset core.abbrev
+# ...but an abbreviation has to be one. Six hex is a coincidence waiting to happen, not a sha.
+rm -f "$S"/.attest/ship-*.md
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$(git -C "$S" rev-parse --short=6 HEAD)" \
+  > "$S/.attest/ship-20260910-000000-short.md"
+says "a six-hex prefix is not accepted as this commit" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+# ...and a prefix of a DIFFERENT commit is still not this one
+rm -f "$S"/.attest/ship-*.md
+printf -- '- HEAD: deadbeef1 (x)\n- findings: 0 blocker\n' > "$S/.attest/ship-20260910-000000-deadbeef1.md"
+says "a record naming another commit does not clear it" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+
+# --- a CRLF checkout is a property of the checkout, never of the verdict (ADR-0050) ----
+# The `.gitattributes` pin claimed the `- HEAD:` arm "never matches" on CRLF. It never matched
+# the BARE form; the shape /audit-history actually writes — sha, branch, tree — passed anyway,
+# because the CR landed where a `*` swallowed it. Both forms are now read the same way.
+for _shape in template bare; do
+  rm -f "$S"/.attest/ship-*.md
+  # the guard's OWN default abbreviation, so this isolates line endings from ADR-0050's sha
+  # length. At that length the template shape passed before this series too — which is the
+  # point: the `.gitattributes` claim that the arm "never matches" was already false, and only
+  # the bare shape below is a regression test. Both are pinned so neither can drift back.
+  _cs="$(git -C "$S" rev-parse --short HEAD)"
+  if [ "$_shape" = template ]
+    then printf -- '- HEAD: %s (main) \xc2\xb7 tree: clean\r\n- findings: 0 blocker \xc2\xb7 0 major\r\n' "$_cs" > "$S/.attest/ship-20260910-000000-$_cs.md"
+    else printf -- '- HEAD: %s\r\n- findings: 0 blocker\r\n' "$_cs" > "$S/.attest/ship-20260910-000000-$_cs.md"; fi
+  if [ -z "$(guard 'git push origin main')" ]
+    then ok "a CRLF record in its $_shape shape clears the guard"
+    else fail "a CRLF record in its $_shape shape clears the guard"; fi
+done
+# an uppercase sha is the same sha
+rm -f "$S"/.attest/ship-*.md
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' \
+  "$(git -C "$S" rev-parse --short HEAD | tr 'a-f' 'A-F')" > "$S/.attest/ship-20260910-000000-up.md"
+if [ -z "$(guard 'git push origin main')" ]
+  then ok "an uppercase sha in the record is the same sha"
+  else fail "an uppercase sha in the record is the same sha"; fi
+rm -f "$S"/.attest/ship-*.md
+
+# --- writing the evidence is itself a decision (ADR-0051) -----------------------------
+# The record the guard above reads is an ordinary untracked file, and the ship guard matches
+# Bash only — so the Write tool went straight past it. These two arms make the write a prompt.
+rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
+says "writing a ship record asks"                "$(rguard "$S/.attest/ship-20260910-000000-abc1234.md")" 'permissionDecision":"ask'
+if [ -z "$(rguard "$S/src/main.py")" ]; then ok "an ordinary file write passes untouched"; else fail "an ordinary file write passes untouched"; fi
+if [ -z "$(rguard "$S/.attest/gate-20260910-000000-abc1234.md")" ]; then ok "a gate record is not gated — no machine reads it"; else fail "a gate record is not gated — no machine reads it"; fi
+if [ -z "$(rguard "$S/.attest/tmp/scratch.md")" ]; then ok "the ignored scratch is not gated either"; else fail "the ignored scratch is not gated either"; fi
+says "a shell redirect into a record asks too"   "$(guard 'printf x > .attest/ship-20260910-000000-abc1234.md')" 'permissionDecision":"ask'
+says "…and so does a tee into one"               "$(guard 'echo x | tee .attest/ship-a.md')" 'permissionDecision":"ask'
+if [ -z "$(guard 'cat .attest/ship-20260910-000000-abc1234.md')" ]; then ok "reading a record is not a write"; else fail "reading a record is not a write"; fi
+
 # --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
 rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md
 guard 'git push --dry-run' >/dev/null
 says "a dry run is traced, not silent" "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' dryrun '
+# ADR-0034 gave the log a line per decision because "did not fire" and "fired and was
+# auto-approved" were indistinguishable; the mode is the other half of that answer (ADR-0050).
+rm -f "$S/.attest/tmp/ship-guard.log"
+echo '{"tool_name":"Bash","permission_mode":"bypassPermissions","tool_input":{"command":"git push origin main"}}' | CLAUDE_PROJECT_DIR="$S" sh "$GUARD" >/dev/null
+says "the trace records the permission mode the call ran under" "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" 'bypassPermissions'
+echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' | CLAUDE_PROJECT_DIR="$S" sh "$GUARD" >/dev/null
+says "a payload without a mode still traces, with a dash" "$(tail -1 "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' - git push'
 rm -f "$S/.attest/tmp/ship-guard.log"
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
 guard 'git push origin main' >/dev/null
