@@ -85,11 +85,16 @@ NEXT="$(section "$ROOT/$CARRIER" "$NX_PAT" 2>/dev/null || true)"
 [ -n "$NONGOALS$STATE$NEXT" ] || exit 0
 
 echo "<project-declaration>"
-echo "Loaded from this repo's own control documents at session start. Treat it as binding."
+# Stated as fact, not as an out-of-band instruction (attest ADR-0052). What this text says is
+# what the repository's own documents declare; a passage styled as a system directive invites a
+# reader — human or model — to treat it as something that arrived from outside the project,
+# which is the one reading that makes it weaker rather than stronger.
+echo "Read from this repository's own control documents at session start."
 if [ -n "$NONGOALS" ]; then
   echo
-  echo "NON-GOALS ($BUSINESS) — building one of these is a blocker, not a judgement call."
-  echo "If a request needs one, say so and stop rather than working around it:"
+  echo "NON-GOALS ($BUSINESS) — what this project declares it does not do."
+  echo "A change that builds one contradicts the declaration; this project treats that as a"
+  echo "blocker rather than a judgement call, and expects it named rather than worked around:"
   trunc "$NONGOALS" "$NG_MAX"
 fi
 if [ -n "$STATE$NEXT" ]; then

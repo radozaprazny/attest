@@ -58,8 +58,13 @@ standing disclaimer — never as a settled legal fact.
 
 The **core works offline**: the structural checklist (the risk pyramid, the Annex III use
 cases, the provider/deployer split, Art 50, the GDPR basics) is baked into `COMPLIANCE.md`'s
-structure. **Dates, penalties and current status are NOT baked in** — they shift (Art 5,
-GPAI and high-risk phase-in; the Digital Omnibus is adopted-but-not-in-force and moving dates).
+structure. **Dates, penalties and current status are NOT baked in** — they shift (Art 5, GPAI
+and high-risk phase-in). Nothing in this file is a source for what the law says **today**: check
+it. Two different instruments share the name *Digital Omnibus* and they are not in the same
+state — the one on **AI** amends the AI Act itself, the one on **data** would amend the Data Act
+and repeal the DGA — so a line about "the Omnibus" is ambiguous before it is stale. This
+paragraph carries no date on purpose: a kit that ships a legal status ships a fact with a
+shelf life, and this one is written to send you to a live source instead.
 
 If an **EU-AI-Act MCP** is connected (an account connector or a project `.mcp.json` — see
 GUIDE PART 6), use it to *enrich and verify*: look up a provision, classify a description,

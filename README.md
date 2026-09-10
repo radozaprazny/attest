@@ -10,6 +10,17 @@ Built for work in regulated or high-stakes contexts (EU AI Act, GDPR, …), but 
 to anyone who wants a repo that answers *the questions an auditor asks, not just the
 ones a compiler does*.
 
+## In 60 seconds
+
+```sh
+./install.sh /path/to/your/project     # copy-if-absent; it never overwrites anything of yours
+```
+
+Then, in that project: **restart Claude Code** (the skills only load on a fresh session) ·
+`/business` to declare what it is for and what it must never do · `/gate` before each commit ·
+`/audit-history` before each push. That is the whole loop. Everything below is *why* each piece
+is shaped the way it is — read it when you want the reasoning, not to get started.
+
 > **Want the idea without the tool?** [`METHOD.md`](METHOD.md) states the method on its own —
 > the spine, the ten properties that make it work, and the four primitives an implementation
 > needs from its host. No code, no Claude, MIT.
@@ -69,6 +80,14 @@ the **current** HEAD and reads it, and asks unless that record attests a clean s
 substrings, not a category — `git -C … push`, `npm run release` and your own deploy script do not
 match, and widening it means adding them (the whole loop is laid out in
 [`GUIDE.md`](GUIDE.md) PART 9).
+
+> **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
+> answers a different question. It runs whatever permission mode you are in and does not depend
+> on a model's judgement at the moment it matters; it names the classes a generic filter has no
+> reason to know — GDPR Art 9 categories, national identifiers, client confidentiality, the
+> difference between a maintainer's own address and a third party's; it is scoped by **your**
+> declared non-goals rather than by a general notion of harm; and when it passes, it leaves a
+> dated attestation you can show someone, which no refusal ever does.
 
 ## What it does not defend against
 
