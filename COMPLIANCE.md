@@ -91,6 +91,8 @@ How to use this file:
 - <provisions relied on — article/ID refs; mark which were MCP-verified>.
 
 > **Disclaimer (standing):** Self-assessment. Provisions & checklists only — **NOT legal
-> advice**. Confirm with your DPO / legal counsel. Deadlines and penalties: verify live
-> (Digital Omnibus pending). The archetype label lives in `BUSINESS.md`; the legal
+> advice**. Confirm with your DPO / legal counsel. Deadlines, penalties and the state of any
+> amendment: **verify live** — this file records the posture you declared, never the law's
+> current state, and it carries no legal dates for the same reason it carries no code
+> versions. The archetype label lives in `BUSINESS.md`; the legal
 > classification it may *trigger* — never determine — lives only here.

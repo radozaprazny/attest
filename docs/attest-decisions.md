@@ -1520,3 +1520,59 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   otherwise would be the same overclaim this entry exists to remove. The new hook is POSIX `sh`,
   fails open on a missing payload or path, and traces to the same log in the same shape, so one
   file still answers *"what did the guards decide, and under which mode"*.
+
+## ADR-0052 — the declaration states a fact, it does not issue an order · 2026-09-10 · Accepted
+
+  Narrows: ADR-0028 (the declaration hook), ADR-0047 (its headings are configurable).
+
+- **Context** — the hook opened with *"Treat it as binding"* and told the reader to *"say so and
+  stop rather than working around it"*. Both are styled as directives arriving from outside the
+  conversation, which is precisely the shape a model is trained to be suspicious of: text that
+  claims authority it cannot demonstrate is the signature of an injected instruction, and the
+  defensive response is to surface it rather than to act on it. So the strongest-sounding
+  sentence in the kit is the one most likely to be read as untrusted.
+- **Options** — (a) leave it, on the grounds that it has worked so far; (b) drop the framing and
+  print only the extracted sections; (c) keep every claim, restated as fact about the repository:
+  what the documents declare, and how this project treats a contradiction.
+- **Decision** — (c).
+- **Why** — (a) rests on an observation from sessions where nothing adversarial was present, and
+  the failure it risks is silent: a declaration that is surfaced instead of obeyed looks exactly
+  like one that was never read. (b) throws away the part that does the work — a list of non-goals
+  with no statement of what a non-goal *is* leaves the reader to guess whether it is advice. (c)
+  loses nothing: *"this project treats that as a blocker rather than a judgement call"* carries
+  the same weight as *"treat it as binding"*, and it is checkable — it describes the repository,
+  which is a claim the repository can actually support.
+- **Consequences** — three lines in `session_declaration.sh`. The headings and paths stay as
+  ADR-0047 left them, and the byte budget is unchanged. The kit-wide lesson is worth naming
+  because it generalises past this hook: **injected context should describe, not command.** Any
+  future text the kit puts into a model's context without being asked — a hook, a skill preamble
+  — is written the same way.
+
+## ADR-0053 — the kit ships no legal date · 2026-09-10 · Accepted
+
+  Extends: ADR-0030 (`/compliance` is opt-in and a declaration, not a file).
+
+- **Context** — `compliance/SKILL.md` stated that *"the Digital Omnibus is adopted-but-not-in-
+  force and moving dates"* and `COMPLIANCE.md` that it is *"pending"*. Checked against a live
+  source: **two different instruments carry that name**. The Digital Omnibus on **AI** has been
+  in force since 27 Jul 2026 and its amendments are already in the consolidated AI Act; the
+  Digital Omnibus on **data** is still a Commission proposal. So one line was false, the other
+  true of a different act than the one the reader would assume, and the kit's own EU-first
+  selling point was resting on both. This is the failure mode the kit hunts in other people's
+  repositories, in the file that hunts it.
+- **Options** — (a) correct the two lines to today's state; (b) correct them and add a review
+  cadence; (c) remove dated legal status from the kit entirely — the shipped text says what to
+  check and where, never what the answer currently is.
+- **Decision** — (c).
+- **Why** — (a) is the same bug with a fresher timestamp: the next amendment falsifies it and
+  nothing in a git repository notices. (b) puts the burden on a maintainer's memory, which is the
+  thing this whole kit exists not to rely on. (c) is the only version that cannot rot: a skill
+  that says *"check the live state, and note that two instruments share this name"* is as true in
+  two years as today, and it makes the ambiguity — which Omnibus? — explicit, which the dated
+  version never did. Live lookup is what the MCP pattern in GUIDE PART 6 is for.
+- **Consequences** — the paragraph in `compliance/SKILL.md` carries no date and says so; the
+  `COMPLIANCE.md` disclaimer points at verification rather than at a status. The rule generalises
+  to anything with a legal shelf life: penalty amounts, phase-in dates, the state of a national
+  implementing law. What the kit may ship is **structure** — the risk pyramid, the Annex III use
+  cases, the provider/deployer split — because that is what changes on the timescale a kit
+  release can keep up with.

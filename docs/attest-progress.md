@@ -34,6 +34,17 @@ narrower than reported.
   with the non-goal that the kit ships no tool and edits nothing; an optional `- scanner:` line
   in the record is the version of that idea worth having, and it is not built yet.
 
+**The docs half of the same review (ADR-0052, ADR-0053).** The `SessionStart` declaration opened
+with *"Treat it as binding"* — text styled as an order arriving from outside the conversation,
+which is the shape a model is trained to distrust, so the kit's strongest sentence was its most
+suspect one. It now states the same weight as fact about the repository. And the kit shipped a
+**legal status**: two instruments share the name *Digital Omnibus* — the one on **AI** has been
+in force since 27 Jul 2026, the one on **data** is still a proposal — so one line was false and
+the other true of a different act than the reader would assume. Both are gone: the kit now ships
+structure and a pointer to a live source, never a date. `README.md` also gained a 60-second
+start above the prose, and one paragraph on what the guard adds over a harness that already
+refuses the obvious.
+
 `smoke.sh` **201** assertions, 0 failed; **11 of the new ones fail against the pre-series hooks**,
 verified in a worktree — including the case-fold bug the first draft shipped, which the *control*
 fixture caught. shellcheck clean.

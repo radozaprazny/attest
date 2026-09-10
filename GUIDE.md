@@ -388,7 +388,8 @@ one output shape and one severity ladder so they read as a family:
 - **When:** you want repetition **on a clock**.
 - **Always:** for "keep going until it's done", put a **checkable** stop condition in the
   prompt — one a command can decide (the test command exiting `0`), not a matter of taste.
-  Auto mode (`Shift+Tab`) keeps a long run from stopping on approval prompts.
+  Auto mode (`Shift+Tab` cycles the permission modes) keeps a long run from stopping on
+  approval prompts.
 
 ---
 
@@ -452,7 +453,7 @@ one output shape and one severity ladder so they read as a family:
 
 ## PART 7 — Driving Claude Code (operations)
 
-- **Plan mode** (`Shift+Tab`) — Claude proposes a plan first, you approve → then it acts.
+- **Plan mode** (`Shift+Tab` cycles to it) — Claude proposes a plan first, you approve → then it acts.
 - **Approve modes** — `1. Yes` (once) · `2. don't ask again` (allowlists into
   `settings.local.json`) · auto mode. Allowlist only what is **safe + frequent**
   (`git add`, tests, `ls`); leave `rm`/`push`/`commit` on confirmation.
