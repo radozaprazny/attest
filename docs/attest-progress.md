@@ -45,7 +45,8 @@ structure and a pointer to a live source, never a date. `README.md` also gained 
 start above the prose, and one paragraph on what the guard adds over a harness that already
 refuses the obvious.
 
-`smoke.sh` **201** assertions, 0 failed; **11 of the new ones fail against the pre-series hooks**,
+Shipped as **PR #14** (`ad0641a`) and **PR #15** (`f34acf8`), tagged **`v0.8.0`** at `f34acf8`.
+`smoke.sh` 0 failed; **11 of the new assertions fail against the pre-series hooks**,
 verified in a worktree — including the case-fold bug the first draft shipped, which the *control*
 fixture caught. shellcheck clean.
 
@@ -54,7 +55,7 @@ root document states the spine, the ten properties that make it work, the four h
 implementation needs, and what it costs — tool-neutral, no code, and deliberately **no adapter**
 for any other agent: an adapter would keep attest's name and drop its guarantee. It is attest's
 identity, so `install.sh` never copies it and `template-cleanup.sh` removes it in a generated
-repo by content guard. `smoke.sh` **180** assertions, 0 failed; shellcheck clean. That total moves on its own: one case at `smoke.sh:194` runs per shipped `ship-*.md` record, checking each stays readable by the guard's parser — so the number counts the repo's records too, and quoting it as a fixed figure is how a true line goes stale (ADR-0044's lesson, one file over).
+repo by content guard. `smoke.sh` clean, 0 failed (see the standing note on totals).
 
 The **guard-truthfulness series (phase 12)** merged as **PR #10** (`2d381f5`), and the heading
 overrides (phase 13, ADR-0047) as **PR #11** (`dfa2255`); `main` carries both. (This paragraph
@@ -184,9 +185,6 @@ git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 on
                                                       # the phase-11 status flips are already in main
 ```
 
-Read `smoke.sh`'s count as a floor, not a constant: four of its assertions are generated one per
-`.attest/` record on disk, so the total moves with the directory. Compare failures, not totals.
-
 There is no linter step for another language because the kit no longer contains one. Both new
 hooks answer correctly when driven by hand: `ship_guard.sh` returns `ask` on `git push` naming
 the current HEAD and stays silent on `ls`; `session_declaration.sh` emits the declaration block
@@ -310,6 +308,14 @@ aesthetic:
   makes it useful. Re-read it at each release instead.
 
 ## Notes / standing constraints
+
+- **`smoke.sh`'s total is a floor, not a property.** One assertion is generated per
+  `.attest/ship-*.md` on disk — the loop at `smoke.sh:195` re-checks that every shipped record
+  still parses for the guard — so the total grows with the directory and never with the suite
+  alone. **Measured 2026-09-10: 15 ship records, 15 generated assertions, 203 total.** An earlier
+  version of this note said *"four"*, which was true when it was written and quietly false for
+  weeks afterwards; that is the whole argument for comparing failures, not totals. A reviewer
+  reporting a different total from a clone is agreeing with you, not contradicting you.
 
 - **attest widens ADR-0049 for its own records.** The rule is that a run record names findings
   at attestation altitude, because it publishes with the repo; a project whose findings are its
