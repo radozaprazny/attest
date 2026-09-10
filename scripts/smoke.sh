@@ -284,6 +284,13 @@ if [ -z "$(rguard "$S/.attest/tmp/scratch.md")" ]; then ok "the ignored scratch 
 says "a shell redirect into a record asks too"   "$(guard 'printf x > .attest/ship-20260910-000000-abc1234.md')" 'permissionDecision":"ask'
 says "…and so does a tee into one"               "$(guard 'echo x | tee .attest/ship-a.md')" 'permissionDecision":"ask'
 if [ -z "$(guard 'cat .attest/ship-20260910-000000-abc1234.md')" ]; then ok "reading a record is not a write"; else fail "reading a record is not a write"; fi
+# In-place editing is how a shell rewrites a file it already has — the shape that turns
+# "1 blocker" into "0 blocker" without ever touching the Write tool (ADR-0054).
+says "sed -i on a record asks"                   "$(guard 'sed -i s/1 blocker/0 blocker/ .attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and its long spelling"                    "$(guard 'sed --in-place s/1/0/ .attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and perl -pi"                             "$(guard 'perl -pi -e s/1/0/ .attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and truncate"                             "$(guard 'truncate -s 0 .attest/ship-a.md')" 'permissionDecision":"ask'
+if [ -z "$(guard 'sed -n 1p .attest/ship-a.md')" ]; then ok "a non-editing sed is still a read"; else fail "a non-editing sed is still a read"; fi
 
 # --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
 rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md

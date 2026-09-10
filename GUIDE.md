@@ -187,7 +187,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   audit, an auditor that cannot write) needs a primitive no host here provides; see
   `METHOD.md` §"What it costs, and where it is thin".
 - **Cost:** one extra prompt per `/audit-history` run, which is the price of the record meaning
-  anything. A shell redirect into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`) is
+  anything. A shell write into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`, and the
+  in-place editors `sed -i`, `sed --in-place`, `perl -pi`, `truncate`) is
   caught by 2.2's own arm; an editor or `python -c` is not, and is not meant to be.
 - **Gate records are not hooked.** A `gate-*.md` attests a commit-time run that no machine
   reads, so a prompt there would be friction without a decision behind it.
@@ -230,9 +231,13 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > `COMPLIANCE.md` (§7, sub-processors / transfers). Neither hook sends anything anywhere by
 > itself; both only print, and what reaches the provider is whatever your session already does.
 
-> **Reading the trace.** Four words: `pass` (a clean record cleared it) · `blocked` (a record
-> for this commit exists and does not attest a clean scan) · `ask` (no record at all) ·
-> `dryrun` (waved through as a simple dry run). `blocked` and `ask` are both a permission
+> **Reading the trace.** Five columns — timestamp · decision · short sha · permission mode ·
+> sanitised command — and five decision words: `pass` (a clean record cleared it) · `blocked`
+> (a record for this commit exists and does not attest a clean scan) · `ask` (no record at
+> all) · `dryrun` (waved through as a simple dry run) · `record` (something was writing a ship
+> record, from either hook). The **mode** column is what tells "the hook did not fire" from
+> "the hook fired and the mode auto-approved it" (attest ADR-0050); a payload without one
+> logs `-`. `blocked` and `ask` are both a permission
 > prompt — the difference is what is missing, and afterwards only the log can tell them apart
 > (attest ADR-0038). A command the matcher does not recognise writes **no** line, so an empty
 > log means "nothing I know about ran", not "the hook is dead".

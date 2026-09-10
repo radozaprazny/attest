@@ -1576,3 +1576,29 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   implementing law. What the kit may ship is **structure** — the risk pyramid, the Annex III use
   cases, the provider/deployer split — because that is what changes on the timescale a kit
   release can keep up with.
+
+## ADR-0054 — the record arm covers rewriting, not only creating · 2026-09-10 · Accepted
+
+  Narrows: ADR-0051 (writing the evidence is itself a decision).
+
+- **Context** — ADR-0051 gave `ship_guard.sh` an arm for the shapes that write a ship record from
+  a shell, and a second review found the arm listed only the ones that **create** a file: `>`,
+  `tee`, `cp`, `mv`. `sed -i .attest/ship-….md` went through with no prompt, and so did
+  `sed --in-place` and `perl -pi`. That is not an exotic path — it is how a shell edits a file it
+  already has, and this repo's own ADR-0017 cites it as the example of what Bash can do to a
+  file. The gap is narrower than the one ADR-0051 closed and points the same way: the single
+  edit that matters here is `1 blocker` → `0 blocker`, which needs no new file at all.
+- **Options** — (a) leave it, since ADR-0051 already says coverage is partial; (b) match any
+  command mentioning `.attest/ship-`; (c) add the in-place editors to the existing arm.
+- **Decision** — (c): `sed -i`, `sed --in-place`, `perl -pi`, `truncate`.
+- **Why** — (a) is technically consistent with what ADR-0051 wrote and wrong in spirit: "partial"
+  was meant to excuse an editor or a `python -c`, not the plainest way a shell rewrites a file.
+  (b) would prompt on every `cat`, `ls` and `grep` of a record — this hook's rule is that an
+  extra prompt beats a miss, but a prompt on *reading* trains people to click through, which
+  costs more than it buys. (c) keeps the arm a list of writes and leaves reads silent.
+- **Consequences** — five `smoke.sh` cases, four asserting the new shapes and one pinning that a
+  non-editing `sed -n 1p` is still a read. Coverage stays deliberately partial and `README.md`
+  still says so; what changed is that the partial no longer excludes the obvious. GUIDE 2.3
+  lists the shapes, and GUIDE 2.4's *"four words"* is corrected to five — `record` joined them
+  in ADR-0051 and the trace gained a fifth column in ADR-0050, and neither updated the page that
+  tells you how to read the log.

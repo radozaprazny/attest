@@ -66,7 +66,13 @@ case "$CMD" in
   # agent whose work the record attests. This arm covers the shapes a shell actually uses to
   # write; a determined path (an editor, `python -c`) is not covered and is not meant to be.
   # The boundary this kit defends is forgetting, not an adversary — see README.
-  *">"*".attest/ship-"*|*"tee"*".attest/ship-"*|*"cp "*".attest/ship-"*|*"mv "*".attest/ship-"*)
+  # In-place editors belong here too (attest ADR-0054). ADR-0051 listed the shapes that CREATE
+  # a file and missed the ones that rewrite one — and `sed -i` is not an exotic path, it is how
+  # a shell edits a file it already has, which is exactly the arm that turns `1 blocker` into
+  # `0 blocker` without ever opening the Write tool.
+  *">"*".attest/ship-"*|*"tee"*".attest/ship-"*|*"cp "*".attest/ship-"*|*"mv "*".attest/ship-"*|\
+  *"sed -i"*".attest/ship-"*|*"sed --in-place"*".attest/ship-"*|*"perl -pi"*".attest/ship-"*|\
+  *"truncate"*".attest/ship-"*)
     KIND=record; ACT="writes a ship record — the file this gate reads as evidence" ;;
   *) exit 0 ;;
 esac

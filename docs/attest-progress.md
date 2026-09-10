@@ -7,6 +7,20 @@
 
 ## Current state
 
+**Second review of `0.8.0` — ADR-0054, one arm wider.** An independent pass over the guard
+series found the record arm of ADR-0051 covers only the shapes that **create** a file: `sed -i`
+on a record went through with no prompt, and so did `sed --in-place` and `perl -pi`. Reproduced
+here, then closed — the arm now lists the in-place editors, five `smoke.sh` cases pin them (four
+fail against `825d996`; the fifth pins that a non-editing `sed -n 1p` stays a read), and GUIDE
+2.4's *"four words"* is corrected to five, which two earlier ADRs had quietly outdated.
+
+**How to count new assertions, since three reports have now disagreed about it:** run the old
+suite and the new suite over the **same tree**. Measured on `825d996` — old 185, new 204 — the
+guard series added **19**, of which 11 fail against the pre-series hooks. Counting `+` lines in
+the diff undercounts (a loop body is one line and many assertions); counting totals from
+different clones overcounts (records differ). Neither is wrong on purpose; the method just has
+to be stated with the number.
+
 **External review of `v0.7.0` — the guard series (ADR-0050, ADR-0051), kit 0.8.0.** An
 independent read of the public repo produced seven findings plus nits; each was reproduced here
 before being touched, and two were reproduced *against* the reviewer's description and came out
