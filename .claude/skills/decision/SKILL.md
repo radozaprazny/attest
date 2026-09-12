@@ -69,6 +69,10 @@ the other?"* If yes, record it; if no, leave it to the commit.
   a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
   touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
   **never** rewrite its rationale.
+- **"Past" starts at the push, not the commit** (attest ADR-0057): an entry is immutable once
+  the commit carrying it has left the machine. Until then it is a draft — correct it in place,
+  which is what the commit-time gate is *for*. It is the same boundary the ship gate defends,
+  and it is checkable from the checkout, which "once the branch merges" is not.
 - **Five relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
   an exception to the rule above. **They change how far the older entry reaches:**
   `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only `Supersedes` earns

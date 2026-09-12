@@ -20,6 +20,10 @@ How to use this file:
     carrying `Supersedes: ADR-0007`. The ONLY permitted touch to an old entry is flipping its
     Status line (Accepted → Superseded by ADR-000M) — never rewrite its rationale. A
     superseded entry is NOT an anti-duplication violation.
+  - An entry becomes IMMUTABLE when the commit carrying it is PUSHED — not when written, not
+    when committed. Before that it is a draft: fix it in place. After it has left the machine,
+    only a new entry can correct it. Same boundary the ship gate defends, same reason: what has
+    left cannot be recalled from whoever already read it.
   - FIVE relations may sit under a new entry's title, in two kinds, and all five are fields of
     the NEW entry, touching nothing older.
     They change how far the older entry reaches: `Supersedes: ADR-N` (the old decision is

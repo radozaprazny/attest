@@ -84,10 +84,12 @@ your own context and return only a **summary of findings** — the main context 
    - ✅ *Ready to commit* — no blocking findings.
    - ⚠️ *Commit after changes* — there are blocking findings.
 
-   **Blocking means `blocker` or `major`** — the shared ladder fixes that, and `/gate` merges
-   your verdict under the same rule (attest ADR-0055). `minor`s and `nit`s go in the findings
-   list and leave the line green; a review that returns ✅ with six minors is reporting exactly
-   what it found, not going soft.
+   **What counts as blocking is not yours to decide** — the shared ladder fixes it under
+   *What flips the verdict line*, and `/gate` merges your verdict under the same rule
+   (attest ADR-0055). You already read that file for the severity words; read this rule from
+   it too rather than carrying a copy here. It applies to your line exactly as it applies to
+   a merged one, so a review that returns ✅ with six minors is reporting what it found, not
+   going soft.
 2. **Findings** — ordered by severity, each as:
    `severity · file:line — problem → suggested fix`
    (severity: **blocker** / **major** / **minor** / **nit**)

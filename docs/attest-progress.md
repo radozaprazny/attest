@@ -308,25 +308,32 @@ aesthetic:
     would have changed no verdict, because every run carried a major. The ladder also now states
     why the **ship** gate's threshold stays narrower (`0 blocker`, ADR-0037): the two gates ask
     different questions, and only one of them is about bytes that cannot be recalled.
-  - **The gate run over A found a major in A** (ADR-0056), which is the argument for the whole
-    proposal in one example. ADR-0055 justified omitting a relation field by asserting the log
-    has no `Extends:` relation. It has four, plus a `Relates to:` — used since 2026-09-07, while
-    all three rule-homes still said three. This is **ADR-0045 repeating**: same divergence, same
-    pass finding it, two relations later. ADR-0056 records both (five relations, in two kinds:
-    three that change an older entry's reach, two that only point) and propagates them to the
-    log header, `DECISIONS.md` and `decision/SKILL.md`. ADR-0055 is **not** edited — it was
-    committed, and the window closes at the commit — so ADR-0056 carries the correction and a
-    reader landing on ADR-0055 is not told. Two lessons worth keeping: the mistake was reasoning
-    about the log from the rules that describe it instead of from the entries in it; and the
-    pass ran *beside* the commit rather than before it, which is what `/gate fix` (§2.4) exists
-    to change.
-  - **B and C are not started**, and B is gated on the seven open questions (§6 of the proposal) —
-    the first of them, where a project declares the words its non-goals turn on, is the one that
-    decides whether `/business audit` can be triggered mechanically at all. B is where the token
-    cost actually falls: measured over the last 40 non-merge commits, 10 touch only `.attest/`,
-    24 only `*.md`, and a document audit would have had a trigger on 18 — 160 subagent runs
-    today against 61 with stage 0. B changes the record shape (`mode:`, `triggers:`), so cut
-    **0.9.0** with it.
+  - **Gating A found a major in A, twice over** — which is the proposal's own argument, paid
+    for in full. The `/decision` pass caught ADR-0055 justifying a format choice with a false
+    fact: it asserted this log has no `Extends:` relation. It has four, plus a `Relates to:`,
+    used since 2026-09-07 while all three rule-homes still said three — **ADR-0045 repeating**,
+    two relations later. **ADR-0056** records both (five relations in two kinds: three that
+    change an older entry's reach, two that only point) and propagates them. Then the
+    `reviewer` pass caught ADR-0056 *undercounting its own evidence* — "three of the four"
+    landed after ADR-0045 when all four did, read off two matching date lines instead of the
+    history. Same failure mode, one entry later.
+  - **ADR-0057 came out of that** and is the one worth keeping. Both corrections ran into a
+    question the log had never answered: *when does an entry become immutable?* Attest's own
+    notes disagreed — `gate-20260906` says the window closes at the commit, `gate-20260907`
+    corrects an entry because it had not yet landed. It is now recorded: **at the push**, the
+    same boundary the ship gate defends, and checkable from the checkout in a way "once it
+    merges" is not. ADR-0055 and ADR-0056 stay as written, both having been pushed before their
+    errors surfaced; the corrections live in ADR-0057.
+  - **The lesson is the roadmap.** Every one of these cost an entry only because the passes ran
+    *beside* the commits instead of ahead of them — twice in one session. That is exactly what
+    `/gate fix` (§2.4) is for, and it is now the strongest single argument for phase C.
+  - **B and C are not started.** §6's seven questions gate both: Q1, Q2, Q5 and Q7 are B's,
+    Q3, Q4 and Q6 are C's. **Q1** — where a project declares the words its non-goals turn on —
+    is the one that decides whether `/business audit` can be triggered mechanically at all.
+    B is where the token cost actually falls: measured over the last 40 non-merge commits,
+    10 touch only `.attest/`, 24 only `*.md`, and a document audit would have had a trigger on
+    18 — 160 subagent runs today against 61 with stage 0. B changes the record shape (`mode:`,
+    `triggers:`), so cut **0.9.0** with it.
 
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live

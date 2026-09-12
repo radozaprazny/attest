@@ -51,23 +51,25 @@ counts them in their own column. Never let a nit change the verdict line: a gate
 findings are nits is ✅ *ready to commit* (attest ADR-0023).
 
 **What flips the verdict line: a blocker or a major, and nothing else.** The line is
-⚠️ *commit after changes* if — and only if — at least one **blocker** or **major** stands after
-the merge; otherwise ✅ *ready to commit*. `minor` and `nit` are reported, counted in the run
-record, and never decide it. This follows from the rungs themselves: `major` is *"should not go
-in as it stands"*, `minor` is *"real but advisory"*. A rule that let advisory findings hold a
-commit would make ⚠️ the permanent state of any honestly reviewed repository, and a line that is
-always red is a line nobody reads — the same argument that removed this kit's two nags
+⚠️ *commit after changes* if — and only if — at least one **blocker** or **major** stands
+after the merge; for a pass reporting on its own, after its own review. Otherwise it is
+✅ *ready to commit*. `minor` and `nit` are reported, counted in the run record, and never
+decide it. This follows from the rungs themselves: `major` is *"real, and the change should not
+go in as it stands"*, `minor` is *"real but advisory"*. A rule that let advisory findings hold a
+commit would make ⚠️ the permanent state of any honestly reviewed repository, and a line that
+is always red is a line nobody reads — the same argument that removed this kit's two nags
 (attest ADR-0028). Advisory is not dismissed: it is reported, it is counted, and what to do
 about it is the author's call, not the gate's. (Attest ADR-0055, which extends ADR-0023 from
 `nit` to `minor`.)
 
-**The ship gate's threshold is narrower, and stays that way.** `ship_guard.sh` reads
-`findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a record carrying a
-**major** clears a push while the same counts at commit time read ⚠️. That asymmetry is
-deliberate and predates this rule: the two gates answer different questions on different clocks
-— *should this change go in as it stands* versus *must these bytes not leave the machine* — and
-the second is the one where a false pass cannot be taken back. Do not "fix" one threshold to
-match the other; if the ship guard should ever block on a major, that is its own decision.
+**The ship gate's threshold is narrower, and it was never weighed against this one.**
+`ship_guard.sh` reads `findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a
+record carrying a **major** clears a push while the same counts at commit time read ⚠️. That
+gap **predates** the rule above — ADR-0037 chose between a name check, two lines and a schema,
+and never considered `major` — so do not read it as a settled asymmetry, and equally do not
+"fix" one threshold to match the other on your own. The two gates do ask different questions on
+different clocks, which is the argument for leaving it; whether the ship guard should block on a
+major is an open question and would be its own decision.
 
 ---
 

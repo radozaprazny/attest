@@ -9,6 +9,12 @@
 > Append-only — never edit or delete a past entry (except flipping its `Status` line when
 > superseded); to reverse one, **append** a new entry that supersedes it.
 >
+> **An entry becomes immutable when the commit carrying it is pushed** — not when it is written
+> and not when it is committed (attest ADR-0057). Before that it is a draft: correct it in
+> place. After it has left the machine, only a new entry can. The boundary is the same one
+> `/audit-history` and the ship guard defend, for the same reason: what has left cannot be
+> recalled from whoever already read it.
+>
 > A new entry may carry, under its title, any of **five** relations, in two kinds. All five are
 > fields of the **new** entry and touch nothing older, so none of them costs an exception to the
 > rule above (attest ADR-0045, ADR-0056).
@@ -1700,3 +1706,53 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   window. One thing ADR-0055 should also have carried and did not: **ADR-0049** drew the
   blocker-plus-major boundary first, when it fixed the run record at *"one line per blocker and
   major"*; the act-on / advisory split is that same line drawn at the verdict.
+
+## ADR-0057 — an entry becomes immutable when its commit is pushed, not before · 2026-09-12 · Accepted
+
+  Narrows: ADR-0003 (append-only means forward-only, with one sanctioned `Status` flip).
+  Relates to: ADR-0055, ADR-0056 (both written against an unstated version of this rule).
+
+- **Context** — the log says past entries are immutable and never says when an entry becomes
+  past. Attest's own practice has answered it twice, differently:
+  `.attest/gate-20260906-113757-93fc862.md` splits ADR-0040 *"before commit, because … the
+  window closes at commit"*, and `.attest/gate-20260907-110842-d91f69f.md` corrects an entry
+  because it was *"caught before the entry landed … append-only binds a written entry, not a
+  pending one"*. Commit or land — those are different boundaries, and neither is recorded. It
+  stopped being academic today: a `/gate` run found a false sentence in ADR-0055 minutes after
+  it was committed, and the same run's reviewer found a miscount in ADR-0056 minutes after
+  *that*. Both times the only question that mattered — may this be fixed in place? — had no
+  written answer, and answering it differently would have produced a materially different log.
+- **Options** — (a) at the moment the entry is written, so any commit freezes it; (b) at the
+  commit that carries it; (c) at the **push** of that commit; (d) at the merge into the default
+  branch.
+- **Decision** — (c). An entry is immutable once the commit carrying it has left this machine.
+  Before that, correct it in place; after that, only a new entry can.
+- **Why** — this is the boundary the kit already defends everywhere else: `/audit-history` and
+  the ship guard exist because *leaving the machine* is the step that cannot be taken back, and
+  an append-only log protects against exactly the same thing — a reader elsewhere who has
+  already seen the old text. (b) is what practice half-assumed, and it is stricter than the harm
+  requires: a local commit has no readers, so freezing it buys nobody anything while making
+  every typo cost an entry, which is how a log fills with corrections and stops being read.
+  (d) is the most permissive and the least checkable: whether a branch has merged depends on a
+  server-side setting this log cannot see, and it would leave entries mutable for as long as a
+  branch stays open. (a) is unworkable — an entry is edited while being drafted. (c) is the one
+  boundary that is both principled and answerable from the checkout.
+- **Consequences** — The rule is now stated in this log's header, in the shipped `DECISIONS.md`
+  and in `decision/SKILL.md`, so adopters get it too. It sharpens the case for gating **before**
+  the commit and the push rather than beside them: under (c) the cheap window is exactly the one
+  `/gate fix` is proposed to occupy (`docs/attest-proposal-gate.md` §2.4), and both of today's
+  corrections cost an entry only because the passes ran alongside the commits instead of ahead
+  of them. **ADR-0055 and ADR-0056 stay as written** — both were pushed before their errors were
+  found, so this rule closes their window rather than reopening it, and a decision that
+  retroactively excused the entries that prompted it would be worth nothing.
+  Two corrections it therefore carries instead:
+  - **ADR-0056's Context undercounts its own evidence.** It says three of the four `Extends:`
+    entries landed after ADR-0045. **All four did**: ADR-0045 arrived in `f169e74` and ADR-0047
+    in `5947d30`, which is a descendant, and sequential ids settle it without git. The "three"
+    came from comparing two `· 2026-09-07 ·` date lines instead of the history — the same
+    reason-from-the-description failure that entry was written to name, which is worth leaving
+    visible rather than tidying away.
+  - **"Five uses" in ADR-0056 counts title-line fields only.** ADR-0023 also carries
+    `- **Relates to** — …` as a body bullet. That shape is narrative, not a relation field:
+    the rule binds what sits under an entry's title, and a reader checking the entries rather
+    than the rules would otherwise count six and find the rule wrong.
