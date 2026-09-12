@@ -1926,3 +1926,43 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   asking for one; and *Next* is the right home for a minor only while the document it names is
   still editable, so a minor against an entry whose commit has been pushed needs a new entry
   instead (ADR-0057).
+
+## ADR-0062 — a recommended fix subtracts before it adds, and claims only what it read · 2026-09-12 · Accepted
+
+  Relates to: ADR-0061 (a ✅ ends the round).
+
+- **Context** — ADR-0061 stops the rounds; it does not touch what makes another round productive
+  in the first place. The records are blunt about that: on `ce439a5` the major count across four
+  runs went **4 · 2 · 3 · 5**, and two records say in their own text why —
+  `.attest/gate-20260828-144100-ce439a5.md`, *"opened by the fixes made after the 12:57Z run"*,
+  and `.attest/gate-20260907-110842-d91f69f.md`, *"the first round of fixes introduced two of
+  these"*. The same shape came back from an adopter's five-run series (ADR-0061), whose author
+  observed that the one round which **removed** claims and tied the rest to measurements was the
+  first that introduced no new inaccuracy — an observation from a single series, not a
+  measurement, and recorded as one. The mechanism is not mysterious. Three of the four passes
+  judge prose, so prose is the material; a fix that adds two sentences adds two sentences to
+  audit. One detail from the 08-28 record points the other way and is worth keeping: the fix
+  that broke `install.sh` with a stray `set -e` was caught *immediately*, by `smoke.sh` — where
+  a command is the judge, a bad fix is found in the same round, not the next one.
+- **Options** — (a) nothing: how to fix a finding is the author's business, and an audit that
+  prescribes style oversteps; (b) direct every audit to prefer the fix that removes or narrows a
+  claim, and to mark any fact in a recommendation that it did not read in the tree;
+  (c) forbid audits from proposing added text at all, and return only the finding.
+- **Decision** — (b).
+- **Why** — (a) is where we were, and it is not neutral: an audit that says *"say more about
+  X"* is already prescribing, just in the direction that costs the most. (c) overshoots — some
+  findings **are** omissions (an undocumented dependency, a decision made in code and never
+  recorded) and the only thing that closes them is the missing entry; a rule that cannot express
+  that would be worked around within a week. (b) is cheap because it changes no severity, no
+  verdict and no shape: two paragraphs in the file every audit already reads at runtime. The
+  second half matters as much as the first: a recommendation is written in the audit's voice, so
+  an unchecked number inside one is laundered into a control document and is never re-examined.
+  Marking it *unverified* leaves it in the author's hands, where a claim without evidence
+  belongs.
+- **Consequences** — `_shared/audit-ladder.md`, *Output shape*, gains the two rules, so they
+  reach `/business`, `/decision`, `/compliance`, `/audit-history`, `doc-auditor` and `reviewer`
+  through the one file they all read. *unverified* is deliberately **not** a rung: it marks a
+  claim inside a recommendation, never a finding, and nothing counts it. Known limit: this is
+  guidance to a judge, not a check a command can run — unlike the ADR-0060 arm or `smoke.sh`,
+  nothing fails when it is ignored, and the next series is the only way to tell whether it
+  helped. The number to watch is the one that moved here: majors across rounds on one tree.

@@ -176,6 +176,22 @@ Every audit returns the same shape:
 3. **A recommended update** — which document, roughly what — but **do not make it**. Recording
    is a separate, human-approved step (each skill's write mode).
 
+**A recommended fix subtracts before it adds.** Where a finding can be closed either by removing
+or narrowing a claim or by writing a new one, recommend the removal, and say which claim goes.
+Prose is the material these passes judge, so every sentence a fix adds is fresh ground for the
+next audit — that is why rounds do not converge: across four runs on one tree here the major
+count went 4 · 2 · 3 · 5, and two of those records note in their own text that the previous
+round's fixes opened what the next one found. *Prefer*, not *never add*: some findings are
+omissions by nature — an undocumented dependency, a decision made in code and never recorded —
+and the only thing that closes them is writing the missing entry.
+
+**A recommended fix states as fact only what you read in the tree**, with the `file:line` that
+proves it. Anything else — a number that would have to be measured, a date, a source, a claim
+about how something behaves — goes in as the question it is, marked *unverified*, for the
+author to settle before the text lands. A fix that smuggles an unchecked claim into a control
+document turns one finding into two, and the second one is written in the voice of the audit,
+so nobody looks at it again. (Attest ADR-0062.)
+
 **Every audit is read-only on your work** — it changes no control document and no code. Two
 sanctioned artifacts exist, both of them records *that* a gate ran and what it returned:
 `/gate` appends a dated run record under `.attest/` (attest ADR-0016), and `/audit-history`
