@@ -103,12 +103,17 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    and a hunk lands on regulated ground, the ladder's fallback applies: the closest audit
    reports it once, naming what it would have been.
 4. **Return ONE verdict:**
-   - one line overall — ✅ *ready to commit* / ⚠️ *commit after changes* — plus a one-liner
-     per pass, including the clean and skipped ones (a short clean gate is a correct
-     result);
-   - findings ordered by severity, each with its **owner**, **evidence** (`file:line` /
-     commit / hunk) and a **severity** from the ladder — plus the reviewer's `nit`s last,
-     if any;
+   - **one line overall**, and the ladder decides it, not your judgment of the run:
+     ⚠️ *commit after changes* if a **blocker** or a **major** stands after the merge,
+     otherwise ✅ *ready to commit* (`_shared/audit-ladder.md`, *What flips the verdict line*;
+     attest ADR-0055). Minors and nits never move it. Then a one-liner per pass, including the
+     clean and the skipped ones — a short clean gate is a correct result;
+   - **act on** — every blocker and major, ordered by severity, each with its **owner**,
+     its **evidence** (`file:line` / commit / hunk) and its **severity**. This is the list the
+     verdict line is about, and on a ✅ run it is empty;
+   - **advisory** — the minors, and the reviewer's `nit`s last. Report them in full, but keep
+     them under the act-on list and never let their number argue with the verdict: thirteen
+     minors and a ✅ is a coherent result, and saying so is the point of the rung;
    - each pass's recommended document update, if any — but **make none of them**.
 5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
    if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:

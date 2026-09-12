@@ -282,27 +282,37 @@ aesthetic:
   **P1** — gate scoping (first-parent diff on a merge HEAD; cleanliness from `git status
   --porcelain`, not `git diff --quiet`, which ignores untracked; `gate-records.txt` filtered to
   `gate-*`, since `ls | tail -3` is alphabetical and drops every gate record once three ship
-  records exist) · define what flips the verdict to ⚠️, which is nowhere stated · `/compliance`
-  Mode 3's `###` siblings make "hand Mode 3 to the subagent" deliver 55 words · `/audit-history
-  full` breaks on its own `-----BEGIN` pattern (exit 129) and should pipe through `xargs git grep
-  -I -l -e`.
+  records exist) · `/compliance` Mode 3's `###` siblings make "hand Mode 3 to the subagent"
+  deliver 55 words · `/audit-history full` breaks on its own `-----BEGIN` pattern (exit 129) and
+  should pipe through `xargs git grep -I -l -e`. *(What flips the verdict to ⚠️ was on this list
+  and is now ADR-0055 — see the gate-loop item below.)*
 
   **P2** — smoke has no fixture for never-clobber, hook wiring or the negative dry-run cases;
   the declaration hook mis-handles multi-line HTML comments and fenced blocks, and its 24-line
   cap counts blank separators (15 non-goals arrive as 12).
 
-- **What `/gate` is for (was F65) — the gap is closed, the design question is not.** F65 read
-  *"gate has not run since 2026-08-28"*; that was true when written and is now stale — it ran
-  2026-09-04, 09-06 and 09-07, the last of them over the whole of PR #10 rather than a working
-  diff. **That run is why this branch grew:** it returned **2 blockers, 2 majors, 7 minors**,
-  and both blockers were things no other check could see — a shallow clone deleting the
-  adopter's own records (ADR-0042) and a blanket `.gitattributes` rule reaching adopters through
-  the template button (ADR-0043). The suite could not see either: one fixture had a single
-  commit, the other never copied dotfiles. Both now have regression tests that fail against the
-  pre-fix code, verified by running the new suite in a worktree at the old HEAD.
-  The design question F65 really asked still stands: four parallel subagents is disproportionate
-  for a one-file change, which is *why* the gate goes unrun, and a light mode is the open item —
-  not the running of it.
+- **What `/gate` is for (was F65) — the design question now has a written answer, and phase A of
+  it has shipped.** F65 read *"gate has not run since 2026-08-28"*; that was stale by 09-07, when
+  the gate ran over the whole of PR #10 and returned **2 blockers, 2 majors, 7 minors** — both
+  blockers things no other check could see (a shallow clone deleting the adopter's own records,
+  ADR-0042; a blanket `.gitattributes` rule reaching adopters through the template button,
+  ADR-0043). The real question was never whether to run it but what it costs: four parallel
+  subagents on a one-file change, four and five rounds per tree, and no run ever green.
+  `docs/attest-proposal-gate.md` answers it in four parts, in build order — **A** a finish line,
+  **B** triggers in shell plus `/gate full` on the push cadence, **C** a bounded `fix` loop —
+  with three ADR drafts, a per-file change list and six open questions. Read it there; it is a
+  proposal and is deleted once decided.
+  - **A is done** (ADR-0055): the verdict flips on a blocker or a major and on nothing else,
+    stated once in `_shared/audit-ladder.md` and cited by `/gate` step 4, `reviewer.md` and
+    GUIDE 3.6. It buys a stopping condition, not a greener log — on the nine existing records it
+    would have changed no verdict, because every run carried a major.
+  - **B and C are not started**, and B is gated on the six open questions (§6 of the proposal) —
+    the first of them, where a project declares the words its non-goals turn on, is the one that
+    decides whether `/business audit` can be triggered mechanically at all. B is where the token
+    cost actually falls: measured over the last 40 non-merge commits, 10 touch only `.attest/`,
+    24 only `*.md`, and a document audit would have had a trigger on 18 — 160 subagent runs
+    today against 61 with stage 0. B changes the record shape (`mode:`, `triggers:`), so cut
+    **0.9.0** with it.
 
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live

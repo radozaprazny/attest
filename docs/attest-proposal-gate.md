@@ -1,10 +1,13 @@
 # Proposal — a gate that ends: a finish line, triggers, two cadences, a bounded loop
 
-> **Status: proposal, not a decision.** Nothing in this file is recorded. The ADR drafts in §5
-> become decisions only when `/decision` writes them, and the change list in §4 is a plan, not
-> a diff. Written 2026-09-12 from the nine `/gate` records under `.attest/`, the gate skill and
-> its passes, and a measurement over the last 40 non-merge commits on `main` (at `332a40b`).
-> It changes no code and touches no control document. Delete it once it has been decided.
+> **Status: part A recorded, parts B and C still proposals.** Written 2026-09-12 from the nine
+> `/gate` records under `.attest/`, the gate skill and its passes, and a measurement over the
+> last 40 non-merge commits on `main` (at `332a40b`). **§2.1 is now ADR-0055 and is implemented**
+> — the entry in `docs/attest-decisions.md` is the decision, and the draft in §5 is kept only as
+> the proposal it came from. **Everything else here is still undecided**: §2.2–2.4 change no
+> file yet, the drafts for ADR-0056 and ADR-0057 are `DRAFT`, the change list in §4 is a plan and
+> not a diff, and the six questions in §6 are open. Delete this file once B and C are decided
+> too; what survives it is the ADR log.
 
 ## 0. In ten lines
 
@@ -12,8 +15,9 @@ The gate takes four to five rounds and still ends ⚠️ because three of its fo
 judgment over prose, and a loop over a judge that varies between runs has no finish line. The
 proposal, in the order it should be built:
 
-1. **A finish line.** The verdict flips on **blocker** or **major**, and on nothing else. Minor
-   and nit stay listed and counted, and are what the ladder already calls them: advisory.
+1. **A finish line** — **done, ADR-0055.** The verdict flips on **blocker** or **major**, and on
+   nothing else. Minor and nit stay listed and counted, and are what the ladder already calls
+   them: advisory.
 2. **Stage 0 in shell.** Before any subagent, one POSIX script reads the diff and decides which
    passes it needs. A one-file fix costs one subagent, not four. `/gate` becomes that light gate.
 3. **Two cadences.** `/gate full` runs every pass over the whole branch, once, before a push,
@@ -202,6 +206,11 @@ the record.
 
 Phase **A** = finish line · **B** = stage 0 and the two cadences · **C** = `fix`.
 
+**The A rows are done** (2026-09-12, ADR-0055), plus one the list missed:
+`.claude/agents/reviewer.md` — its output shape said *"no blocking findings"* and defined
+blocking nowhere, so the rule needed the same sentence there or it had two homes to drift
+between. B and C rows are untouched.
+
 | file | change | phase |
 |---|---|---|
 | `.claude/skills/_shared/audit-ladder.md` | the verdict rule under *The ladder*, beside the ADR-0023 nit paragraph; bump *Kit version* when cutting | A |
@@ -236,9 +245,17 @@ Phase **A** = finish line · **B** = stage 0 and the two cadences · **C** = `fi
 Numbered after ADR-0054, the log's newest entry. The status word is `DRAFT` until `/decision`
 records the entry, at which point it becomes `Accepted` and the date the day it is written.
 
-## ADR-0055 — the verdict line flips on blocker or major, and on nothing else · 2026-09-12 · DRAFT
+## ADR-0055 — the verdict line flips on blocker or major, and on nothing else · RECORDED 2026-09-12
 
-  Extends ADR-0023 (a `nit` never changes the verdict line) to `minor`.
+  **No longer a draft.** Recorded in `docs/attest-decisions.md` as ADR-0055 and implemented; the
+  text there is the entry, this is the proposal it came from. Two things changed on the way in.
+  It carries **no relation field**: this draft had `Extends: ADR-0023`, and `Extends` is not one
+  of the log's three relations (`Supersedes` · `Supersedes in part` · `Narrows`) — inventing a
+  fourth without an entry is precisely what the 2026-09-07 gate scored a **major**, so the
+  relationship is stated in prose instead. And `.claude/agents/reviewer.md` joined the change
+  list: its output shape said *"no blocking findings"* and defined blocking nowhere, so the rule
+  would have had two homes disagreeing the moment it was written in one.
+
 
 - **Context** — Nine gate runs, nine ⚠️, and the rule that produces the line is written nowhere
   (carrier, P1). The ladder calls `minor` *"real but advisory"*, yet a run of thirteen minors
@@ -331,8 +348,11 @@ records the entry, at which point it becomes `Accepted` and the date the day it 
 
 ## 7. Order of work
 
-- **A** — prose in three files plus one ADR and one carrier line. Hours. Ships alone; the gate
-  gains a finish line and nothing else changes.
+- **A — done, 2026-09-12** (ADR-0055). Four files, not three: `_shared/audit-ladder.md` holds
+  the rule, `gate/SKILL.md` step 4 cites it and splits its output into *act on* / *advisory*,
+  `GUIDE.md` §3.6 gets a sentence, and `.claude/agents/reviewer.md` was added on the way — it
+  said *"no blocking findings"* without defining blocking, which is a second home for the rule
+  and therefore a place for it to drift. No version bump: the record shape is untouched.
 - **B** — the script, its smoke fixtures, the skill and agent text, the installer pin, CI, the
   docs, one ADR. The bulk. Cut **0.9.0** here: the record shape changes (`mode:`, `triggers:`).
 - **C** — prose in two files, one ADR. Small, but it is the part whose behaviour only a real run

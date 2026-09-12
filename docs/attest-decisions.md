@@ -1602,3 +1602,45 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   lists the shapes, and GUIDE 2.4's *"four words"* is corrected to five — `record` joined them
   in ADR-0051 and the trace gained a fifth column in ADR-0050, and neither updated the page that
   tells you how to read the log.
+
+## ADR-0055 — the verdict line flips on a blocker or a major, and on nothing else · 2026-09-12 · Accepted
+
+- **Context** — Nine `/gate` runs are recorded under `.attest/` and all nine returned ⚠️. The
+  rule that produces that line is written in no file: `docs/attest-progress.md` carries it as a
+  P1 item, *"define what flips the verdict to ⚠️, which is nowhere stated"*. Two things follow
+  from the gap. A run of thirteen minors reads exactly like a run with a blocker, so the line
+  carries no information and the counts underneath it do all the work. And the loop the
+  maintainer actually runs — gate, fix, gate again, four and five times over one tree — has no
+  condition it could stop on, because "is this ⚠️ still deserved?" is re-decided by judgment on
+  every pass. ADR-0023 had already settled the same question for one rung: a `nit` never moves
+  the line. The question was never asked about `minor`.
+- **Options** — (a) leave the line to the merging step's judgment, and keep the counts as the
+  real signal; (b) ⚠️ whenever any finding stands, so the line means *something was found*;
+  (c) ⚠️ if a **blocker** or a **major** stands, and on nothing else.
+- **Decision** — (c). The rule lives in `_shared/audit-ladder.md`, beside ADR-0023's, because
+  that file is the one every audit reads at runtime and the one that installs with them.
+- **Why** — (a) is the status quo, and the status quo is what makes the rounds unbounded: a
+  gate that cannot state its own stopping condition cannot be automated later, and is tiring to
+  run now. (b) has the merit of honesty and the defect that matters more: on any repository
+  reviewed honestly there is always a minor, so ⚠️ becomes the permanent state, and a signal
+  that never changes is one people stop reading. This kit already made that argument once, when
+  it deleted its two advisory hooks for being nags (ADR-0028); a verdict line that is always red
+  is the same failure in a different place. (c) is what the rungs already say if they are read
+  literally — `major` is *"real, and the change should not go in as it stands"*, `minor` is
+  *"real but advisory"* — so this entry adds no new vocabulary, it stops the line contradicting
+  the words underneath it.
+- **Consequences** — The line is now a function of the merged counts, so a merge step, a script
+  or a future loop can evaluate it without judgment. Nothing is dropped or downgraded: minors
+  and nits keep their rungs, stay in the verdict under an **advisory** heading, and stay in the
+  run record's counts, where `/audit-history`'s own consumer already reads `0 blocker` and not a
+  total (ADR-0037). Measured against attest's own nine records the rule changes **no** verdict —
+  every run carried at least one major — so what it buys is termination and a readable line, not
+  a greener history; claiming otherwise would be the kind of unearned assurance this kit exists
+  to refuse. `.claude/agents/reviewer.md` gains the same rule, because its output shape said
+  *"no blocking findings"* and never defined blocking; `/gate` step 4 now cites the ladder
+  instead of restating it, and splits its findings into **act on** and **advisory** so the shape
+  of the answer matches the rule. This entry carries **no relation field**: ADR-0023 is not
+  reversed, narrowed or superseded — it stays true, and this generalises its principle from
+  `nit` to `minor`. There is no `Extends:` relation in this log, and one was not invented here;
+  a fourth relation would be its own decision, and the last time a relation arrived without an
+  entry it was a **major** finding of the 2026-09-07 gate.
