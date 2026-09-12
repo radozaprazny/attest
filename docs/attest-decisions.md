@@ -2043,3 +2043,37 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   makes it a **fourth** copy of the vocabulary. That is accepted because it is the only copy
   that fails loudly, and because it reads the other three — a change made in one home and not
   the others now breaks the suite instead of surfacing in an audit two entries later.
+
+## ADR-0065 — day one is two placeholders, and the log starts empty · 2026-09-12 · Accepted
+
+  Relates to: ADR-0061 (a ✅ ends the round), ADR-0030 (compliance is opt-in).
+
+- **Context** — GUIDE PART 1 has said *"adopt on a gradient"* since the kit's early days: three
+  documents are the minimum, `DECISIONS.md` earns its keep later. An adopter still reached their
+  first commit with **442 added lines, all of them documents, four ADRs, and no code** — and
+  then gated that tree five times (ADR-0061). The gradient was true and it was in the one place
+  a new adopter reads last: a 618-line guide. The two surfaces they do read said something
+  closer to the opposite — `install.sh`'s closing block offered `/decision — the choices you
+  have already made`, which reads as *empty your head into the log before you start*, and
+  README's step 3 left it open.
+- **Options** — (a) leave it: the gradient is documented, and how much a project writes up front
+  is the project's business; (b) say it where first-run advice is actually read — the
+  installer's NEXT block, README *First 5 minutes*, GUIDE PART 1 — and say why; (c) enforce it:
+  a `--minimal` install that lands fewer templates, or a flag that defers `DECISIONS.md`.
+- **Decision** — (b).
+- **Why** — (a) has been tried: the sentence existed and the first real adopter front-loaded
+  anyway, which makes it evidence rather than opinion. (c) costs a new dimension in the install
+  matrix — every flag multiplies what `install.sh` must stay idempotent about and what
+  `smoke.sh` must pin — to solve a habit. The kit spends a flag exactly once, on `--compliance`,
+  and only because an **empty** posture file reads as *declared* to a later audit (ADR-0030). An
+  empty `DECISIONS.md` misleads nobody: `/decision` already treats a template-only file as
+  empty, and says so. The reason worth stating in the text is not tidiness but the mechanism the
+  last two entries named: over a first commit that is documents only, every pass has nothing but
+  prose to judge, and prose is where rounds do not converge (ADR-0062).
+- **Consequences** — the installer's NEXT block, README step 3 and GUIDE PART 1 now say the same
+  three things: fill `CLAUDE.md`, declare the non-goals, start; an empty log is a correct state,
+  not a gap; `/decision` records one entry as a choice lands, never a design written forward. No
+  flag, no new file, no behaviour change — three sentences and one reworded installer line.
+  Known limit: this is advice, and advice loses to enthusiasm. What to watch on the next adopter
+  is measurable and specific — the size of the first commit, whether `DECISIONS.md` is in it,
+  and how many gate rounds it took.

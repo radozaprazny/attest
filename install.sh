@@ -430,7 +430,11 @@ if [ "$CLAUDE_INSTALLED" = 1 ]; then
 fi
 printf '  %d  %-24s %s\n' "$n" "/business" "purpose, archetype, non-goals — the hooks read these"
 n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "/decision" "the choices you have already made"
+printf '  %d  %-24s %s\n' "$n" "/decision" "one entry per choice, as it lands — not a backlog"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
+echo
+echo "  Day one is CLAUDE.md and your non-goals. An empty DECISIONS.md is the correct"
+echo "  state until a choice lands, and the gate is worth most on your first real"
+echo "  change: over documents alone it has only prose to judge."
 echo

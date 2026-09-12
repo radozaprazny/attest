@@ -213,7 +213,8 @@ disabled, or when you checked and the run never happened.
    placeholder conventions. No skill owns it; `/init` is the quickest way.
 2. **Restart Claude Code** — `.claude/` is a new top-level directory, so the skills only load
    on a fresh session. Until you do, `/business` does not exist.
-3. **Declare:** `/business` (intent + archetype) · `/decision` as you choose. `/business`
+3. **Declare:** `/business` (intent + archetype) · `/decision` as you choose — one entry when a
+   choice lands, so an empty `DECISIONS.md` on day one is the correct state. `/business`
    ends by telling you whether this project is in regulated scope — and what you do with that
    answer depends on how you got here, because the two paths start from opposite defaults:
    - **template or clone** — you already have `COMPLIANCE.md` and `/compliance`. *In scope*

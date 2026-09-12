@@ -27,6 +27,14 @@ ADR-0030). `/business` makes that call for you once it knows the archetype. Docu
 not adopted cost nothing — the skills read them on demand, and an audit degrades to a note
 ("nothing declared") when one is absent.
 
+**Day one is two placeholders, not five documents** (attest ADR-0065). Fill `CLAUDE.md`, run
+`/business` for the non-goals, and start. `DECISIONS.md` is *supposed* to be empty until a
+choice lands — an empty log is a correct state, not a gap, and `/decision` records one entry at
+the moment you choose, never a design written forward. The reason is not tidiness: over a first
+commit that is documents only, every pass has nothing but prose to judge, which is the case
+where rounds do not converge (ADR-0061, ADR-0062). The gate is worth most on your first real
+change; before that, take its blockers and majors, send the rest to *Next*, and commit.
+
 **One session at a time in these documents.** Two Claude sessions in one repository cannot see
 each other: the declaration hook prints the state at the start of *its own* session, and a skill
 reads the file from disk at the moment it runs, so a choice made in the other window exists
