@@ -121,8 +121,8 @@ declared* means either `COMPLIANCE.md` is **absent**, or it exists with its sect
 file merely *existing* is how the state comes back: a user told to "delete it" would land in a
 repo where this skill still owns regulated ground and nothing ever speaks.
 
-If no posture is declared, say so in **one line**, a **minor**, which never moves the verdict
-on its own:
+If no posture is declared, say so in **one line**, a **minor** — which never moves the verdict
+line at all (`_shared/audit-ladder.md`, *What flips the verdict line*):
 
 > *"no posture declared (`COMPLIANCE.md` absent / still placeholders) while `/compliance` is
 > installed — run `/compliance` to fill it, or remove **both** `COMPLIANCE.md` and

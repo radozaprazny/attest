@@ -337,7 +337,10 @@ one output shape and one severity ladder so they read as a family:
 - **How:** type `/gate` before a commit. It scopes the diff, then runs the `reviewer`
   subagent plus every installed document audit in **parallel subagents** — it reads each skill's
   audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
-  merges the findings under the shared ladder + ownership contract into **one** verdict.
+  merges the findings under the shared ladder + ownership contract into **one** verdict. What
+  flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
+  there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
+  rule here.
 - **What for:** the whole per-change gate in one invocation. Touches no document and
   no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
   passes, verdict, and findings at **attestation altitude** (severity · pass · class · path,
