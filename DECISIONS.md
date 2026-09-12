@@ -24,13 +24,14 @@ How to use this file:
     when committed. Before that it is a draft: fix it in place. After it has left the machine,
     only a new entry can correct it. Same boundary the ship gate defends, same reason: what has
     left cannot be recalled from whoever already read it.
-  - FIVE relations may sit under a new entry's title, in two kinds, and all five are fields of
+  - SIX relations may sit under a new entry's title, in two kinds, and all six are fields of
     the NEW entry, touching nothing older.
     They change how far the older entry reaches: `Supersedes: ADR-N` (the old decision is
     reversed — this one alone earns the Status flip) · `Supersedes in part: ADR-N` (half of it
     is reversed) · `Narrows: ADR-N` (the old decision still stands, but its scope turns out
-    smaller than its text says). Reach for `Narrows` instead of editing an entry whose reasoning
-    was right and whose wording was too broad.
+    smaller than its text says) · `Widens: ADR-N` (it still stands, and its ground turns out
+    larger — the mirror of Narrows). Reach for `Narrows` instead of editing an entry whose
+    reasoning was right and whose wording was too broad.
     They only point, and say nothing about the older decision: `Extends: ADR-N` (this builds on
     that) · `Relates to: ADR-N` (read that alongside this). Neither is a softer `Narrows` —
     using one where the scope really did shrink hides the narrowing from every later reader.

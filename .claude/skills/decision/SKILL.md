@@ -93,16 +93,17 @@ the other?"* If yes, record it; if no, leave it to the commit.
   the commit carrying it has left the machine. Until then it is a draft — correct it in place,
   which is what the commit-time gate is *for*. It is the same boundary the ship gate defends,
   and it is checkable from the checkout, which "once the branch merges" is not.
-- **Five relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
+- **Six relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
   an exception to the rule above. **They change how far the older entry reaches:**
-  `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only `Supersedes` earns
-  the `Status` flip. **`Narrows` is the one to reach for when an entry's reasoning was right and
+  `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N` · `Widens: ADR-N` (the
+  mirror of `Narrows`: the decision stands and its ground turns out larger than its text claims).
+  Only `Supersedes` earns the `Status` flip. **`Narrows` is the one to reach for when an entry's reasoning was right and
   its wording too broad** — the decision still stands and its scope is smaller than its text
   claims. The alternative people reach for instead is editing the old wording, which is the one
   thing the log cannot allow. **They only point:** `Extends: ADR-N` (this builds on that) ·
   `Relates to: ADR-N` (read that alongside this) — neither says anything about the older
-  decision, so neither is a softer `Narrows`: using one where the scope really did shrink hides
-  the narrowing. All five share a limit worth knowing: the field is on the **new** entry, so
+  decision, so neither is a softer `Narrows` or `Widens`: using one where the scope really did
+  move hides the move. All six share a limit worth knowing: the field is on the **new** entry, so
   landing on the old one shows nothing — finding a relation means searching the log for that id.
 
 ## Two modes

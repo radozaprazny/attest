@@ -55,6 +55,38 @@ if [ "$py_count" -eq 0 ]; then ok "no .py anywhere under .claude/"; else fail "n
 check "no formatter config ships"  test ! -e "$KIT/ruff.toml"
 check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
 
+# --- 0b. the log's relation grammar and the rules describing it agree -------------------
+# Three entries — ADR-0045, ADR-0056, ADR-0064 — were spent recording relations the log had
+# already started using while every rule-home still named the shorter list. Each time it was
+# an audit that noticed, one entry too late. This ends the series with a grep: the vocabulary
+# is fixed here, the log is checked against it, and the two shipped rule-homes are checked for
+# the same words — so drift in either direction fails the suite instead of a later pass.
+echo "decision log — relation grammar:"
+LOG="$KIT/docs/attest-decisions.md"
+RELATIONS='Supersedes|Supersedes in part|Narrows|Widens|Extends|Relates to'
+# `Related:` is a legacy spelling of `Relates to:` carried by ADR-0058 and ADR-0059, which were
+# pushed before it was noticed and are therefore immutable (ADR-0057). Accepted here so the
+# suite passes over history; it is named in the log header as not to be written again.
+used_bad=$(grep -hoE '^ +[A-Za-z][A-Za-z ]*: ADR-' "$LOG" \
+  | sed 's/^ *//; s/: ADR-$//' | sort -u | grep -vxE "$RELATIONS|Related" || true)
+if [ -z "$used_bad" ]; then
+  ok "every relation word in the log is one the rules name"
+else
+  fail "every relation word in the log is one the rules name (found: $(echo "$used_bad" | tr '\n' ' '))"
+fi
+
+for home in "DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decisions.md"; do
+  missing=""
+  for rel in "Supersedes" "Supersedes in part" "Narrows" "Widens" "Extends" "Relates to"; do
+    grep -q "$rel" "$KIT/$home" || missing="$missing $rel"
+  done
+  if [ -z "$missing" ]; then
+    ok "$home names all six relations"
+  else
+    fail "$home names all six relations (missing:$missing)"
+  fi
+done
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do

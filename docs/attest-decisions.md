@@ -15,23 +15,27 @@
 > `/audit-history` and the ship guard defend, for the same reason: what has left cannot be
 > recalled from whoever already read it.
 >
-> A new entry may carry, under its title, any of **five** relations, in two kinds. All five are
+> A new entry may carry, under its title, any of **six** relations, in two kinds. All six are
 > fields of the **new** entry and touch nothing older, so none of them costs an exception to the
-> rule above (attest ADR-0045, ADR-0056).
+> rule above (attest ADR-0045, ADR-0056, ADR-0064).
 >
 > **They change the older entry's reach:** `Supersedes: ADR-N` (it is reversed — this one alone
 > earns the `Status` flip) · `Supersedes in part: ADR-N` (half of it is) · `Narrows: ADR-N` (it
-> still stands entirely, and its scope turns out smaller than its text says). `Narrows` is for
-> the case this log kept hitting, and is what to reach for instead of editing an entry whose
-> reasoning was right and whose wording was too broad — editing is the one thing this log cannot
-> allow.
+> still stands entirely, and its scope turns out smaller than its text says) · `Widens: ADR-N`
+> (it still stands entirely, and its ground turns out larger — the mirror of `Narrows`).
+> `Narrows` is for the case this log kept hitting, and is what to reach for instead of editing an
+> entry whose reasoning was right and whose wording was too broad — editing is the one thing this
+> log cannot allow.
 >
 > **They only point:** `Extends: ADR-N` (this builds on that) · `Relates to: ADR-N` (read that
 > alongside this). Neither says anything about the older decision's scope, so neither is a softer
-> `Narrows` — reaching for one where the scope really did shrink hides a narrowing.
+> `Narrows` or `Widens` — reaching for one where the scope really did move hides the move.
 >
-> All five share a limit worth knowing: the field sits on the **new** entry, so a reader who
+> All six share a limit worth knowing: the field sits on the **new** entry, so a reader who
 > lands on the old one is not told — searching the log for its id is what finds the relation.
+> One spelling variant exists and is not to be repeated: ADR-0058 and ADR-0059 write `Related:`
+> where the field is `Relates to:`. Both entries were pushed before it was noticed, so they stand
+> as written; `scripts/smoke.sh` accepts that one legacy word and fails on any other.
 
 <!--
 Every entry below was reconstructed from a written record — the design-workflow `reject`
@@ -2005,3 +2009,37 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   Known limit, stated rather than papered over: the check sees only refs that exist and have
   been fetched, so two sessions that both start before either pushes still collide — for that
   case the rule is the renumber, not the prevention.
+
+## ADR-0064 — the log's sixth relation, and a grep that ends the series · 2026-09-12 · Accepted
+
+  Extends: ADR-0056 (the log's fourth and fifth relations are a decision too, and they ship).
+
+- **Context** — this is the third entry in a row spent on the same failure. ADR-0045 recorded the
+  third relation after it had been in use; ADR-0056 recorded the fourth and fifth after five
+  entries carried them; and merging PR #18 beside PR #19 brought in two more words that no
+  rule-home named: **`Widens:`** under ADR-0058 and **`Related:`** under ADR-0058 and ADR-0059.
+  Counted over the log as it stands after the merge: `Narrows` 12 · `Extends` 6 · `Relates to` 3
+  · `Related` 2 · `Widens` 1 — and `Supersedes` and `Supersedes in part` **0**, which is worth
+  knowing on its own: in sixty-three entries this log has never reversed a decision, only ever
+  moved the edges of one. Each time, the drift was found by an audit, one entry too late.
+- **Options** — (a) record `Widens` as the last two entries recorded their relations, and expect
+  a fourth such entry later; (b) record it **and** put the vocabulary under a check a command
+  runs; (c) refuse it and require `Extends` in its place.
+- **Decision** — (b).
+- **Why** — (c) fails twice over: the two entries are pushed, so ADR-0057 puts them out of reach
+  anyway, and it is wrong on the merits — `Extends` only points, so using it where an older
+  decision's ground actually grew hides the widening exactly as ADR-0056 said a pointer hides a
+  narrowing. `Widens` is the mirror of `Narrows` and the reach kind was missing it. (a) is the
+  option this log has now taken twice; taking it a third time would be recording the rule again
+  rather than fixing why it keeps escaping. A rule that has drifted three times does not need a
+  fourth statement, it needs a test: `smoke.sh` now greps every relation field in the log and
+  fails on any word the rules do not name, and separately asserts that all six words appear in
+  each of the three rule-homes — so the vocabulary cannot move in one place only.
+- **Consequences** — six relations in two kinds, in all three homes; suite 240 → 244, and the
+  new check was verified to fail on a planted `Contradicts:` before it was kept. `Related:`
+  stays in the two entries that carry it and is accepted by the check as a legacy spelling,
+  named in the log header as not to be repeated — the append-only cost of noticing late, made
+  visible rather than tidied away. One limit, stated plainly: the check carries the list, which
+  makes it a **fourth** copy of the vocabulary. That is accepted because it is the only copy
+  that fails loudly, and because it reads the other three — a change made in one home and not
+  the others now breaks the suite instead of surfacing in an audit two entries later.
