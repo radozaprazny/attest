@@ -35,6 +35,12 @@ How to use this file:
     that) · `Relates to: ADR-N` (read that alongside this). Neither is a softer `Narrows` —
     using one where the scope really did shrink hides the narrowing from every later reader.
   - IDs are sequential, zero-padded (ADR-0001, ADR-0002, …). Dates ISO YYYY-MM-DD.
+  - Take the next id from EVERY ref, not from your checkout — another session or an open branch
+    may already hold the number. `/decision` has the command. If two branches took the same id
+    anyway, the one that merges SECOND renumbers; that is the one edit of a pushed entry this
+    log sanctions, because a duplicate id breaks every citation.
+  - One session at a time in these documents. Two agents editing the same control document do
+    not see each other, and nothing here can tell you they were both there.
 -->
 
 <!-- Your first real entry goes here, with this shape (IDs start at ADR-0001; the

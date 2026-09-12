@@ -27,6 +27,15 @@ ADR-0030). `/business` makes that call for you once it knows the archetype. Docu
 not adopted cost nothing — the skills read them on demand, and an audit degrades to a note
 ("nothing declared") when one is absent.
 
+**One session at a time in these documents.** Two Claude sessions in one repository cannot see
+each other: the declaration hook prints the state at the start of *its own* session, and a skill
+reads the file from disk at the moment it runs, so a choice made in the other window exists
+nowhere either of them can look. The failure is quiet and it is not hypothetical — it put two
+different decisions into one adopter's log for one question, and it put two open PRs in *this*
+repository both claiming `ADR-0055` through `ADR-0057` (attest ADR-0063). Ids are now read from
+every ref, which catches the clash as soon as the other branch has been pushed; the rest is a
+habit no file can enforce — one window owns the control documents at a time.
+
 ### 1.1 `CLAUDE.md` — project rules and conventions
 - **How:** a file in the repo root; loaded **automatically every turn**. Quick add: start a
   prompt with `#` and Claude appends the line for you.

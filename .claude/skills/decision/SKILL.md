@@ -65,6 +65,26 @@ the other?"* If yes, record it; if no, leave it to the commit.
 ```
 
 - **IDs** are sequential, zero-padded (`ADR-0001`, `ADR-0002`, …). **Dates** ISO `YYYY-MM-DD`.
+- **The next id comes from every ref, not from your checkout** (attest ADR-0063). Two sessions
+  on one repository, or a session and a branch someone else is pushing to, otherwise take the
+  same number, and the collision surfaces only at the merge — by which time both entries are
+  written, cited and pushed:
+
+  ```sh
+  LOG=DECISIONS.md                      # attest's own log is docs/attest-decisions.md
+  git fetch --all --quiet 2>/dev/null   # a ref you have not fetched cannot be seen
+  git for-each-ref --format='%(refname)' refs/heads refs/remotes \
+    | xargs -I{} git grep -h -oE '^## ADR-[0-9]{4}' {} -- "$LOG" 2>/dev/null \
+    | sort -u | tail -1
+  ```
+
+  Take the next number above what that prints. If two sessions both start before either has
+  pushed, nothing local can see the clash and it lands at the merge: then **the branch that
+  merges second renumbers**, and when you choose the order, merge the branch with more citations
+  to its own ids first — renumbering is a mechanical `sed` over ids, so the cheaper side is the
+  one with fewer of them. That renumber is the one edit of a pushed entry this log sanctions,
+  and it changes ids only: a duplicate id breaks every citation in the log, which is worse than
+  the exception.
 - **Append-only, forward-only:** past entries are **immutable**. To reverse `ADR-0007`, append
   a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
   touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
@@ -97,8 +117,9 @@ the other?"* If yes, record it; if no, leave it to the commit.
 
 1. **Confirm it clears the threshold** above. If it is really a non-goal / a rule / an
    obligation, route it to the right doc instead and say so.
-2. **Read `DECISIONS.md`** to find the next `ADR-NNNN` id and match the house tone (an
-   empty template has no entries — start at `ADR-0001`).
+2. **Read `DECISIONS.md`** to match the house tone, and take the next `ADR-NNNN` id from
+   **every ref** with the command above — never from this checkout alone (an empty template has
+   no entries — start at `ADR-0001`).
 3. **Append one entry** with the five fields. Capture the **Options** and **Why** honestly —
    the discarded alternatives are the point. If the decision is compliance-relevant, note the
    regulatory consequence in `COMPLIANCE.md` and cross-reference this ADR id (record the fact

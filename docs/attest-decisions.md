@@ -1966,3 +1966,42 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   guidance to a judge, not a check a command can run — unlike the ADR-0060 arm or `smoke.sh`,
   nothing fails when it is ignored, and the next series is the only way to tell whether it
   helped. The number to watch is the one that moved here: majors across rounds on one tree.
+
+## ADR-0063 — the next id is read from every ref, and a landed collision is renumbered · 2026-09-12 · Accepted
+
+  Narrows: ADR-0057 (an entry becomes immutable when its commit is pushed).
+
+- **Context** — ids here are sequential and, until now, read from whatever checkout the session
+  happened to be in. Two sessions on one repository therefore take the same number without
+  either of them being able to notice. It happened in this repository on 2026-09-12: PR #18
+  (opened 09:48Z) and PR #19 (10:00Z) were written in parallel sessions and **both** recorded
+  `ADR-0055`, `ADR-0056` and `ADR-0057` — six different decisions on three ids, each branch
+  internally consistent, the clash visible only when the second one merged. Measured at that
+  point: 26 citations of those ids on #18, 45 on #19. The same blindness has a softer form an
+  adopter hit first: `/decision` in one session recorded a dependency choice the other session
+  had already decided the other way, and neither window could see the other (the author's
+  account; nothing in a repository records it).
+- **Options** — (a) leave it: a human notices at review, as happened here; (b) read the next id
+  from **every ref**, and write down who renumbers when a collision has already landed;
+  (c) drop sequential ids for something collision-free — a timestamp, a hash, a uuid.
+- **Decision** — (b).
+- **Why** — (c) ends the problem and costs more than it saves: the short id **is** this log's
+  citation surface. Sixty entries cite each other by number, and so do `audit-ladder.md`, four
+  skills, `ship_guard.sh`, `smoke.sh`, `install.sh` and GUIDE; `ADR-0037` is readable in a
+  sentence and `ADR-9f3c1e` is not, and converting would rewrite every one of those citations to
+  solve a clash that is rare and cheap to catch. (a) is what we had: it was caught, but only
+  after both branches were pushed, and the fix was a mechanical rewrite of 26 citations under a
+  merge that could as easily have been done by someone who did not know both branches. (b) is
+  one command in Mode 1, and it fails safe — a ref it cannot see it does not claim to have
+  checked.
+- **Consequences** — `/decision` Mode 1 takes the id from `git for-each-ref` over local **and**
+  remote refs after a `git fetch --all`; the shipped `DECISIONS.md` carries the rule in two
+  lines; GUIDE PART 1 states the wider fact that two sessions in one repository cannot see each
+  other. **The renumber is a sanctioned edit of a pushed entry**, which is why this narrows
+  ADR-0057: it rewrites **ids only**, never a word of content, and the alternative — a log with
+  two `ADR-0055`s — breaks every citation in it. The branch that merges second renumbers; where
+  the order is yours to pick, merge the branch with more citations first, since a `sed` over
+  fewer ids is the cheaper side. Worked example: #19 kept 0055–0057, #18 became 0058–0060.
+  Known limit, stated rather than papered over: the check sees only refs that exist and have
+  been fetched, so two sessions that both start before either pushes still collide — for that
+  case the rule is the renumber, not the prevention.
