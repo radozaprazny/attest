@@ -379,7 +379,10 @@ one output shape and one severity ladder so they read as a family:
   merges the findings under the shared ladder + ownership contract into **one** verdict. What
   flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
   there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
-  rule here.
+  rule here. The last line it prints is what to **do** — *commit*, or *fix these N, then
+  `/gate`* — and on a ✅ that is the end of the round: minors travel to `PROGRESS.md` *Next*,
+  they do not buy another run (attest ADR-0061, the reason in the ladder under *✅ ends the
+  round*).
 - **What for:** the whole per-change gate in one invocation. Touches no document and
   no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
   passes, verdict, and findings at **attestation altitude** (severity · pass · class · path,

@@ -1882,3 +1882,47 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   append, no space after `>`, a write in the last part of a compound, and reading a record into
   a file. Coverage stays deliberately partial (an editor, `python -c`) and README still says so.
   Suite 233 → 240.
+
+## ADR-0061 — a ✅ ends the round, and the gate's last line says what to do · 2026-09-12 · Accepted
+
+  Extends: ADR-0055 (the verdict line flips on a blocker or a major, and on nothing else).
+
+- **Context** — ADR-0055 gave the verdict line a rule and stopped there: it says when the line
+  reads ✅, never what follows a ✅. Nothing in the kit says when a gate may be run again, so
+  *"once more, to be sure"* was always available and always defensible. The first evidence that
+  this matters came from **outside this repository**, and could not have come from inside it:
+  all nine runs recorded here returned ⚠️ — the records are in `.attest/` and ADR-0055 counts
+  them — so the state after a ✅ had never occurred. An adopter running kit 0.8.0 gated one HEAD **five
+  times before the project's first real commit**, with no code in the tree at all — ⚠️ with three
+  majors, then ✅ four times over; minors 7 · 7 · 4 · 3 · 3; **73 minutes** between the first run
+  and the fifth, **49 of them after the gate had already said yes**; the series ended because the
+  author stopped it by hand. The author's account of the runs adds the part no record can carry
+  (a record holds no prose, ADR-0049): the ✅ verdicts recommended repairing minors *before*
+  committing, so the file said ready while the text said not yet, and the later rounds mostly
+  found inaccuracies introduced by the fixes of the round before.
+- **Options** — (a) leave it: ✅ already permits a commit, and a person who re-runs anyway has
+  made a choice; (b) detect the N-th run on one HEAD and narrow what the later runs may report;
+  (c) state the terminus where the verdict rule already lives, and make the gate's last line an
+  instruction rather than a list.
+- **Decision** — (c).
+- **Why** — (a) is what we had, and it lost: *permitted* is not *finished*, and the gap between
+  them is where an hour goes. The fuel was never the minors themselves but the absence of a
+  sentence saying **stop**, and prose that recommended work the verdict line called optional —
+  a contradiction the reader resolves in the direction of more work, every time. (b) was
+  weighed and rejected on two grounds, both fatal: it makes a run's severities depend on its
+  position in a series, so `0 major` in the fourth record would not mean what it means in the
+  first — and this record is a published attestation, read later by someone who cannot see the
+  series; and demoting wording findings to `nit` on a later pass contradicts ADR-0005 and
+  ADR-0029, which put stale wording on the ladder as `minor` deliberately. The bounded loop
+  that phase C proposes is the honest version of (b): a cap on rounds, not a sliding scale of
+  what counts.
+- **Consequences** — the ladder gains *✅ ends the round*, beside the rule it completes: commit,
+  carry the minors to `PROGRESS.md` *Next*, and do not re-run — including after fixing them,
+  because that fix is a new change and is gated when it is committed. `/gate` step 4 gains a
+  **last line**, one imperative sentence, derived from the verdict rather than judged, with
+  nothing permitted after it; GUIDE 3.6 says the same in one sentence for the human. Record
+  shape untouched, no version bump. Two limits worth naming: the rule binds the gate, not the
+  person — nothing prevents a re-run and nothing should, the point is that the gate stops
+  asking for one; and *Next* is the right home for a minor only while the document it names is
+  still editable, so a minor against an entry whose commit has been pushed needs a new entry
+  instead (ADR-0057).

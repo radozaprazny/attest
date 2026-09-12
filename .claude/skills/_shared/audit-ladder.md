@@ -62,6 +62,19 @@ is always red is a line nobody reads — the same argument that removed this kit
 about it is the author's call, not the gate's. (Attest ADR-0055, which extends ADR-0023 from
 `nit` to `minor`.)
 
+**✅ ends the round, and only a blocker or a major earns another one.** When the line reads ✅
+the gate is finished with this change: commit it, and carry the minors to wherever the project
+keeps its pending work (`PROGRESS.md`, *Next*). Do not re-run to watch them disappear, and do
+not fix them first and re-run to check the fix — that fix is a new change and gets gated when it
+is committed, like any other. Saying this out loud is the other half of the rule above: a
+verdict that merely *permits* a commit leaves *"once more, to be sure"* on the table, and that
+is the run where the gate stops paying for itself. Three of its four passes are judgment over
+prose, so a second look at the same tree returns a different list rather than an empty one, and
+every round's edits are fresh ground for the round after it. Measured in a repository that did
+exactly this before its first real commit: five runs on one HEAD across 73 minutes, ✅ from the
+second run on, seven minors closing to three — and 49 of those minutes spent after the gate had
+already said yes (attest ADR-0061; the run is in attest's own devlog, not in the kit).
+
 **The ship gate's threshold is narrower, and it was never weighed against this one.**
 `ship_guard.sh` reads `findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a
 record carrying a **major** clears a push while the same counts at commit time read ⚠️. That

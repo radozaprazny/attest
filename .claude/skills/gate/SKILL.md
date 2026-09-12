@@ -114,7 +114,13 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - **advisory** — the minors, and the reviewer's `nit`s last. Report them in full, but keep
      them under the act-on list and never let their number argue with the verdict: thirteen
      minors and a ✅ is a coherent result, and saying so is the point of the rung;
-   - each pass's recommended document update, if any — but **make none of them**.
+   - each pass's recommended document update, if any — but **make none of them**;
+   - **last line: what to do now, in one imperative sentence** — the only line that tells the
+     reader what to *do*, so nothing may follow it. It is derived, never judged: on ✅ it is
+     *"commit; the N minors go to `PROGRESS.md` Next"* (and a re-run is not among the options —
+     `_shared/audit-ladder.md`, *✅ ends the round*); on ⚠️ it names the act-on count and the
+     command that follows the fix, *"fix the N above, then `/gate`"*. A reader who stops after
+     this line has not missed an instruction (attest ADR-0061).
 5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
    if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
 
