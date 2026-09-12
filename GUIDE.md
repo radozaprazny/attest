@@ -142,7 +142,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   line either — so an empty log is not proof the hook is alive, only that nothing it knows about
   ran. This is a net for *forgetting*, not for variants; widen it by adding your own project's
   commands to that `case`.
-- **The publish path that never opens a shell** (attest ADR-0055). A GitHub MCP server pushes
+- **The publish path that never opens a shell** (attest ADR-0058). A GitHub MCP server pushes
   files, opens pull requests and creates repositories over the API — `git push` is never typed,
   so the `Bash` matcher never fires and, until this arm, the gate was simply absent there. The
   kit registers the same hook a second time for `mcp__github__push_files`,
@@ -211,7 +211,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   anything. A shell write into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`, and the
   in-place editors `sed -i`, `sed --in-place`, `perl -pi`, `truncate`) is
   caught by 2.2's own arm; an editor or `python -c` is not, and is not meant to be.
-  - **That arm is judged one command *part* at a time** (attest ADR-0057), unlike every other
+  - **That arm is judged one command *part* at a time** (attest ADR-0060), unlike every other
     arm in 2.2, which reads the command whole. As a single pattern it saw a redirect belonging
     to one command and a record path belonging to another as a write — `grep … > /tmp/n && ls
     .attest/ship-a.md` merely *reads* the record and still asked. Splitting on `;` `|` `&` first
@@ -237,7 +237,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   hook cannot have, and a believed-but-false gate is worse than a declared gap. That boundary
   belongs to **branch protection and required CI**, which are server-side and catch every path
   (attest ADR-0035).
-- **Not every MCP tool that touches GitHub is wired** (attest ADR-0055). `merge_pull_request` is
+- **Not every MCP tool that touches GitHub is wired** (attest ADR-0058). `merge_pull_request` is
   out for exactly the reason `gh pr merge` is, above. `delete_file` and `create_branch` send no
   content off the machine. `fork_repository` has no Bash counterpart on the list, and adding one
   spelling of a thing while missing the others advertises coverage the hook does not have. The
@@ -273,7 +273,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > (a record for this commit exists and does not attest a clean scan) · `ask` (no record at
 > all) · `dryrun` (waved through as a simple dry run) · `record` (something was writing a ship
 > record, from either hook) · `mcp` (a publish tool that never opens a shell, which no
-> record can clear — ADR-0055; the subject column is the tool name there, never the bytes
+> record can clear — ADR-0058; the subject column is the tool name there, never the bytes
 > it was sending). The **mode** column is what tells "the hook did not fire" from
 > "the hook fired and the mode auto-approved it" (attest ADR-0050); a payload without one
 > logs `-`. `blocked` and `ask` are both a permission

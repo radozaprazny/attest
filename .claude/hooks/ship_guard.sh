@@ -1,6 +1,6 @@
 #!/bin/sh
 # PreToolUse hook on Bash and on the publish tools of an MCP server: make the ship boundary
-# real (attest ADR-0028, widened past the shell by ADR-0055).
+# real (attest ADR-0028, widened past the shell by ADR-0058).
 #
 # /audit-history is the kit's ship gate — the check that no secret, no personal data and no
 # client name leaves the machine. Until now it was purely advisory: you had to remember it,
@@ -35,7 +35,7 @@ CMD="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$CMD" ] || CMD="$PAYLOAD"
 
-# WHICH TOOL this call is, which is the question the `case` below cannot ask (attest ADR-0055).
+# WHICH TOOL this call is, which is the question the `case` below cannot ask (attest ADR-0058).
 # The kit registers this hook twice: once for `Bash`, once for the publish tools of a GitHub MCP
 # server — those ship bytes without ever opening a shell, so no command string exists to match.
 #
@@ -47,7 +47,7 @@ CMD="$(printf '%s' "$PAYLOAD" |
 TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
   sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')"
 
-# The publish path that never opens a shell (attest ADR-0055). A GitHub MCP server pushes files,
+# The publish path that never opens a shell (attest ADR-0058). A GitHub MCP server pushes files,
 # opens pull requests and creates repositories over the API, so `git push` is never typed and the
 # `Bash` matcher never fires — the gate the README advertises was simply absent on that path,
 # which is the "believed-but-false gate" ADR-0035 refuses everywhere else.
@@ -99,7 +99,7 @@ esac
   # rule is that an extra prompt beats a miss.
   *"gh repo edit"*"--visibility"*|*"gh repo create"*)
     ACT="changes who can read this repository, its whole history included" ;;
-  # Not here any more: the record arm, which is judged per command PART below (ADR-0057).
+  # Not here any more: the record arm, which is judged per command PART below (ADR-0060).
   # A `*)` that exits would take every command the record check still has to see.
   *) ;;
 esac
@@ -113,7 +113,7 @@ esac
 # already has, and it is the shape that turns `1 blocker` into `0 blocker` without ever opening
 # the Write tool.
 #
-# Judged one command PART at a time, unlike every arm above (attest ADR-0057). As a single
+# Judged one command PART at a time, unlike every arm above (attest ADR-0060). As a single
 # whole-command `case`, `*">"*".attest/ship-"*` read a redirect belonging to one command and a
 # record path belonging to another as a write: `grep -c . README.md > /tmp/n && ls
 # .attest/ship-a.md` only READS the record and still asked, and `cp x y && ls .attest/ship-a.md`
@@ -149,7 +149,7 @@ fi
 # trace below, so one sanitisation serves both.
 # What the prompt and the trace will name. For an MCP call there is no command to quote, and
 # quoting the payload would put file content — possibly the very secret being shipped — into a
-# prompt and into a log on disk. The tool name is the whole subject (attest ADR-0055).
+# prompt and into a log on disk. The tool name is the whole subject (attest ADR-0058).
 if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
 SAFE="$(printf '%s' "$SUBJ" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
 
@@ -187,7 +187,7 @@ trace() { # trace <decision>
 
 # The MCP arm answers here, before the dry-run and record arms below: both of those read `$CMD`,
 # which for an MCP call is the raw payload, so `--dry-run` appearing anywhere in a file being
-# pushed would otherwise wave the push through (attest ADR-0055).
+# pushed would otherwise wave the push through (attest ADR-0058).
 if [ "${KIND:-}" = mcp ]; then
   trace mcp
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \

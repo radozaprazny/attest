@@ -7,8 +7,8 @@
 
 ## Current state
 
-**The gate covers the non-shell publish path — ADR-0055, and the front page stops overclaiming
-— ADR-0056.** A reader asked the question the README invites — *does nothing sensitive really
+**The gate covers the non-shell publish path — ADR-0058, and the front page stops overclaiming
+— ADR-0059.** A reader asked the question the README invites — *does nothing sensitive really
 leave?* — and probing the hook with real payloads answered most of it well: the literal list
 behaves exactly as PART 2.2 documents. It also found one path nothing in the kit named. The
 `PreToolUse` matcher is `Bash`, and a GitHub MCP server publishes over the API, so
@@ -23,11 +23,11 @@ suite 210 → 233.
 
 The same session found the front page claiming *"prove nothing sensitive leaks when you ship"*
 while *What it does not defend against*, ninety lines down, said the opposite at length.
-ADR-0056 states the mechanism instead of the outcome and names the coverage boundary where a
+ADR-0059 states the mechanism instead of the outcome and names the coverage boundary where a
 reader looks for it. **Still open: the GitHub *About* description carries the old sentence and
 is not in the tree** — it has to be changed by hand.
 
-**ADR-0057, found by the guard watching itself.** The push for the above left
+**ADR-0060, found by the guard watching itself.** The push for the above left
 `record … grep -c . README.md > /tmp/n && ls .attest/ship-a.md` in the trace — a command
 that lists a record, not one that writes it. The arm was a whole-command `case`, so a
 redirect in one half and a record path in the other read as a write. Now judged per command

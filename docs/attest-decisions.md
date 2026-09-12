@@ -1605,7 +1605,7 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
 
 ---
 
-## ADR-0055 — the ship gate covers the publish path that never opens a shell · 2026-09-12 · Accepted
+## ADR-0058 — the ship gate covers the publish path that never opens a shell · 2026-09-12 · Accepted
 
   Widens: ADR-0028 (make the ship boundary real). Related: ADR-0035 (a guard states only what it
   can back), ADR-0037 (what the record has to say).
@@ -1654,7 +1654,7 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
 
 ---
 
-## ADR-0056 — the front page claims what the hooks do, not what they prove · 2026-09-12 · Accepted
+## ADR-0059 — the front page claims what the hooks do, not what they prove · 2026-09-12 · Accepted
 
   Related: ADR-0035 (a guard states only what it can back), ADR-0049 (a record is an
   attestation, not a report).
@@ -1685,15 +1685,15 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   sentence and is not in the tree; it has to be changed by hand, or the front page and
   the social card disagree. Anything quoting the old line (a post, a README badge elsewhere) is now
   out of step by design. No behaviour changes and no test moves: this entry is a claim being
-  brought back to what ADR-0055 and the existing hooks actually do.
+  brought back to what ADR-0058 and the existing hooks actually do.
 
 ---
 
-## ADR-0057 — the record arm is judged per command part · 2026-09-12 · Accepted
+## ADR-0060 — the record arm is judged per command part · 2026-09-12 · Accepted
 
-  Narrows: ADR-0051, ADR-0054 (the record arm). Found while shipping ADR-0055.
+  Narrows: ADR-0051, ADR-0054 (the record arm). Found while shipping ADR-0058.
 
-- **Context** — pushing the ADR-0055 branch left this in the guard's own trace:
+- **Context** — pushing the ADR-0058 branch left this in the guard's own trace:
 
       09:29:48 record bd3b19d - grep -c . README.md   /tmp/n    ls .attest/ship-a.md
 

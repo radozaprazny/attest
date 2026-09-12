@@ -148,7 +148,7 @@ not *"was this repo ever audited"*, and not *"does a file with the right name ex
 (attest ADR-0028, narrowed by ADR-0037). **One path no record can clear:** a publish made
 through an MCP server rather than a shell (`push_files`, `create_pull_request`, …) sends bytes
 chosen in the call, which need not be committed or match HEAD — the guard asks there every
-time, and a clean record is not the answer to it (attest ADR-0055). Scan what you are about to
+time, and a clean record is not the answer to it (attest ADR-0058). Scan what you are about to
 send, or push through git so the record covers it. Write the
 record even when the verdict is clean: a clean ship is exactly the state the guard must be able
 to recognise.

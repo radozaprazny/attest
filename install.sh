@@ -283,7 +283,7 @@ say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagent
 # older stanza — or yours with the kit's hooks merged in — registers them already, and a
 # categorical warning would be false (ADR-0020). So ask the file which hooks it names.
 #
-# By NAME is not enough on its own any more (attest ADR-0055). The ship guard is registered
+# By NAME is not enough on its own any more (attest ADR-0058). The ship guard is registered
 # twice — once for `Bash`, once for the publish tools of a GitHub MCP server — so a stanza
 # written before that second registration names `ship_guard.sh`, passes a filename check, and
 # leaves the non-shell publish path ungated while this installer reports it as wired. That is
