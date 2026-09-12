@@ -7,6 +7,20 @@
 
 ## Current state
 
+**The gate covers the non-shell publish path — ADR-0055, and the front page stops overclaiming
+— ADR-0056.** A reader asked the question the README invites — *does nothing sensitive really
+leave?* — and probing the hook with real payloads answered most of it well: the literal list
+behaves exactly as PART 2.2 documents. It also found one path nothing in the kit named. The
+`PreToolUse` matcher is `Bash`, and a GitHub MCP server publishes over the API, so
+`push_files`, `create_or_update_file`, `create_pull_request` and `create_repository` shipped
+bytes with the hook never consulted and no line in the trace. Closed by registering the same
+hook for those tools; that arm **asks every time and never reads a record**, because a record
+attests the tree at a commit and these calls send bytes chosen in the call. `install.sh` now
+requires the new matcher before it calls a kept `settings.json` wired, or an upgrader would be
+told their guards run while the path stayed open. Twenty-three new `smoke.sh` assertions,
+seventeen failing against `332a40b` — the other six are controls that must pass both ways;
+suite 210 → 233.
+
 **Second review of `0.8.0` — ADR-0054, one arm wider.** An independent pass over the guard
 series found the record arm of ADR-0051 covers only the shapes that **create** a file: `sed -i`
 on a record went through with no prompt, and so did `sed --in-place` and `perl -pi`. Reproduced

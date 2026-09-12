@@ -78,7 +78,10 @@ leaves the machine — and it is no longer on your memory: a `PreToolUse` hook m
 literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
 the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
 substrings, not a category — `git -C … push`, `npm run release` and your own deploy script do not
-match, and widening it means adding them (the whole loop is laid out in
+match, and widening it means adding them. It also covers the publish path that never opens a
+shell — a GitHub MCP server's `push_files`, `create_or_update_file`, `create_pull_request`,
+`create_repository` — where it always asks, because those calls send bytes chosen in the call
+and a record about your HEAD is evidence about a different thing (the whole loop is laid out in
 [`GUIDE.md`](GUIDE.md) PART 9).
 
 > **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
@@ -124,8 +127,10 @@ enough to name. The four results that matter:
 kit edits your code. No warning you cannot act on at the moment it fires, which rules out the
 compaction and session-length nags. No inert `.example` files. Three hooks survive that bar, and
 each *prevents* rather than reminds: your non-goals go into context at every session start, the
-ship guard asks before a push the record does not clear — for the commands on its literal list
-(PART 2.2) — and the record guard asks before a ship record is written at all (PART 2.3). **Nothing the kit installs needs an interpreter beyond
+ship guard asks before a push the record does not clear — for the commands on its literal list,
+and for a publish made through an MCP server rather than a shell (PART 2.2) — and the record
+guard asks before a ship record is written at all (PART 2.3).
+**Nothing the kit installs needs an interpreter beyond
 `/bin/sh`** — every hook is POSIX shell (`install.sh` itself is bash, but it runs once and
 installs nothing that depends on it).
 

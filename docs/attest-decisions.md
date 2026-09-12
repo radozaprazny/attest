@@ -1602,3 +1602,53 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   lists the shapes, and GUIDE 2.4's *"four words"* is corrected to five — `record` joined them
   in ADR-0051 and the trace gained a fifth column in ADR-0050, and neither updated the page that
   tells you how to read the log.
+
+---
+
+## ADR-0055 — the ship gate covers the publish path that never opens a shell · 2026-09-12 · Accepted
+
+  Widens: ADR-0028 (make the ship boundary real). Related: ADR-0035 (a guard states only what it
+  can back), ADR-0037 (what the record has to say).
+
+- **Context** — a reader asked the plain question the README invites: *does nothing sensitive
+  really leave?* Probing the hook with real payloads answered most of it — the literal list
+  behaves exactly as PART 2.2 documents — and turned up one path the documentation never names.
+  `.claude/settings.json` matches `Bash`, and a GitHub MCP server publishes over the API:
+  `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` ship
+  bytes off the machine without a shell ever running. The hook is not consulted. No line
+  lands in the trace. Nothing in the kit said so — GUIDE 2.3 mentions "the ship guard matches
+  `Bash`" only to explain why the *record* guard exists, never to say a push could route
+  around it. A session
+  with that server connected — the one that found this — could have pushed with the gate silent.
+  That is the believed-but-false gate ADR-0035 refuses when the shoe is on the other foot.
+- **Options** — (a) document the gap and leave it, as `gh pr merge` is left; (b) a second hook
+  file for the MCP path; (c) register the same hook for those tool names and give it an arm.
+- **Decision** — (c), with the arm asking unconditionally and never reading a record.
+- **Why** — (a) is what ADR-0035 allows when the hook *cannot* cover a path, and that is not the
+  case here: a matcher covers it in one line. (b) forks the evidence check, the trace and the
+  sanitiser into two files that must agree forever. (c) keeps one hook, and the `tool_name`
+  already in the payload decides the arm.
+  The unconditional ask is the part worth stating. Every other arm passes on a clean record for
+  HEAD, and that is sound because `git push` sends commits — the tree the record is about. These
+  calls send bytes chosen **in the call**: they need not be committed, need not match HEAD, need
+  not be in git at all. A record naming HEAD is evidence about a different thing, so passing on
+  it would be precisely the false gate this entry exists to close. The prompt says so and points
+  at `git push`, where the record does cover what is sent.
+  For this arm the coverage lives in `settings.json`, not in the script. For Bash the matcher is
+  the word `Bash`, so the list must be in the hook; an MCP tool only ever reaches a hook the
+  matcher **names**, so the matcher *is* the list — and anything `mcp__*` that arrives asks,
+  because wiring a tool here is the statement that it publishes.
+- **Consequences** — the trace gains a sixth decision word, `mcp`, and its subject column is the
+  tool name: for Bash the subject is the command, but here the payload is file content, and a
+  guard that quoted it would write the shipped secret into a prompt and into a log on disk (a
+  smoke case pins that). Twenty-three new `smoke.sh` assertions, seventeen of which fail against
+  `332a40b` (suite 210 → 233; the other six are controls that must pass both ways).
+  `install.sh` now requires the MCP matcher alongside the three hook filenames before it calls
+  a kept `settings.json` wired — without that, an adopter upgrading from a pre-0.9
+  stanza would be told their guards run while this path stayed open, which is the same false
+  assurance one level up. The tools deliberately left out are listed in GUIDE 2.4 with reasons:
+  `merge_pull_request` (ADR-0033/0035), `delete_file` and `create_branch` (no content leaves),
+  `fork_repository` (no Bash counterpart), and the comment/review tools (what they send is not
+  the tree, so this gate's one piece of evidence has nothing to say about them, and a prompt on
+  every comment trains the click-through that makes the other arms worthless).
+

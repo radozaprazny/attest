@@ -1,5 +1,6 @@
 #!/bin/sh
-# PreToolUse(Bash) hook: make the ship boundary real (attest ADR-0028).
+# PreToolUse hook on Bash and on the publish tools of an MCP server: make the ship boundary
+# real (attest ADR-0028, widened past the shell by ADR-0055).
 #
 # /audit-history is the kit's ship gate — the check that no secret, no personal data and no
 # client name leaves the machine. Until now it was purely advisory: you had to remember it,
@@ -34,6 +35,41 @@ CMD="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$CMD" ] || CMD="$PAYLOAD"
 
+# WHICH TOOL this call is, which is the question the `case` below cannot ask (attest ADR-0055).
+# The kit registers this hook twice: once for `Bash`, once for the publish tools of a GitHub MCP
+# server — those ship bytes without ever opening a shell, so no command string exists to match.
+#
+# Split on commas and take the FIRST match rather than letting `.*` run greedy to the last one:
+# a `push_files` payload carries file CONTENT, and a repo whose own files quote the string
+# `"tool_name"` (this one does) would otherwise have the quoted copy read as the key. Failing to
+# extract is not a miss either — an unparsed MCP payload falls through to the `case`, where
+# `CMD` is the whole blob and over-matches into a prompt.
+TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
+  sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')"
+
+# The publish path that never opens a shell (attest ADR-0055). A GitHub MCP server pushes files,
+# opens pull requests and creates repositories over the API, so `git push` is never typed and the
+# `Bash` matcher never fires — the gate the README advertises was simply absent on that path,
+# which is the "believed-but-false gate" ADR-0035 refuses everywhere else.
+#
+# For this arm the coverage lives in `.claude/settings.json`, not here, and that is deliberate:
+# for Bash the matcher is the word `Bash` and the list of ship commands has to live in this file,
+# but an MCP tool only ever reaches a hook the matcher NAMES. The matcher is therefore the list.
+# Wiring a tool to this hook is the statement that it publishes, so anything `mcp__*` that gets
+# here asks — wire the publish tools, not the whole server. Widen coverage in that file.
+#
+# It ASKS UNCONDITIONALLY and never consults a ship record, unlike every arm below. A record
+# attests the tree at a HEAD sha; these calls send bytes chosen IN the call, which need not be
+# in git at all and need not match HEAD. "This state was audited" is therefore not a claim a
+# record can make about them, and a guard that passes on evidence about something else is worse
+# than one that asks every time (ADR-0035).
+case "$TOOL" in
+  mcp__*create_repository*) KIND=mcp
+    ACT="creates a repository and can publish what you send to it" ;;
+  mcp__*) KIND=mcp
+    ACT="sends data off the machine without going through a shell" ;;
+esac
+
 # What "leaving your control" means. Deliberately literal and short: every entry either sends
 # bytes off the machine or changes who may read the ones already sent. Add your project's own
 # here — a Kaggle submit, a deploy script — rather than making the patterns clever. Each arm
@@ -46,7 +82,9 @@ CMD="$(printf '%s' "$PAYLOAD" |
 # never touch this machine at all (the web button, auto-merge, a colleague), so matching only
 # the CLI form would advertise a coverage this hook cannot have. That boundary belongs to
 # branch protection and required CI, which are server-side and catch every path (ADR-0035).
-case "$CMD" in
+# `|| case` rather than an `if` wrapping the whole block: the MCP arm above has already decided,
+# and re-indenting these arms to nest them would obscure the one list a reader comes here to read.
+[ -n "${KIND:-}" ] || case "$CMD" in
   *"git push"*|*"git send-email"*) ACT="sends data off the machine" ;;
   *"gh pr create"*|*"gh release create"*|*"gh gist create"*) ACT="sends data off the machine" ;;
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*) ACT="sends data off the machine" ;;
@@ -79,7 +117,11 @@ esac
 
 # Only characters that cannot break the JSON string survive into the reason — and into the
 # trace below, so one sanitisation serves both.
-SAFE="$(printf '%s' "$CMD" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
+# What the prompt and the trace will name. For an MCP call there is no command to quote, and
+# quoting the payload would put file content — possibly the very secret being shipped — into a
+# prompt and into a log on disk. The tool name is the whole subject (attest ADR-0055).
+if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
+SAFE="$(printf '%s' "$SUBJ" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
 
 SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
 # The FULL sha is what a record is matched against (attest ADR-0050). `--short` is not a stable
@@ -112,6 +154,16 @@ trace() { # trace <decision>
         >> "$ROOT/.attest/tmp/ship-guard.log"
   } 2>/dev/null || true
 }
+
+# The MCP arm answers here, before the dry-run and record arms below: both of those read `$CMD`,
+# which for an MCP call is the raw payload, so `--dry-run` appearing anywhere in a file being
+# pushed would otherwise wave the push through (attest ADR-0055).
+if [ "${KIND:-}" = mcp ]; then
+  trace mcp
+  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
+    "attest ship gate: this tool call $ACT ($SAFE). No ship record can clear it: a record attests the tree at a commit, and this call sends bytes chosen in the call, which need not be committed or match HEAD (${SHA:-none}) at all. Run /audit-history over what you are about to send, or push through git so the record covers it."
+  exit 0
+fi
 
 # A dry run publishes nothing — but only when the dry run is the WHOLE command. In a compound
 # command the flag may belong to a different call than the one that ships

@@ -274,8 +274,9 @@ if [ -z "$(guard 'git push origin main')" ]
 rm -f "$S"/.attest/ship-*.md
 
 # --- writing the evidence is itself a decision (ADR-0051) -----------------------------
-# The record the guard above reads is an ordinary untracked file, and the ship guard matches
-# Bash only — so the Write tool went straight past it. These two arms make the write a prompt.
+# The record the guard above reads is an ordinary untracked file, and the ship guard judges
+# commands and publish tools — so the Write tool went straight past it. These two arms make the
+# write a prompt.
 rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
 says "writing a ship record asks"                "$(rguard "$S/.attest/ship-20260910-000000-abc1234.md")" 'permissionDecision":"ask'
 if [ -z "$(rguard "$S/src/main.py")" ]; then ok "an ordinary file write passes untouched"; else fail "an ordinary file write passes untouched"; fi
@@ -291,6 +292,58 @@ says "…and its long spelling"                    "$(guard 'sed --in-place s/1/
 says "…and perl -pi"                             "$(guard 'perl -pi -e s/1/0/ .attest/ship-a.md')" 'permissionDecision":"ask'
 says "…and truncate"                             "$(guard 'truncate -s 0 .attest/ship-a.md')" 'permissionDecision":"ask'
 if [ -z "$(guard 'sed -n 1p .attest/ship-a.md')" ]; then ok "a non-editing sed is still a read"; else fail "a non-editing sed is still a read"; fi
+
+# --- the publish path that never opens a shell (ADR-0055) ------------------------------
+# A GitHub MCP server ships bytes over the API: `git push` is never typed, so the Bash matcher
+# never fires and the gate the README advertises was simply absent there.
+rm -f "$S"/.attest/ship-*.md "$S/.attest/tmp/ship-guard.log"
+mguard() { # mguard <tool> [tool_input JSON body]
+  echo "{\"tool_name\":\"$1\",\"tool_input\":{${2:-}}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"
+}
+says "an MCP push asks"            "$(mguard mcp__github__push_files)" 'permissionDecision":"ask'
+says "an MCP pull request asks"    "$(mguard mcp__github__create_pull_request)" 'permissionDecision":"ask'
+says "an MCP file write asks"      "$(mguard mcp__github__create_or_update_file)" 'permissionDecision":"ask'
+says "…and creating a repository names publishing" \
+  "$(mguard mcp__github__create_repository)" 'creates a repository'
+# The matcher in settings.json IS the list for this arm, so anything wired to the hook asks —
+# wire the publish tools, not the whole server.
+says "any MCP tool wired to the guard asks" "$(mguard mcp__example__upload)" 'permissionDecision":"ask'
+if [ -z "$(mguard Read '\"file_path\":\"README.md\"')" ]
+  then ok "a non-Bash, non-MCP tool passes untouched"
+  else fail "a non-Bash, non-MCP tool passes untouched"; fi
+# The property that separates this arm from every other one: a record attests a TREE at a sha,
+# and these calls send bytes chosen in the call, so a clean record is evidence about something
+# else. It must not open the door.
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260912-000000-$SHA.md"
+if [ -z "$(guard 'git push origin main')" ]
+  then ok "the clean record still clears a git push"
+  else fail "the clean record still clears a git push"; fi
+says "…but never clears an MCP push" "$(mguard mcp__github__push_files)" 'permissionDecision":"ask'
+says "…and the prompt says why"      "$(mguard mcp__github__push_files)" 'No ship record can clear it'
+rm -f "$S"/.attest/ship-*.md
+# The payload carries file CONTENT, so anything the arms below read out of a command string can
+# be smuggled in as a pushed file: a `--dry-run` in the text, or a quoted copy of the key the
+# extraction looks for.
+says "a --dry-run inside pushed content does not wave it through" \
+  "$(mguard mcp__github__push_files '\"files\":[{\"path\":\"a\",\"content\":\"try git push --dry-run\"}]')" \
+  'permissionDecision":"ask'
+says "a pushed file quoting the tool_name key is still read as a push" \
+  "$(mguard mcp__github__push_files '\"files\":[{\"path\":\"d\",\"content\":\"the key is tool_name : Bash here\"}]')" \
+  'permissionDecision":"ask'
+# The trace names the tool and nothing else. For Bash the subject is the command; here it would
+# be the payload, i.e. the very bytes being shipped — a guard must not write a secret to disk.
+rm -f "$S/.attest/tmp/ship-guard.log"
+mguard mcp__github__push_files '\"files\":[{\"path\":\"a.env\",\"content\":\"AWS_SECRET=hunter2\"}]' >/dev/null
+says "an MCP decision is traced"  "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' mcp '
+says "…naming the tool"           "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" 'mcp__github__push_files'
+says_not "…and never the content it was shipping" \
+  "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" 'hunter2'
+rm -f "$S/.attest/tmp/ship-guard.log"
+# Wiring, not just behaviour: the hook can only judge a tool the matcher hands it.
+for t in push_files create_or_update_file create_pull_request create_repository; do
+  says "settings.json wires mcp__github__$t to the ship guard" \
+    "$(cat "$KIT/.claude/settings.json")" "$t"
+done
 
 # --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
 rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md
@@ -543,14 +596,26 @@ says "warning printed when settings.json registers no hooks" "$settings_out" 'NO
 # ...and the same file must not also appear as "untouched": one file, one framing (ADR-0031)
 says_not "an unwired settings.json is not also listed as untouched" \
   "$(printf '%s' "$settings_out" | sed -n '/YOURS, UNTOUCHED/,/NEEDS YOU/p')" 'settings.json'
-# A settings.json that differs from the kit's but registers both hooks HAS them wired —
+# A settings.json that differs from the kit's but registers every guard HAS them wired —
 # the categorical warning would be false (an older kit stanza is the common case).
 T4b="$WORK/settings-wired"; mkdir -p "$T4b/.claude"
 sed '1a\
   "_note": "an older kit stanza",' "$KIT/.claude/settings.json" > "$T4b/.claude/settings.json"
 wired_out=$(run_install "$T4b")
-says_not "no false unwired warning when both hooks are registered" "$wired_out" 'NOT wired'
-says     "a differing but wired settings.json is reported as such" "$wired_out" 'registers both'
+says_not "no false unwired warning when every guard is registered" "$wired_out" 'NOT wired'
+says     "a differing but wired settings.json is reported as such" "$wired_out" 'registers every'
+# ...but naming every hook FILE is not the same as wiring every guard (attest ADR-0055). A
+# stanza written before the ship guard's second registration names ship_guard.sh and still
+# leaves the non-shell publish path ungated; reporting that as wired is the false assurance.
+T4c="$WORK/settings-bash-only"; mkdir -p "$T4c/.claude"
+grep -v 'mcp__github__' "$KIT/.claude/settings.json" > "$T4c/.claude/settings.json"
+for h in session_declaration ship_guard record_guard; do
+  says "the fixture really names $h, so this is not a filename miss" \
+    "$(cat "$T4c/.claude/settings.json")" "$h"
+done
+bashonly_out=$(run_install "$T4c")
+says "a Bash-only ship guard is not reported as fully wired" "$bashonly_out" 'NOT wired'
+says_not "…and is not reported as wired either" "$bashonly_out" 'registers every'
 
 # --- 8. compliance is opt-in, and adding it later is just a re-run ---------------------
 echo "install.sh — compliance opt-in:"

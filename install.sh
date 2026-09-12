@@ -282,10 +282,17 @@ say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagent
 # Warn about unwired hooks only when the kept settings.json really leaves one unwired: an
 # older stanza — or yours with the kit's hooks merged in — registers them already, and a
 # categorical warning would be false (ADR-0020). So ask the file which hooks it names.
+#
+# By NAME is not enough on its own any more (attest ADR-0055). The ship guard is registered
+# twice — once for `Bash`, once for the publish tools of a GitHub MCP server — so a stanza
+# written before that second registration names `ship_guard.sh`, passes a filename check, and
+# leaves the non-shell publish path ungated while this installer reports it as wired. That is
+# the false assurance ADR-0035 refuses, so the MCP matcher is required alongside the filenames.
 KIT_HOOKS=()
 for h in "$KIT"/.claude/hooks/*; do
   [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
 done
+KIT_HOOKS+=("mcp__github__")
 SETTINGS_STATE="absent"
 if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
   if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
@@ -305,7 +312,7 @@ copy_if_absent ".claude/settings.json" "settings"
 case "$LAST" in new) G_NEW=$((G_NEW + 1)) ;; esac
 if [ "$SETTINGS_STATE" = "unwired" ]; then
   G_ACT=$((G_ACT + 1))
-  note_needs_you ".claude/settings.json" "your settings kept, and they leave one of the kit's hooks unwired — see the stanza below"
+  note_needs_you ".claude/settings.json" "your settings kept, and they do not wire every one of the kit's guards — see the stanza below"
 fi
 say "$(group_icon)" "Guards" "non-goals into every session · a ship gate before anything leaves"
 
@@ -399,14 +406,16 @@ fi
 if [ "$SETTINGS_STATE" = "unwired" ]; then
   cat <<'EOF'
 
-  ⚠ The hooks it leaves out are on disk but NOT wired, and will never run. Merge this in:
+  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook, or the
+    ship guard's second registration, which is the only thing gating a push made through an
+    MCP server rather than a shell. Merge this in:
 
 EOF
   sed 's/^/      /' "$KIT/.claude/settings.json"
 elif [ "$SETTINGS_STATE" = "wired" ]; then
   echo
-  echo "  · Your .claude/settings.json was kept. It differs from the kit's but registers both"
-  echo "    hooks, so they will run."
+  echo "  · Your .claude/settings.json was kept. It differs from the kit's but registers every"
+  echo "    one of the kit's guards, so they will run."
 fi
 
 # --- next ------------------------------------------------------------------------------------
