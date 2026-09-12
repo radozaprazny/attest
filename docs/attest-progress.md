@@ -27,6 +27,13 @@ ADR-0056 states the mechanism instead of the outcome and names the coverage boun
 reader looks for it. **Still open: the GitHub *About* description carries the old sentence and
 is not in the tree** — it has to be changed by hand.
 
+**ADR-0057, found by the guard watching itself.** The push for the above left
+`record … grep -c . README.md > /tmp/n && ls .attest/ship-a.md` in the trace — a command
+that lists a record, not one that writes it. The arm was a whole-command `case`, so a
+redirect in one half and a record path in the other read as a write. Now judged per command
+part. Tightening the pattern instead would have dropped absolute-path writes, which is why
+the fix splits rather than narrows. Suite 233 → 240.
+
 **Second review of `0.8.0` — ADR-0054, one arm wider.** An independent pass over the guard
 series found the record arm of ADR-0051 covers only the shapes that **create** a file: `sed -i`
 on a record went through with no prompt, and so did `sed --in-place` and `perl -pi`. Reproduced

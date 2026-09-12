@@ -99,21 +99,51 @@ esac
   # rule is that an extra prompt beats a miss.
   *"gh repo edit"*"--visibility"*|*"gh repo create"*)
     ACT="changes who can read this repository, its whole history included" ;;
-  # Writing the evidence is itself an event worth a human (attest ADR-0051). A record is an
-  # ordinary untracked file, so anything that can write a file can write one — including the
-  # agent whose work the record attests. This arm covers the shapes a shell actually uses to
-  # write; a determined path (an editor, `python -c`) is not covered and is not meant to be.
-  # The boundary this kit defends is forgetting, not an adversary — see README.
-  # In-place editors belong here too (attest ADR-0054). ADR-0051 listed the shapes that CREATE
-  # a file and missed the ones that rewrite one — and `sed -i` is not an exotic path, it is how
-  # a shell edits a file it already has, which is exactly the arm that turns `1 blocker` into
-  # `0 blocker` without ever opening the Write tool.
-  *">"*".attest/ship-"*|*"tee"*".attest/ship-"*|*"cp "*".attest/ship-"*|*"mv "*".attest/ship-"*|\
-  *"sed -i"*".attest/ship-"*|*"sed --in-place"*".attest/ship-"*|*"perl -pi"*".attest/ship-"*|\
-  *"truncate"*".attest/ship-"*)
-    KIND=record; ACT="writes a ship record — the file this gate reads as evidence" ;;
-  *) exit 0 ;;
+  # Not here any more: the record arm, which is judged per command PART below (ADR-0057).
+  # A `*)` that exits would take every command the record check still has to see.
+  *) ;;
 esac
+
+# Writing the evidence is itself an event worth a human (attest ADR-0051). A record is an
+# ordinary untracked file, so anything that can write a file can write one — including the agent
+# whose work the record attests. This covers the shapes a shell actually uses to write; a
+# determined path (an editor, `python -c`) is not covered and is not meant to be. The boundary
+# this kit defends is forgetting, not an adversary — see README. In-place editors belong here
+# too (attest ADR-0054): `sed -i` is not an exotic path, it is how a shell edits a file it
+# already has, and it is the shape that turns `1 blocker` into `0 blocker` without ever opening
+# the Write tool.
+#
+# Judged one command PART at a time, unlike every arm above (attest ADR-0057). As a single
+# whole-command `case`, `*">"*".attest/ship-"*` read a redirect belonging to one command and a
+# record path belonging to another as a write: `grep -c . README.md > /tmp/n && ls
+# .attest/ship-a.md` only READS the record and still asked, and `cp x y && ls .attest/ship-a.md`
+# the same. An over-prompt rather than a miss, so it never opened a door — but a prompt on
+# reading is exactly what ADR-0054 refused to buy, because it trains the click-through that
+# makes the arms that DO gate something worthless. Splitting first costs one `tr` and keeps
+# every real write: a redirect and its target are in the same part by definition.
+#
+# `sed 's/\\n/;/g'` first, because a newline survives JSON escaping as the two characters \n;
+# then `>` is glued to its target so the spaced spelling needs no second pattern; `>` BEFORE the
+# path is what separates writing a record from reading one into something else (`cat
+# .attest/ship-a.md >/tmp/x`).
+if [ -z "${ACT:-}" ]; then
+  _parts="$(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
+  _oifs="$IFS"; IFS='
+'
+  for _part in $_parts; do
+    case "$_part" in
+      *">"*".attest/ship-"*|*"tee"*".attest/ship-"*|*"cp "*".attest/ship-"*|\
+      *"mv "*".attest/ship-"*|*"sed -i"*".attest/ship-"*|*"sed --in-place"*".attest/ship-"*|\
+      *"perl -pi"*".attest/ship-"*|*"truncate"*".attest/ship-"*)
+        KIND=record; ACT="writes a ship record — the file this gate reads as evidence"; break ;;
+    esac
+  done
+  IFS="$_oifs"
+fi
+
+# Nothing this hook knows about — the command proceeds untouched, and leaves no trace line, so
+# an empty log means only that nothing it recognises ran (GUIDE 2.2).
+[ -n "${ACT:-}" ] || exit 0
 
 # Only characters that cannot break the JSON string survive into the reason — and into the
 # trace below, so one sanitisation serves both.

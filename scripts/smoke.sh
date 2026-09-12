@@ -292,6 +292,26 @@ says "…and its long spelling"                    "$(guard 'sed --in-place s/1/
 says "…and perl -pi"                             "$(guard 'perl -pi -e s/1/0/ .attest/ship-a.md')" 'permissionDecision":"ask'
 says "…and truncate"                             "$(guard 'truncate -s 0 .attest/ship-a.md')" 'permissionDecision":"ask'
 if [ -z "$(guard 'sed -n 1p .attest/ship-a.md')" ]; then ok "a non-editing sed is still a read"; else fail "a non-editing sed is still a read"; fi
+# ...and the arm is judged per command PART (ADR-0057): as one whole-command pattern it read a
+# redirect belonging to one command and a record path belonging to another as a write.
+if [ -z "$(guard 'grep -c . README.md > /tmp/n && ls .attest/ship-a.md')" ]
+  then ok "a redirect in another part of a compound is not a record write"
+  else fail "a redirect in another part of a compound is not a record write"; fi
+if [ -z "$(guard 'cp x y && ls .attest/ship-a.md')" ]
+  then ok "…and neither is a cp in another part"
+  else fail "…and neither is a cp in another part"; fi
+if [ -z "$(guard 'cat .attest/ship-a.md > /tmp/x')" ]
+  then ok "reading a record INTO something else is still a read"
+  else fail "reading a record INTO something else is still a read"; fi
+# The split must not cost a single real write. An absolute path is the one that would break if
+# the fix had tightened the pattern instead of splitting the command.
+says "a redirect into a record by absolute path still asks" \
+  "$(guard 'printf x > /home/user/attest/.attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and an append"          "$(guard 'printf x >> .attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and with no space after the redirect" \
+  "$(guard 'printf x >.attest/ship-a.md')" 'permissionDecision":"ask'
+says "…and a write in the LAST part of a compound" \
+  "$(guard 'cd /tmp && printf x > .attest/ship-a.md')" 'permissionDecision":"ask'
 
 # --- the publish path that never opens a shell (ADR-0055) ------------------------------
 # A GitHub MCP server ships bytes over the API: `git push` is never typed, so the Bash matcher

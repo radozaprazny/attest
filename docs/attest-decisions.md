@@ -1686,3 +1686,45 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   the social card disagree. Anything quoting the old line (a post, a README badge elsewhere) is now
   out of step by design. No behaviour changes and no test moves: this entry is a claim being
   brought back to what ADR-0055 and the existing hooks actually do.
+
+---
+
+## ADR-0057 — the record arm is judged per command part · 2026-09-12 · Accepted
+
+  Narrows: ADR-0051, ADR-0054 (the record arm). Found while shipping ADR-0055.
+
+- **Context** — pushing the ADR-0055 branch left this in the guard's own trace:
+
+      09:29:48 record bd3b19d - grep -c . README.md   /tmp/n    ls .attest/ship-a.md
+
+  That command writes no record; it lists one. The arm was a whole-command `case`, and
+  `*">"*".attest/ship-"*` asks only that a `>` appear *somewhere* before `.attest/ship-` appears
+  *somewhere* — so a redirect belonging to the first half of a compound and a record path
+  belonging to the second half read as a write. `cp x y && ls .attest/ship-a.md` did the same
+  through the `cp` pattern. An over-prompt, never a miss, so no door was opened; but ADR-0054
+  rejected "match any command mentioning `.attest/ship-`" precisely because **a prompt on
+  reading trains the click-through that makes the arms that do gate something worthless**, and
+  this arm had been doing a weaker version of that all along.
+- **Options** — (a) leave it, under this file's "an extra prompt beats a miss"; (b) tighten the
+  pattern so `>` must be adjacent to the path; (c) split the command on `;` `|` `&` and judge
+  each part on its own.
+- **Decision** — (c), with two normalisations first: the two-character `\n` that survives JSON
+  escaping becomes a separator, and `>` is glued to its target so the spaced spelling needs no
+  second pattern.
+- **Why** — (a) is the rule quoted against its own purpose: the rule exists so coverage is never
+  traded for tidiness, not so a known false prompt can be kept. (b) is what a first attempt
+  reaches for and it is a **miss generator**: `> /home/user/p/.attest/ship-a.md` puts a path
+  between the redirect and the name, and no glob expresses "no whitespace in between", so
+  tightening would have dropped absolute-path writes — trading an over-prompt for exactly the
+  failure the arm exists to prevent. (c) needs no pattern change at all: a redirect and its
+  target are in the same part **by definition**, so every real write survives unchanged, and the
+  arms that were never about redirects (`cp`, `mv`, `tee`, the in-place editors) get the same
+  correction for free. `>` before the path still separates writing a record from reading one
+  into something else (`cat .attest/ship-a.md >/tmp/x`).
+- **Consequences** — the record check moves out of the publish `case`, which therefore loses its
+  `*) exit 0`; a single `[ -n "$ACT" ] || exit 0` below is now the one place a command the hook
+  does not recognise leaves. Seven `smoke.sh` cases: two fail against `bd3b19d` (the two false
+  positives), five are controls pinning that the split cost no real write — absolute path,
+  append, no space after `>`, a write in the last part of a compound, and reading a record into
+  a file. Coverage stays deliberately partial (an editor, `python -c`) and README still says so.
+  Suite 233 → 240.

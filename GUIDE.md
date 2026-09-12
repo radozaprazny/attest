@@ -211,6 +211,13 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   anything. A shell write into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`, and the
   in-place editors `sed -i`, `sed --in-place`, `perl -pi`, `truncate`) is
   caught by 2.2's own arm; an editor or `python -c` is not, and is not meant to be.
+  - **That arm is judged one command *part* at a time** (attest ADR-0057), unlike every other
+    arm in 2.2, which reads the command whole. As a single pattern it saw a redirect belonging
+    to one command and a record path belonging to another as a write — `grep … > /tmp/n && ls
+    .attest/ship-a.md` merely *reads* the record and still asked. Splitting on `;` `|` `&` first
+    costs nothing and keeps every real write, since a redirect and its target are in the same
+    part by definition. `>` must also come *before* the path, so `cat .attest/ship-a.md >/tmp/x`
+    reads rather than writes.
 - **Gate records are not hooked.** A `gate-*.md` attests a commit-time run that no machine
   reads, so a prompt there would be friction without a decision behind it.
 
