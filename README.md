@@ -3,8 +3,8 @@
 Most Claude Code starters give you convenience. `attest` gives you **governance**:
 living documents, audit-gate skills, and three hooks that run without being asked — together
 they keep an AI-assisted project honest to what you declared: its purpose, its boundaries,
-its decisions, and the rules it must operate under — and prove nothing sensitive leaks when
-you ship.
+its decisions, and the rules it must operate under — and turn the leak scan from something you
+have to remember into a gate that stops you at the moment you would have forgotten it.
 
 Built for work in regulated or high-stakes contexts (EU AI Act, GDPR, …), but useful
 to anyone who wants a repo that answers *the questions an auditor asks, not just the
@@ -78,7 +78,10 @@ leaves the machine — and it is no longer on your memory: a `PreToolUse` hook m
 literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
 the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
 substrings, not a category — `git -C … push`, `npm run release` and your own deploy script do not
-match, and widening it means adding them (the whole loop is laid out in
+match, and widening it means adding them. It also covers the publish path that never opens a
+shell — a GitHub MCP server's `push_files`, `create_or_update_file`, `create_pull_request`,
+`create_repository` — where it always asks, because those calls send bytes chosen in the call
+and a record about your HEAD is evidence about a different thing (the whole loop is laid out in
 [`GUIDE.md`](GUIDE.md) PART 9).
 
 > **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
@@ -102,6 +105,14 @@ the margins, so they advise a merge, never block one (`METHOD.md` property 10). 
 does have a real boundary it says so and means it — the document auditors run without Bash,
 Edit or Write, so they *cannot* change the repository rather than being asked not to.
 
+**And the ship guard sees what it is pointed at, nothing more.** It is a list, so a deploy
+script of your own, an exfiltrating `curl`, or a publish tool you never wired past it leave no
+prompt behind — the trace under `.attest/tmp/` shows what it decided, and an empty one means
+only that nothing it knows about ran. The scan itself is a model reading a diff and a history,
+not a proof: run `gitleaks` or `trufflehog` alongside it. What the kit does give you is that
+the check is no longer yours to remember, and that when it passes it leaves a dated
+attestation — which is a different and smaller claim than *nothing sensitive can leave*.
+
 ## Does it hold up?
 
 Dogfooded before shipping: two sandboxes seeded with **known planted faults**, audited by
@@ -124,8 +135,10 @@ enough to name. The four results that matter:
 kit edits your code. No warning you cannot act on at the moment it fires, which rules out the
 compaction and session-length nags. No inert `.example` files. Three hooks survive that bar, and
 each *prevents* rather than reminds: your non-goals go into context at every session start, the
-ship guard asks before a push the record does not clear — for the commands on its literal list
-(PART 2.2) — and the record guard asks before a ship record is written at all (PART 2.3). **Nothing the kit installs needs an interpreter beyond
+ship guard asks before a push the record does not clear — for the commands on its literal list,
+and for a publish made through an MCP server rather than a shell (PART 2.2) — and the record
+guard asks before a ship record is written at all (PART 2.3).
+**Nothing the kit installs needs an interpreter beyond
 `/bin/sh`** — every hook is POSIX shell (`install.sh` itself is bash, but it runs once and
 installs nothing that depends on it).
 

@@ -126,7 +126,7 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   until the next `## `, so `### Ďalší krok` is read as a subsection of whatever precedes it and
   has to be promoted to `## `.
 
-### 2.2 `PreToolUse` on `Bash` — the ship guard (`ship_guard.sh`)
+### 2.2 `PreToolUse` on `Bash` and the publish MCP tools — the ship guard (`ship_guard.sh`)
 - **How:** before Claude runs a Bash command, the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
   create`, `npm publish`, `twine upload`, `cargo publish`, `docker push`, a Kaggle submit,
@@ -142,6 +142,27 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   line either — so an empty log is not proof the hook is alive, only that nothing it knows about
   ran. This is a net for *forgetting*, not for variants; widen it by adding your own project's
   commands to that `case`.
+- **The publish path that never opens a shell** (attest ADR-0058). A GitHub MCP server pushes
+  files, opens pull requests and creates repositories over the API — `git push` is never typed,
+  so the `Bash` matcher never fires and, until this arm, the gate was simply absent there. The
+  kit registers the same hook a second time for `mcp__github__push_files`,
+  `create_or_update_file`, `create_pull_request` and `create_repository`.
+  - **For this arm the list lives in `.claude/settings.json`, not in the hook** — and that is
+    the honest place for it. For Bash the matcher is the word `Bash`, so the list of ship
+    commands has to be inside the script; an MCP tool only ever reaches a hook the matcher
+    **names**, so the matcher *is* the list. Wiring a tool to this hook is the statement that it
+    publishes: anything `mcp__*` that gets there asks. Wire the publish tools, not the server.
+  - **It asks every time and never consults a record.** Every other arm passes on a clean record
+    for HEAD. This one cannot: a record attests the **tree at a commit**, and these calls send
+    bytes chosen **in the call**, which need not be committed and need not match HEAD. Passing
+    on evidence about something else is the believed-but-false gate ADR-0035 refuses; the prompt
+    says so, and points you at `git push` if you want the record to cover the thing you send.
+  - **The trace names the tool and nothing else.** For Bash the subject is the command; here the
+    payload *is* the file content, so quoting it would write the very secret being shipped into
+    a prompt and into a log on disk.
+  - **Upgrading from a pre-0.9 stanza:** `install.sh` now requires the MCP matcher as well as
+    the three hook filenames before it calls your `settings.json` wired — a file that names
+    `ship_guard.sh` under `Bash` alone is reported, with the kit's stanza to merge in.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
@@ -178,8 +199,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   not a `.attest/ship-*.md` passes untouched; a ship record makes it **ask**, naming the file.
 - **Why:** 2.2's decision is read out of that file, and the file is ordinary and untracked —
   nothing signs it, and `disable-model-invocation: true` stops the model *invoking*
-  `/audit-history`, not *writing a file*. The ship guard matches `Bash`, so the `Write` tool went
-  straight past it. That left the kit's most load-bearing artefact resting on a promise, which
+  `/audit-history`, not *writing a file*. The ship guard judges commands and publish tools, so
+  the `Write` tool went straight past it. That left the kit's most load-bearing artefact resting on a promise, which
   is the one thing this kit tells you not to accept (attest ADR-0051).
 - **What it is worth, exactly:** it does not make a forged record impossible. It makes writing
   one a prompt **at the moment you still know whether an audit ran** — earlier and better
@@ -190,6 +211,13 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   anything. A shell write into a record (`… > .attest/ship-….md`, `tee`, `cp`, `mv`, and the
   in-place editors `sed -i`, `sed --in-place`, `perl -pi`, `truncate`) is
   caught by 2.2's own arm; an editor or `python -c` is not, and is not meant to be.
+  - **That arm is judged one command *part* at a time** (attest ADR-0060), unlike every other
+    arm in 2.2, which reads the command whole. As a single pattern it saw a redirect belonging
+    to one command and a record path belonging to another as a write — `grep … > /tmp/n && ls
+    .attest/ship-a.md` merely *reads* the record and still asked. Splitting on `;` `|` `&` first
+    costs nothing and keeps every real write, since a redirect and its target are in the same
+    part by definition. `>` must also come *before* the path, so `cat .attest/ship-a.md >/tmp/x`
+    reads rather than writes.
 - **Gate records are not hooked.** A `gate-*.md` attests a commit-time run that no machine
   reads, so a prompt there would be friction without a decision behind it.
 
@@ -209,6 +237,15 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   hook cannot have, and a believed-but-false gate is worse than a declared gap. That boundary
   belongs to **branch protection and required CI**, which are server-side and catch every path
   (attest ADR-0035).
+- **Not every MCP tool that touches GitHub is wired** (attest ADR-0058). `merge_pull_request` is
+  out for exactly the reason `gh pr merge` is, above. `delete_file` and `create_branch` send no
+  content off the machine. `fork_repository` has no Bash counterpart on the list, and adding one
+  spelling of a thing while missing the others advertises coverage the hook does not have. The
+  comment and review tools (`add_issue_comment`, `pull_request_review_write`, …) do send text
+  off the machine, and they are still out: what they send is not the tree, so the one piece of
+  evidence this gate reads — a record about a commit — has nothing to say about them, and a
+  prompt on every comment would train the click-through that makes the other arms worthless.
+  Wire them yourself if your project wants them; the matcher is one line.
 - **Nothing is forbidden to you.** A project that wants edit-time formatting can still have it —
   it is one `PostToolUse` entry in `.claude/settings.json` pointing at your own formatter. The
   kit simply does not ship one, and will not install one over your toolchain (attest ADR-0027).
@@ -232,10 +269,12 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > itself; both only print, and what reaches the provider is whatever your session already does.
 
 > **Reading the trace.** Five columns — timestamp · decision · short sha · permission mode ·
-> sanitised command — and five decision words: `pass` (a clean record cleared it) · `blocked`
+> sanitised subject — and six decision words: `pass` (a clean record cleared it) · `blocked`
 > (a record for this commit exists and does not attest a clean scan) · `ask` (no record at
 > all) · `dryrun` (waved through as a simple dry run) · `record` (something was writing a ship
-> record, from either hook). The **mode** column is what tells "the hook did not fire" from
+> record, from either hook) · `mcp` (a publish tool that never opens a shell, which no
+> record can clear — ADR-0058; the subject column is the tool name there, never the bytes
+> it was sending). The **mode** column is what tells "the hook did not fire" from
 > "the hook fired and the mode auto-approved it" (attest ADR-0050); a payload without one
 > logs `-`. `blocked` and `ask` are both a permission
 > prompt — the difference is what is missing, and afterwards only the log can tell them apart
@@ -582,8 +621,9 @@ single straight line.
   the posture (`COMPLIANCE.md`). It reads the archetype `/business` recorded.
 - From here on the hooks work without you: the **declaration hook** puts your non-goals
   in front of the agent at every session start, and the **ship guard** asks before a push or a
-  submit that no `/audit-history` run has cleared — for the commands on its literal list, and it
-  never forbids; the answer is an ordinary permission prompt (PART 2.2).
+  submit that no `/audit-history` run has cleared — for the commands on its literal list and for
+  the publish tools wired to it, and it never forbids; the answer is an ordinary permission
+  prompt (PART 2.2).
 
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
@@ -608,8 +648,9 @@ single straight line.
   `.attest/ship-…-<HEAD sha>.md`.
 - `/audit-history full` — the whole-history scan, **before a public release** (a secret or a
   name in *any* old commit, not just `HEAD`).
-- You no longer have to remember either: for the commands on its literal list, the ship guard
-  asks at the moment one of them is about to run and names what is missing (PART 2.2).
+- You no longer have to remember either: for the commands on its literal list — and for a
+  publish made through an MCP server rather than a shell — the ship guard asks at the moment one
+  of them is about to run and names what is missing (PART 2.2).
 
 > **Reading key:** the SETUP row runs **once**; the PER-CHANGE loop repeats **every commit**;
 > the SHIP gate fires only when code **leaves the machine**. `/compliance` appears in both —

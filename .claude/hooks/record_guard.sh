@@ -5,8 +5,9 @@
 # record is an ordinary untracked file — nothing signs it, nothing proves an audit produced it,
 # and the same agent whose work it attests can write one. `disable-model-invocation: true` keeps
 # the model from *invoking* /audit-history; it says nothing about writing a file, and the ship
-# guard matches Bash only. So the kit's most load-bearing artefact had exactly the property the
-# kit tells you not to accept anywhere else: a promise instead of a boundary.
+# guard judges commands and publish tools, never a Write. So the kit's most load-bearing
+# artefact had exactly the property the kit tells you not to accept anywhere else: a promise
+# instead of a boundary.
 #
 # What this hook buys, stated honestly: it does not make forgery impossible — it makes the write
 # a prompt, at the moment the human still knows whether an audit ran. That is strictly earlier

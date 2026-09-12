@@ -1756,3 +1756,129 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
     `- **Relates to** — …` as a body bullet. That shape is narrative, not a relation field:
     the rule binds what sits under an entry's title, and a reader checking the entries rather
     than the rules would otherwise count six and find the rule wrong.
+
+---
+
+## ADR-0058 — the ship gate covers the publish path that never opens a shell · 2026-09-12 · Accepted
+
+  Widens: ADR-0028 (make the ship boundary real). Related: ADR-0035 (a guard states only what it
+  can back), ADR-0037 (what the record has to say).
+
+- **Context** — a reader asked the plain question the README invites: *does nothing sensitive
+  really leave?* Probing the hook with real payloads answered most of it — the literal list
+  behaves exactly as PART 2.2 documents — and turned up one path the documentation never names.
+  `.claude/settings.json` matches `Bash`, and a GitHub MCP server publishes over the API:
+  `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` ship
+  bytes off the machine without a shell ever running. The hook is not consulted. No line
+  lands in the trace. Nothing in the kit said so — GUIDE 2.3 mentions "the ship guard matches
+  `Bash`" only to explain why the *record* guard exists, never to say a push could route
+  around it. A session
+  with that server connected — the one that found this — could have pushed with the gate silent.
+  That is the believed-but-false gate ADR-0035 refuses when the shoe is on the other foot.
+- **Options** — (a) document the gap and leave it, as `gh pr merge` is left; (b) a second hook
+  file for the MCP path; (c) register the same hook for those tool names and give it an arm.
+- **Decision** — (c), with the arm asking unconditionally and never reading a record.
+- **Why** — (a) is what ADR-0035 allows when the hook *cannot* cover a path, and that is not the
+  case here: a matcher covers it in one line. (b) forks the evidence check, the trace and the
+  sanitiser into two files that must agree forever. (c) keeps one hook, and the `tool_name`
+  already in the payload decides the arm.
+  The unconditional ask is the part worth stating. Every other arm passes on a clean record for
+  HEAD, and that is sound because `git push` sends commits — the tree the record is about. These
+  calls send bytes chosen **in the call**: they need not be committed, need not match HEAD, need
+  not be in git at all. A record naming HEAD is evidence about a different thing, so passing on
+  it would be precisely the false gate this entry exists to close. The prompt says so and points
+  at `git push`, where the record does cover what is sent.
+  For this arm the coverage lives in `settings.json`, not in the script. For Bash the matcher is
+  the word `Bash`, so the list must be in the hook; an MCP tool only ever reaches a hook the
+  matcher **names**, so the matcher *is* the list — and anything `mcp__*` that arrives asks,
+  because wiring a tool here is the statement that it publishes.
+- **Consequences** — the trace gains a sixth decision word, `mcp`, and its subject column is the
+  tool name: for Bash the subject is the command, but here the payload is file content, and a
+  guard that quoted it would write the shipped secret into a prompt and into a log on disk (a
+  smoke case pins that). Twenty-three new `smoke.sh` assertions, seventeen of which fail against
+  `332a40b` (suite 210 → 233; the other six are controls that must pass both ways).
+  `install.sh` now requires the MCP matcher alongside the three hook filenames before it calls
+  a kept `settings.json` wired — without that, an adopter upgrading from a pre-0.9
+  stanza would be told their guards run while this path stayed open, which is the same false
+  assurance one level up. The tools deliberately left out are listed in GUIDE 2.4 with reasons:
+  `merge_pull_request` (ADR-0033/0035), `delete_file` and `create_branch` (no content leaves),
+  `fork_repository` (no Bash counterpart), and the comment/review tools (what they send is not
+  the tree, so this gate's one piece of evidence has nothing to say about them, and a prompt on
+  every comment trains the click-through that makes the other arms worthless).
+
+---
+
+## ADR-0059 — the front page claims what the hooks do, not what they prove · 2026-09-12 · Accepted
+
+  Related: ADR-0035 (a guard states only what it can back), ADR-0049 (a record is an
+  attestation, not a report).
+
+- **Context** — `README.md` opened with *"prove nothing sensitive leaks when you ship"* and, in
+  *What it does not defend against*, said the opposite at length: forgetting not forgery, a
+  model reading a diff, a record nothing signs, a list of substrings rather than a category. Both
+  paragraphs were written deliberately; only one of them can be true. The same sentence is the
+  repository's public description, so it is the first and often the only line a reader sees, and
+  the honest paragraph is ninety lines below it. ADR-0035 makes a hook state only what it can
+  back — a rule the kit had never applied to its own front page.
+- **Options** — (a) leave it as marketing shorthand that the body corrects; (b) soften "prove"
+  to "help ensure"; (c) state the mechanism instead of the outcome, and say the coverage
+  boundary where a reader goes looking for it.
+- **Decision** — (c). The opening now reads *"turn the leak scan from something you have to
+  remember into a gate that stops you at the moment you would have forgotten it"*, and *What it
+  does not defend against* gains a paragraph naming what the guard cannot see (a deploy script
+  of your own, an exfiltrating `curl`, a publish tool never wired past it), that the scan is a
+  model reading a diff rather than a proof, and that `gitleaks`/`trufflehog` belong alongside it.
+- **Why** — (a) is how a kit about honest declarations loses the right to audit anyone else's;
+  the first line is the claim that travels, and a contradiction the reader has to resolve is a
+  defect wherever it sits. (b) keeps the shape of a promise about outcomes while making it
+  vaguer, which is worse: "help ensure" cannot be checked against the code at all, and the whole
+  method rests on claims that can. (c) is a claim the hooks actually make good on — the scan is
+  no longer yours to remember, and a pass leaves a dated attestation — and it is smaller than
+  *nothing sensitive can leave*, which is the point.
+- **Consequences** — the repository's GitHub **About** description still carries the old
+  sentence and is not in the tree; it has to be changed by hand, or the front page and
+  the social card disagree. Anything quoting the old line (a post, a README badge elsewhere) is now
+  out of step by design. No behaviour changes and no test moves: this entry is a claim being
+  brought back to what ADR-0058 and the existing hooks actually do.
+
+---
+
+## ADR-0060 — the record arm is judged per command part · 2026-09-12 · Accepted
+
+  Narrows: ADR-0051, ADR-0054 (the record arm). Found while shipping ADR-0058.
+
+- **Context** — pushing the ADR-0058 branch left this in the guard's own trace:
+
+      09:29:48 record bd3b19d - grep -c . README.md   /tmp/n    ls .attest/ship-a.md
+
+  That command writes no record; it lists one. The arm was a whole-command `case`, and
+  `*">"*".attest/ship-"*` asks only that a `>` appear *somewhere* before `.attest/ship-` appears
+  *somewhere* — so a redirect belonging to the first half of a compound and a record path
+  belonging to the second half read as a write. `cp x y && ls .attest/ship-a.md` did the same
+  through the `cp` pattern. An over-prompt, never a miss, so no door was opened; but ADR-0054
+  rejected "match any command mentioning `.attest/ship-`" precisely because **a prompt on
+  reading trains the click-through that makes the arms that do gate something worthless**, and
+  this arm had been doing a weaker version of that all along.
+- **Options** — (a) leave it, under this file's "an extra prompt beats a miss"; (b) tighten the
+  pattern so `>` must be adjacent to the path; (c) split the command on `;` `|` `&` and judge
+  each part on its own.
+- **Decision** — (c), with two normalisations first: the two-character `\n` that survives JSON
+  escaping becomes a separator, and `>` is glued to its target so the spaced spelling needs no
+  second pattern.
+- **Why** — (a) is the rule quoted against its own purpose: the rule exists so coverage is never
+  traded for tidiness, not so a known false prompt can be kept. (b) is what a first attempt
+  reaches for and it is a **miss generator**: `> /home/user/p/.attest/ship-a.md` puts a path
+  between the redirect and the name, and no glob expresses "no whitespace in between", so
+  tightening would have dropped absolute-path writes — trading an over-prompt for exactly the
+  failure the arm exists to prevent. (c) needs no pattern change at all: a redirect and its
+  target are in the same part **by definition**, so every real write survives unchanged, and the
+  arms that were never about redirects (`cp`, `mv`, `tee`, the in-place editors) get the same
+  correction for free. `>` before the path still separates writing a record from reading one
+  into something else (`cat .attest/ship-a.md >/tmp/x`).
+- **Consequences** — the record check moves out of the publish `case`, which therefore loses its
+  `*) exit 0`; a single `[ -n "$ACT" ] || exit 0` below is now the one place a command the hook
+  does not recognise leaves. Seven `smoke.sh` cases: two fail against `bd3b19d` (the two false
+  positives), five are controls pinning that the split cost no real write — absolute path,
+  append, no space after `>`, a write in the last part of a compound, and reading a record into
+  a file. Coverage stays deliberately partial (an editor, `python -c`) and README still says so.
+  Suite 233 → 240.
