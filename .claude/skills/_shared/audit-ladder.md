@@ -71,9 +71,10 @@ verdict that merely *permits* a commit leaves *"once more, to be sure"* on the t
 is the run where the gate stops paying for itself. Three of its four passes are judgment over
 prose, so a second look at the same tree returns a different list rather than an empty one, and
 every round's edits are fresh ground for the round after it. Measured in a repository that did
-exactly this before its first real commit: five runs on one HEAD across 73 minutes, ✅ from the
-second run on, seven minors closing to three — and 49 of those minutes spent after the gate had
-already said yes (attest ADR-0061; the run is in attest's own devlog, not in the kit).
+exactly this before its first real commit: five runs on one HEAD, ✅ from the second run on,
+seven minors closing to three — 81 minutes from the first run to the commit, of which **49 came
+after** the gate had already said yes (attest ADR-0061; the run is in attest's own devlog, not
+in the kit).
 
 **The ship gate's threshold is narrower, and it was never weighed against this one.**
 `ship_guard.sh` reads `findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a

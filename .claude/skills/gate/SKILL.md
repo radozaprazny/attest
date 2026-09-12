@@ -87,15 +87,7 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
    A missing piece **degrades, never fails**: no `BUSINESS.md` → note "nothing declared —
    run `/business`" and skip that pass; a document still the shipped skeleton → same; the
-   reviewer agent absent → say so and run the other three;
-   **and the skip happens here, in the main context, before the subagent exists** (attest
-   ADR-0066). Read the document first: if everything outside its HTML comments and
-   `<angle-bracketed>` placeholders is empty, it is still the skeleton — do not launch that
-   pass. Launching it costs a whole subagent context to be told what one `Read` already
-   answered, which is what happened on all nine runs recorded here. Three words, three
-   different facts, and they do not substitute for each other: **skipped** — the pass never
-   ran, with the reason in one word; **degraded** — it ran and part of its ground was out of
-   reach; **not installed** — the skill is not in this repo. the `doc-auditor` agent absent
+   reviewer agent absent → say so and run the other three; the `doc-auditor` agent absent
    (an older install) → fall back to general-purpose subagents with the same material and
    say in the verdict that those passes were read-only by instruction only. If a subagent
    reports it **cannot read `$M`** (a temp dir is outside the project, and a harness may
@@ -103,6 +95,20 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    pass, and delete **the files you wrote** afterwards — it is scratch, never a record. Delete
    your files, not the directory: `.attest/tmp/` is shared ignored scratch and the ship guard
    keeps its decision trace there too (attest ADR-0034).
+
+   **The skeleton skip happens here, before the subagent exists** (attest ADR-0066) — and it
+   applies to a pass whose **ground is the document itself**, which today means `/business`,
+   whose findings are drift against declared non-goals. Read `BUSINESS.md` first: if everything
+   outside its HTML comments and `<angle-bracketed>` placeholders is empty, it is still the
+   skeleton, so do not launch that pass. Launching it spends a whole subagent context to be told
+   what one `Read` already answered — which is what seven of the ten runs recorded here did.
+   **`/decision` and `/compliance` are not covered by this**: their ground is the **diff**, not
+   their document. An empty `DECISIONS.md` is the normal state of a young project (ADR-0065) and
+   is exactly when an unrecorded decision is most likely, so that pass runs on the diff as
+   always; `/compliance` applies its own cheap trigger check instead. Three words, three
+   different facts, and they do not substitute for each other: **skipped** — the pass never ran,
+   with the reason in one word; **degraded** — it ran and part of its ground was out of reach;
+   **not installed** — the skill is not in this repo.
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
    owner, including for the two edges it resolves explicitly. Order everything by the shared

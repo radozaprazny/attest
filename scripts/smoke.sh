@@ -67,7 +67,13 @@ RELATIONS='Supersedes|Supersedes in part|Narrows|Widens|Extends|Relates to'
 # `Related:` is a legacy spelling of `Relates to:` carried by ADR-0058 and ADR-0059, which were
 # pushed before it was noticed and are therefore immutable (ADR-0057). Accepted here so the
 # suite passes over history; it is named in the log header as not to be written again.
-used_bad=$(grep -hoE '^ +[A-Za-z][A-Za-z ]*: ADR-' "$LOG" \
+# Two steps, and the second one is why: `-o` with a `^`-anchored pattern returns at most one
+# match per line, and the log already carries two fields on one line (ADR-0058: `Widens: … .
+# Related: …`). So step one SELECTS the relation lines — indented, opening with a field, tab or
+# space — and step two extracts EVERY field on them. Prose is not reachable from here: a line
+# only qualifies if it opens with `Word: ADR-`.
+used_bad=$(grep -hE '^[[:space:]]+[A-Za-z][A-Za-z ]*: ADR-' "$LOG" \
+  | grep -oE '[A-Za-z][A-Za-z ]*: ADR-' \
   | sed 's/^ *//; s/: ADR-$//' | sort -u | grep -vxE "$RELATIONS|Related" || true)
 if [ -z "$used_bad" ]; then
   ok "every relation word in the log is one the rules name"

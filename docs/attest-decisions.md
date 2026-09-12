@@ -1895,12 +1895,12 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   reads ✅, never what follows a ✅. Nothing in the kit says when a gate may be run again, so
   *"once more, to be sure"* was always available and always defensible. The first evidence that
   this matters came from **outside this repository**, and could not have come from inside it:
-  all nine runs recorded here returned ⚠️ — the records are in `.attest/` and ADR-0055 counts
-  them — so the state after a ✅ had never occurred. An adopter running kit 0.8.0 gated one HEAD **five
+  all ten runs recorded here returned ⚠️ — the nine ADR-0055 counted, plus the run that produced
+  it — so the state after a ✅ had never occurred. An adopter running kit 0.8.0 gated one HEAD **five
   times before the project's first real commit**, with no code in the tree at all — ⚠️ with three
-  majors, then ✅ four times over; minors 7 · 7 · 4 · 3 · 3; **73 minutes** between the first run
-  and the fifth, **49 of them after the gate had already said yes**; the series ended because the
-  author stopped it by hand. The author's account of the runs adds the part no record can carry
+  majors, then ✅ four times over; minors 7 · 7 · 4 · 3 · 3; **81 minutes** from the first run to
+  the commit, **49 of them after the gate had already said yes** (the five runs themselves span
+  73 of those 81); the series ended because the author stopped it by hand. The author's account of the runs adds the part no record can carry
   (a record holds no prose, ADR-0049): the ✅ verdicts recommended repairing minors *before*
   committing, so the file said ready while the text said not yet, and the later rounds mostly
   found inaccuracies introduced by the fixes of the round before.
@@ -2018,10 +2018,10 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   third relation after it had been in use; ADR-0056 recorded the fourth and fifth after five
   entries carried them; and merging PR #18 beside PR #19 brought in two more words that no
   rule-home named: **`Widens:`** under ADR-0058 and **`Related:`** under ADR-0058 and ADR-0059.
-  Counted over the log as it stands after the merge: `Narrows` 12 · `Extends` 6 · `Relates to` 3
-  · `Related` 2 · `Widens` 1 — and `Supersedes` and `Supersedes in part` **0**, which is worth
-  knowing on its own: in sixty-three entries this log has never reversed a decision, only ever
-  moved the edges of one. Each time, the drift was found by an audit, one entry too late.
+  Counted as relation fields under an entry title — the shape the rule binds — over the log at
+  the merge, sixty entries: `Narrows` 11 · `Extends` 5 · `Relates to` 2 · `Related` 2 ·
+  `Widens` 1 — and `Supersedes` and `Supersedes in part` **0**, which is worth knowing on its
+  own: in sixty entries this log has never reversed a decision, only ever moved the edges of one. Each time, the drift was found by an audit, one entry too late.
 - **Options** — (a) record `Widens` as the last two entries recorded their relations, and expect
   a fourth such entry later; (b) record it **and** put the vocabulary under a check a command
   runs; (c) refuse it and require `Extends` in its place.
@@ -2080,7 +2080,7 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
 
 ## ADR-0066 — a skeleton is skipped before the subagent, and *skipped* is not *degraded* · 2026-09-12 · Accepted
 
-  Narrows: ADR-0017 (the document audits run in a subagent with no write capability).
+  Relates to: ADR-0017 (the document audits run in a subagent with no write capability).
 
 - **Context** — `/gate` step 2 has always said a document still in its shipped skeleton is
   skipped. It said it in the paragraph that a subagent reads, so the skip happened **after** the
@@ -2107,6 +2107,14 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   three words: *skipped* (never ran, reason in one word), *degraded* (ran, part of the ground
   out of reach), *not installed* (the skill is not here). The record's `passes:` line carries
   the reason for a skip. `/business audit` stops at step 1 on a skeleton and returns one line
-  with no findings, so the same rule holds when the skill is run on its own. Known limits: the
-  test is a judgment made from a read, not a command — that is exactly what stage 0 turns into a
-  script; and it applies to documents only, since the `reviewer` always has ground.
+  with no findings, so the same rule holds when the skill is run on its own.
+  **The skip is scoped to a pass whose ground is the document itself — today that is
+  `/business` alone**, and the gate's own text says so. `/decision` and `/compliance` audit the
+  **diff**; their document is a reference, not their ground. Skipping `/decision` on an empty
+  `DECISIONS.md` would silence it exactly when a young project is making its first unrecorded
+  decisions — which is the state ADR-0065 declares normal — so that pass runs as always, and
+  `/compliance` keeps its own trigger check. This scoping was itself a `/decision audit` finding
+  on the run that gated this entry: the first draft said *"that pass"* and reached every
+  document audit. Known limits: the test is a judgment made from a read, not a command — that is
+  exactly what stage 0 turns into a script; and the `reviewer` is never in scope, since its
+  ground is the diff and it always has one.

@@ -17,8 +17,9 @@ How to use this file:
     Non-goal (BUSINESS.md); a rule that binds all future code → CLAUDE.md; a standing
     regulatory obligation → COMPLIANCE.md (cross-reference the ADR by id).
   - APPEND-ONLY, forward-only: entries are immutable. To reverse ADR-0007, append a new entry
-    carrying `Supersedes: ADR-0007`. The ONLY permitted touch to an old entry is flipping its
-    Status line (Accepted → Superseded by ADR-000M) — never rewrite its rationale. A
+    carrying `Supersedes: ADR-0007`. Never rewrite an old entry's rationale. Exactly two touches
+    are permitted, and nothing else is: flipping its Status line (Accepted → Superseded by
+    ADR-000M), and the id-only renumber below when two branches took the same number. A
     superseded entry is NOT an anti-duplication violation.
   - An entry becomes IMMUTABLE when the commit carrying it is PUSHED — not when written, not
     when committed. Before that it is a draft: fix it in place. After it has left the machine,

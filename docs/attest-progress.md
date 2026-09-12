@@ -7,6 +7,44 @@
 
 ## Current state
 
+**The id collision resolved, and six entries on top — ADR-0061 … ADR-0066 (branch
+`integration`, not pushed).** PR #18 and PR #19 were written in parallel sessions and **both**
+claimed `ADR-0055`–`ADR-0057`, for six different decisions. #19 keeps the numbers it recorded;
+#18 is renumbered **0058–0060** — the cheaper side, measured: 26 citations against 45 — by a 1:1
+`sed` over ids that changed no word of content. The merge had exactly one conflict, both
+branches appending to the end of the log, and resolved it by keeping both blocks in id order.
+
+On top of that, six entries out of one afternoon's dogfooding (devlog, *The first run outside a
+sandbox*): **ADR-0061** — the round ends at ✅, and `/gate` closes with an instruction rather
+than a list · **ADR-0062** — a recommended fix subtracts before it adds, and states as fact only
+what the audit read, with a `file:line` · **ADR-0063** — the next id comes from every ref, and a
+landed collision is renumbered by the branch that merges second · **ADR-0064** — the log's sixth
+relation (`Widens`), and the grep that ends a three-entry series of the same drift ·
+**ADR-0065** — what day one costs, said where first-run advice is actually read · **ADR-0066** —
+a skeleton is skipped *before* the subagent, and *skipped* is not *degraded*.
+
+Suite **240 → 244**; the new grammar check was verified to fail on a planted `Contradicts:`,
+including the mid-line and tab-indented shapes its first version missed. **Kit stays 0.8.0** — the
+maintainer's call, made explicitly rather than by omission: the record template's `passes:` line
+now carries a reason inside the existing word (`skipped (template)`), which the records have
+been writing in practice since `gate-20260904`, so no consumer of the record has to change. The
+bump belongs to phase B, which changes the shape for real (`mode:`, `triggers:`). **Nothing is pushed** — the ship record for this branch is the maintainer's call
+(ADR-0051), and both PRs say the same of their own heads.
+
+**The ship gate caught what the commit-time gate could not see.** `/audit-history`, run by an
+independent pass, found the removal of a third party's specifics complete in the **tree** and
+incomplete in the **history**: two unpushed commits still carried them. They were rebuilt before
+the push (`5bbad84` → `4979896`), and the run record says so in its own first lines rather than
+presenting a clean sha. That is the whole argument for a second gate on a different clock —
+the commit-time passes were looking at the tree, and the tree was already right.
+
+**The gate on this work ran once and is recorded** (`.attest/gate-20260912-…`): two passes, not
+four — `/business` and `/compliance` skipped as skeletons, which the run then found to be wrong
+for `/compliance` and corrected in ADR-0066. Seven majors fixed, one rejected with evidence
+(the reviewer read `ce439a5`'s rounds in file-name order; the 14:41 record declares itself late,
+so `4 · 2 · 3 · 5` stands). Minors were not fixed — they are below, which is the rule this
+branch adds.
+
 **The gate covers the non-shell publish path — ADR-0058, and the front page stops overclaiming
 — ADR-0059.** A reader asked the question the README invites — *does nothing sensitive really
 leave?* — and probing the hook with real payloads answered most of it well: the literal list
@@ -254,6 +292,40 @@ aesthetic:
 
 ## Next
 
+- **From the 2026-09-12 gate on this branch — the minors, unfixed on purpose** (ADR-0061: a ✅
+  ends the round and minors travel here; these rode a ⚠️ whose majors were fixed, and the same
+  rule applies to what was left):
+  - `/decision`'s id command runs `git fetch --all --quiet 2>/dev/null`, so a fetch that fails
+    (offline, auth) is indistinguishable from one that worked, and the command then reports a
+    maximum over stale refs. ADR-0063 claims this path *"fails safe"*. Drop the redirect on the
+    fetch line; keep it on `git grep`, where it suppresses the refs that have no such file.
+  - **This log's own header** (`docs/attest-decisions.md`) still names the `Status` flip as the
+    single exception to append-only. The two shipped homes now name two, the id-only renumber
+    included. Either propagate it or say in ADR-0063 that attest's header is deliberately out.
+  - The shipped `DECISIONS.md` pointer sentence still reads *"neither is a softer `Narrows`"*
+    where the other homes now read *"`Narrows` or `Widens` … really did move hides the move"*.
+    The new smoke check does not catch it: it tests for the **word**, not the sentence.
+  - `smoke.sh` details: the rule-home presence test is an unanchored `grep -q "$rel"`, so a
+    sentence merely mentioning a relation satisfies it (match `<rel>: ADR-` instead); its
+    comment says *"two shipped rule-homes"* while the loop walks three, one of which
+    (`docs/`) does not ship; and `LOG` is assigned here and again at the ship-guard trace —
+    harmless today, a trap on the third use.
+  - ADR-0063 says *"Sixty entries cite each other … and so do `audit-ladder.md`, four skills"*.
+    Measured on HEAD: 66 entries, five skills.
+  - ~~The devlog naming a personal project and three of its specific weaknesses~~ — **closed
+    before the push.** `/compliance` would have owned it had that pass run; the `/decision` pass
+    reported it once under the ladder's fallback. The maintainer's call was the subtractive one:
+    the project name and the three specifics are gone, the counts and timings the argument rests
+    on stay. Same reason ADR-0049 keeps contents out of a record.
+  - Next gate on this branch must run `/compliance` — ADR-0066 now scopes the skeleton skip to
+    `/business`, and this run had skipped it before that was settled.
+  - **From the `/audit-history` pass that cleared this push:** seven commits arriving from the
+    two PR branches carry a `Claude-Session:` trailer with a session URL; `main` carries none
+    today, and the nine newer commits on this branch have already dropped the habit. They are
+    the maintainer's own identifiers in his own public repo — the class ADR-0040 weighed — and
+    they are already public on the PR branches, so rewriting them buys nothing. Worth deciding
+    once, deliberately, rather than drifting: keep the trailer or stop writing it.
+
 - **Public since 2026-09-09.** `radozaprazny/attest` is public; `main` carries `METHOD.md`, and
   `v0.6.0` is tagged at `dfa2255`. Cleared before the flip: the carrier fixed · PR #12 merged as
   `a0fb1d7` · `/audit-history full` over **all 431 blobs in every commit, branch and tag** —
@@ -351,6 +423,11 @@ aesthetic:
     same boundary the ship gate defends, and checkable from the checkout in a way "once it
     merges" is not. ADR-0055 and ADR-0056 stay as written, both having been pushed before their
     errors surfaced; the corrections live in ADR-0057.
+  - **A gained its missing half (ADR-0061).** The finish line said when the line is green; it
+    did not say a green line ends the round. The ladder now does, and `/gate` step 4 closes with
+    one imperative sentence. The evidence came from outside — an adopter's five runs on one
+    HEAD, ✅ from the second — because every run recorded here had carried a major, so the state
+    after a ✅ had never occurred in this repo.
   - **The lesson is the roadmap.** Every one of these cost an entry only because the passes ran
     *beside* the commits instead of ahead of them — twice in one session. That is exactly what
     `/gate fix` (§2.4) is for, and it is now the strongest single argument for phase C.

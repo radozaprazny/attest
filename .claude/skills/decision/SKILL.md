@@ -74,9 +74,14 @@ the other?"* If yes, record it; if no, leave it to the commit.
   LOG=DECISIONS.md                      # attest's own log is docs/attest-decisions.md
   git fetch --all --quiet 2>/dev/null   # a ref you have not fetched cannot be seen
   git for-each-ref --format='%(refname)' refs/heads refs/remotes \
-    | xargs -I{} git grep -h -oE '^## ADR-[0-9]{4}' {} -- "$LOG" 2>/dev/null \
-    | sort -u | tail -1
+    | xargs -I{} git grep -h -E '^## ADR-[0-9]{4} — [^<]' {} -- "$LOG" 2>/dev/null \
+    | grep -oE 'ADR-[0-9]{4}' | sort -u | tail -1
   ```
+
+  The `— [^<]` is load-bearing: the shipped template carries `## ADR-0001 — <short imperative
+  title>` inside an HTML comment, and a pattern that only asks for the heading counts that
+  example as an entry — every project's first real ADR would then be numbered `0002`. A
+  skeleton prints nothing here, which is the right answer: start at `ADR-0001`.
 
   Take the next number above what that prints. If two sessions both start before either has
   pushed, nothing local can see the clash and it lands at the merge: then **the branch that
@@ -86,8 +91,9 @@ the other?"* If yes, record it; if no, leave it to the commit.
   and it changes ids only: a duplicate id breaks every citation in the log, which is worse than
   the exception.
 - **Append-only, forward-only:** past entries are **immutable**. To reverse `ADR-0007`, append
-  a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
-  touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
+  a **new** entry carrying a `Supersedes: ADR-0007` line under its title. **Two** touches to an
+  old entry are permitted and no others — the id-only renumber above, and flipping its `Status`
+  from `Accepted` to `Superseded by ADR-000M` —
   **never** rewrite its rationale.
 - **"Past" starts at the push, not the commit** (attest ADR-0057): an entry is immutable once
   the commit carrying it has left the machine. Until then it is a draft — correct it in place,
