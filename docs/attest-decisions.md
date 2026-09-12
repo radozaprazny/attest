@@ -2118,3 +2118,98 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   document audit. Known limits: the test is a judgment made from a read, not a command — that is
   exactly what stage 0 turns into a script; and the `reviewer` is never in scope, since its
   ground is the diff and it always has one.
+
+## ADR-0067 — a pass runs only when the diff touched its ground; `full` runs them all · 2026-09-13 · Accepted
+
+  Narrows: ADR-0066 (a skeleton is skipped before the subagent — which said *"the `reviewer` is
+  never in scope, since its ground is the diff and it always has one"*; on a diff that is
+  **only** run records the reviewer's ground is the gate's own output, and stage 0 skips it).
+  Relates to: ADR-0017 (the document audits run in a subagent with no write capability — as
+  true of every pass that runs as it was; this decides which ones run), ADR-0030 (compliance is
+  opt-in).
+
+- **Context** — `/gate` launched four subagents on every diff. `/compliance audit`'s "cheap
+  trigger check" was cheap only in what it *returned*: the context was spent before it could
+  say *out of scope*. `/business` and `/decision` had no trigger at all. Four contexts for a
+  one-file change is the price that stops a gate from being run, and the carrier has carried
+  *"gate has not run since…"* more than once. Measured here with the script as it now stands,
+  over the last 40 non-merge commits on `main`: **8** touch only `.attest/`, **27** only `*.md`.
+  (The proposal's §1.3 said 10 and 24 from a separate measurement script; these are the numbers
+  the shipped rules actually produce, and where the two disagree this entry uses its own.) The
+  opposite failure is also on the record — the 2026-09-07 run over the whole of PR #10 found two
+  blockers that two earlier dirty-tree runs over the same series had missed.
+- **Options** — (a) keep four passes, always; (b) a `light` flag the human sets per run;
+  (c) a shell stage that decides per pass from the diff, plus `full` as an unconditional run
+  over the whole branch on the push cadence.
+- **Decision** — (c).
+- **Why** — (b) hands the person, on every commit, exactly the decision the gate exists to take
+  from them, and they will choose light every time; this kit's own rule is that a mechanism
+  prevents where a reminder only reminds (ADR-0028). (a) is the cost that stops the gate
+  running, and a gate not run is worth less than a cheap one that does. (c) costs nothing when
+  it skips — no model is involved — and it keeps the complete judgment where it is worth most,
+  over the diff that actually ships.
+- **Measured, not estimated** — the same 40 commits, run through the script as written:
+  **50 subagent runs against 160** (reviewer 32 · decision 10 · compliance 8 · business 0; 8
+  commits are records-only, and 32 + 8 = 40, which is the internal check). `§1.3` of the
+  proposal predicted **61** (30 · 12 · 12 · 7) from a standalone measurement script. **Three of
+  the four components moved, not one**: `business` 7 → 0, because this repo's `BUSINESS.md` is
+  the shipped template and a template declares nothing to audit against (ADR-0066), a rule the
+  prediction did not model; `compliance` 12 → 8 and `decision` 12 → 10, because the implemented
+  rules are narrower than the measurement's regexes in ways neither list wrote down; and
+  `reviewer` 30 → 32, because the prediction's records-only count was 10 and the measured one is
+  8. The totals being close is a coincidence of sign, not a confirmation — which is why the
+  components are here. Attest is also the worst case for the keyword sets, its diffs being prose
+  *about* personal data, models and non-goals, so an adopter's ratio should be better.
+- **Consequences** — a new POSIX `sh` file installs with the gate skill,
+  `.claude/skills/gate/triggers.sh`: shellchecked in CI, LF-pinned in `.gitattributes` and by
+  `install.sh`, and pinned by fourteen `smoke.sh` cases, one per rule plus the two that matter
+  most — a diff **no** list names leaves its pass off, and a script with no material writes
+  nothing. **It fails open in the direction that costs contexts, not findings**: on any failure
+  it writes nothing and exits 0, and the skill's rule is that a missing `triggers.txt` means run
+  every pass. The record gains `mode:` and `triggers:` so a **skipped** pass can never be read
+  as one that **ran clean** — the ambiguity the light gate would otherwise create in every
+  record. `/compliance audit`'s Step 0 becomes a shell fact instead of a subagent's first
+  sentence, and its Mode 3 sub-headings are demoted to `####` so that handing "Mode 3" to a
+  subagent hands all of it rather than 55 words. Kit **0.9.0**: the record shape changed.
+  **Four of the proposal's seven open questions are answered here**, decided in the maintainer's
+  absence on his instruction, with the reasoning left visible so they can be reversed on sight.
+  **Q6**, naming, is answered by the shape of this change rather than by an argument: `full` is
+  a word on `/gate`, mirroring `/audit-history full`, not a fourth skill — a `/converge` would
+  widen the command surface the README promises to keep narrow, for a mode that shares all of
+  `/gate`'s material and all of its record.
+  **Q1**, the watch list, is one HTML comment under *Non-goals* (`gate-watch: word, word`), read
+  by the script, with a generic network/telemetry/upload set when it is absent — the alternative
+  (always run `/business` on a filled document) reintroduces the per-commit context this entry
+  exists to remove, and the comment is shipped only as instructions, never as an active line,
+  so an adopter who ignores it gets the **wider** default rather than three example words.
+  **Q2**, whether the ship guard should demand a `mode: full` record, stays **no** until the
+  light gate has a history to measure — a second prompt per push is a real cost and nothing yet
+  says it buys anything. **Q5**, excluding attest's own `docs/attest-*.md` carriers from the
+  keyword scan, stays **no**: those are attest's control documents and a hit there is real.
+  Known limits, stated rather than discovered later: the keyword sets see words, so a non-goal
+  violated without one is invisible to the light gate — `.gitattributes` of 2026-09-07 is the
+  worked example, and `full` is the answer; `/decision`'s import rule is deliberately wider
+  than §2.2 proposed (any added import, not only a module new to the tree), because the narrow
+  version needs a tree-wide grep per import and an over-trigger costs one context while a miss
+  costs a finding; untracked material is read to **2000 lines per file and 200 files per new
+  directory**, so a finding past those bounds is invisible until the file is committed and the
+  diff carries it; the compliance pattern omits bare `race` and `dob`, which need a word
+  boundary that POSIX ERE has no portable spelling for, and carries `racial` and
+  `date[ _-]?of[ _-]?birth` in their place; and the taxonomy now has **two homes** — the prose
+  list in `compliance/SKILL.md` and the pattern in the script — which `compliance/SKILL.md` now
+  says out loud, because the prose is what a person reads and the pattern is what decides.
+- **What gating this entry found, and why the entry says so.** The first implementation shipped
+  a `blocker` of exactly the kind this stage exists to prevent: a diff whose headers it could not
+  parse produced an empty path list, and an empty path list was read as *"records only"* — so a
+  contributor with `diff.noprefix=true` in their git config would have had every pass skipped on
+  every commit, under a record attesting that the diff held nothing but records. A rename-only,
+  mode-only or binary diff did the same. It is fixed — one parser instead of two, four header
+  shapes, and *"I could not decide"* now writes **nothing**, which the skill reads as *run every
+  pass* — and pinned by ten more `smoke.sh` cases. Two more of the same family were found and
+  closed: `git status --porcelain` without `-uall` collapses a new feature directory into one
+  unreadable `?? src/` entry (the script now walks it anyway, because a caller that forgets must
+  not become a silent skip), and the posture check read the shipped `COMPLIANCE.md` as *filled*,
+  because that template carries instructional prose with no placeholder in it — so ADR-0030's
+  whole point, that an unfilled posture is worse than an absent one, was unreachable. All three
+  were the same mistake in different clothes: **a mechanism that cannot decide must not produce
+  the same output as one that decided "nothing to do".**

@@ -68,9 +68,12 @@ keeps `PROGRESS.md`, but as a live snapshot, not an audit):
   `.attest/`, which is what the ship guard checks.
 
 They compose into two gates. **`/gate`** is the **commit-time** gate as one command: the
-`reviewer` subagent's code-level pass plus every document audit the project installed, run in
+`reviewer` subagent's code-level pass plus the document audits **the diff actually needs** — a
+POSIX shell stage reads the diff and decides, before any subagent exists — run in
 parallel subagents and merged into one verdict under a shared severity ladder — one hunk is
-flagged once. Its document audits run in a subagent that **cannot** write or run commands
+flagged once. **`/gate full`** runs every pass over the whole branch, once, before a push:
+the light gate triggers on keyword sets, and a keyword set finds what a word can find and
+nothing else. Its document audits run in a subagent that **cannot** write or run commands
 (read-only by capability, not promise), and every run **appends a dated run record** under
 `.attest/` — HEAD SHA, kit version, which passes ran, the verdict — so *"the gate ran"* is
 a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before anything

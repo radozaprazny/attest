@@ -149,6 +149,14 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
    the derived facts with my answers. Where something is missing, mark it as open with an
    `Open:` bullet rather than guessing — never with `<angle-bracket>` text, which the
    dispatch above reads as "still the shipped skeleton".
+5. **Offer the watch list, once, and only if the non-goals suggest one.** Directly under the
+   *Non-goals* heading, one HTML comment — `gate-watch: <word>, <word>` — names the words that
+   should make a diff worth this audit in **this** project: the library a non-goal forbids, the
+   directory that must stay empty, the call that would cross the line. `/gate`'s stage 0 reads
+   it; absent, a generic network/telemetry/upload set applies (attest ADR-0067). Derive the
+   candidates from the non-goals you just wrote, show them, and let me cut. **Never invent
+   words to look thorough**: a list that fires on everything is the four-subagent cost the
+   trigger stage exists to remove, and a list nobody trusts gets deleted.
 
 ### Mode 2 — BUSINESS.md exists and is filled in (update)
 
@@ -169,7 +177,17 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
 Invoked as **`/business audit`**. This is one of the kit's **commit-time gate** checks (the
 ship gate is `/audit-history`): it does
 not touch the document, it **reports** whether what the repo is *doing* still matches what
-`BUSINESS.md` *declares*. It owns **non-goal / scope** drift only — an undocumented decision
+`BUSINESS.md` *declares*.
+
+> **In `/gate`'s light mode you are launched only on a trigger hit** (attest ADR-0067): a word
+> from the project's `gate-watch` list or the generic set on an added line, a new top-level
+> directory, or `BUSINESS.md` itself changing. You receive `$M/trigger-business.txt` — the
+> `file:line` hits — as a starting point, not a boundary; the pass is still the whole diff
+> against the declared non-goals. A skeleton never launches you at all, because a stage that
+> can read placeholders in shell should not spend a context to say *nothing declared*
+> (ADR-0066). In `/gate full`, and when the skill is run on its own, no trigger applies.
+
+It owns **non-goal / scope** drift only — an undocumented decision
 (a new dependency, a new pattern) is `/decision audit`'s finding and regulated ground is
 `/compliance audit`'s, so one hunk is flagged once.
 

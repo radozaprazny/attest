@@ -390,10 +390,19 @@ one output shape and one severity ladder so they read as a family:
   EU-AI-Act MCP (see PART 6); the core works offline.
 
 ### 3.6 `/gate` — the commit-time gate, one command
-- **How:** type `/gate` before a commit. It scopes the diff, then runs the `reviewer`
-  subagent plus every installed document audit in **parallel subagents** — it reads each skill's
-  audit section at runtime (the skills are manual-only and cannot be model-invoked) — and
-  merges the findings under the shared ladder + ownership contract into **one** verdict. What
+- **How:** type `/gate` before a commit. It scopes the diff, then a **shell stage decides which
+  passes this diff needs** (`.claude/skills/gate/triggers.sh` — no model, so it costs nothing),
+  then it runs the `reviewer` subagent plus those document audits in **parallel subagents** — it
+  reads each skill's audit section at runtime (the skills are manual-only and cannot be
+  model-invoked) — and merges the findings under the shared ladder + ownership contract into
+  **one** verdict.
+- **Two modes, and the second one is not optional** (attest ADR-0067): **`/gate`** is the light,
+  per-commit gate — roughly a third of the subagent runs the old shape spent, measured in
+  ADR-0067 and not repeated here. **`/gate full`** runs **every** pass unconditionally over `<base>..HEAD` plus
+  the working tree, and belongs to the **ship** cadence, once, before a push. The light gate
+  triggers on keyword sets, and *a keyword set finds what a word can find and nothing else*: the
+  2026-09-07 blocker was `*.sh text eol=lf` in `.gitattributes`, which no list flags. Never read
+  a light ✅ as the branch being cleared — that is what `full` is for. What
   flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
   there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
   rule here. The last line it prints is what to **do** — *commit*, or *fix these N, then
@@ -648,9 +657,11 @@ single straight line.
 **PER-CHANGE — every unit of work**
 1. **Decide → `/decision`** — record a choice worth keeping (append-only) *as you make it*.
 2. **Build.**
-3. **Gate, before the commit — one command: `/gate`.** It runs the installed passes in parallel
-   subagents, merges one verdict, and appends a dated **run record** under `.attest/`
-   (stage it with the commit — that is the attestation the gate ran); each pass fires only
+3. **Gate, before the commit — one command: `/gate`.** A shell stage reads the diff and decides
+   which passes it needs; those run in parallel subagents, merge into one verdict, and append a
+   dated **run record** under `.attest/` (stage it with the commit — that is the attestation the
+   gate ran). The record's `mode:` and `triggers:` lines say which passes ran and why, so a
+   pass that was **skipped** never reads as one that **ran clean**. Each pass fires only
    when relevant:
    - the `reviewer` subagent — the code-level pass;
    - `/business audit` — did the work cross a non-goal / creep past scope?
@@ -664,6 +675,11 @@ single straight line.
 5. **`/checkpoint`** — pour state into `PROGRESS.md`, then `/clear` between blocks.
 
 **SHIP — before code leaves the machine**
+- `/gate full` — **every pass, over the whole branch, once.** The per-commit gate is light by
+  design and runs only the passes a diff's keywords name; this is where the complete judgment
+  happens, on the diff that actually ships (attest ADR-0067). The 2026-09-07 run is the
+  evidence: two dirty-tree runs over the same series missed both blockers, and the run over the
+  whole PR found them.
 - `/audit-history` — the quick leak scan, **every push**. It appends
   `.attest/ship-…-<HEAD sha>.md`.
 - `/audit-history full` — the whole-history scan, **before a public release** (a secret or a

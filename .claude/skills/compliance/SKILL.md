@@ -112,7 +112,23 @@ question is `/business audit`'s and an undocumented decision that lands on no re
 is `/decision audit`'s (the ladder's `/decision` ↔ `/compliance` edge settles the overlap), so
 one hunk is flagged once.
 
-### Step 0 — the posture check, before anything else
+> **The shell trigger is a NARROWER projection of the list below, and the gap is yours to know**
+> (attest ADR-0067). `triggers.sh`'s pattern reaches every class the ladder calls an automatic
+> blocker — special-category data, national identifiers, Art 5 practices — but it is a word
+> list: it does not see a postal address written as `street`+`city`+`zip` in three separate
+> fields, a transfer described without the word, or a vendor it has never heard of. **Read this
+> section as what the audit covers; read the pattern as what wakes the audit up.** `/gate full`
+> runs you without either.
+>
+> **Inside `/gate`, the two checks below have already run in shell** (attest ADR-0067).
+> `triggers.sh` decides the trigger from the diff and states the posture as a mechanical fact,
+> so a light-mode run that reaches you at all has already hit — and you receive
+> `$M/trigger-compliance.txt`, the `file:line` list of what hit, as your starting point rather
+> than your boundary. **Read the two sections anyway**: in `/gate full`, when the skill is run
+> on its own, and whenever no trigger file was handed to you, they are yours to apply. The hits
+> are a lead, never the finding: the pass is still the whole diff against the declared posture.
+
+#### Step 0 — the posture check, before anything else
 
 **You are installed, so this project's posture is your ground whether or not the diff touches
 it.** Before the trigger, ask one question: **is a posture declared at all?** *No posture
@@ -140,7 +156,7 @@ in that other place satisfies this check. Say where you found it and move on.
 
 Report this once, here. Do **not** repeat it in step 1 of the full pass.
 
-### The trigger check
+#### The trigger check
 
 **Do this on the diff and nothing else** (step 0 above has already run): no `COMPLIANCE.md`, no
 MCP call, no other document. Look for any of —

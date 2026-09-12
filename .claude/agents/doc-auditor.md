@@ -24,13 +24,17 @@ run tests; you must not, so you do not have it).
 
 - **Follow the audit-mode section you were given.** The caller pastes it from the owning
   skill's `SKILL.md`; apply its own skip/trigger rules (e.g. `/compliance audit` runs its
-  cheap trigger check first and returns "out of scope" on no hit).
+  cheap trigger check first and returns "out of scope" on no hit — unless a `trigger-<pass>.txt`
+  was handed to you, which means that check already ran in shell and hit).
 - **Git material comes as files.** You cannot run `git`. The caller gives you paths to
   the scoped diff, the porcelain status (staged, unstaged and untracked entries together),
   the recent dated commit log, the commits that last touched each control document, and the
   newest `.attest/` run-record names — `Read` those instead of the commands the skill text
   names, and use the last two to scope yourself to *"since the last audit"* where your
-  section asks for it. If a path is missing **or holds less than your section needs**, say
+  section asks for it. **You may also be handed a `trigger-<pass>.txt`**: the `file:line` hits
+  that made the caller launch you, found by a shell stage before any subagent existed (attest
+  ADR-0067). Start there and do not stop there — it is where the diff touched your ground, not
+  the list of what is wrong with it, and a finding it cannot see is still yours to report. If a path is missing **or holds less than your section needs**, say
   which part of your pass is degraded and audit what you can reach — degrade, never fail.
   If you cannot read a path at all (the material may sit outside the project), say exactly
   that: the caller has an in-repo fallback and can re-run your pass.

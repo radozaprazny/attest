@@ -140,6 +140,15 @@ Invoked as **`/decision audit`**. Read-only — it **reports**, it does not writ
 **owns** the "undocumented decision" finding, so a new dependency is flagged here and not by
 `/business audit`, whose ground is non-goals and scope — one hunk is flagged once.
 
+> **In `/gate`'s light mode you are launched only on a trigger hit** (attest ADR-0067): a
+> dependency manifest, a lockfile, a container or infra file, a workflow, a hook, the settings
+> that wire them, or an added import line. You receive `$M/trigger-decision.txt` — the
+> `file:line` hits — as a starting point, **not** a boundary: a decision can land in a hunk no
+> keyword names, and the pass is still the whole diff. Note what the trigger cannot see and
+> `/gate full` can: a pattern chosen in ordinary code, a threshold typed into a config the list
+> does not know. An empty `DECISIONS.md` never suppresses this pass — a young project is
+> exactly where unrecorded decisions live (ADR-0065, ADR-0066).
+
 **The one exception is the `/decision` ↔ `/compliance` edge** (`_shared/audit-ladder.md`): a
 choice that lands on **regulated ground** — personal data, a model or automated decision, a
 new data source/transfer, an Art 5 practice — belongs to `/compliance audit`, which names the

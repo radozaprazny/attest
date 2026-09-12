@@ -16,10 +16,23 @@ disable-model-invocation: true
 # /gate — the commit-time gate, one command
 
 One command instead of several. `/gate` runs the **commit-time** half of GUIDE PART 9's loop —
-the `reviewer` subagent (code-level) plus every document audit this project installed — and
+the `reviewer` subagent (code-level) plus the document audits **the diff actually needs** — and
 returns **one** merged verdict. The **ship** gate stays separate: run `/audit-history` before a push and
 `/audit-history full` before a public release; `/gate` deliberately excludes it so the two
 cadences (every commit vs. leaving the machine) stay distinct.
+
+## Two modes, one word apart (attest ADR-0067)
+
+| | scope | passes | when |
+|---|---|---|---|
+| **`/gate`** | the working diff, or `HEAD` when the tree is clean | only those a shell stage says the diff touched | before every commit |
+| **`/gate full`** | `<base>..HEAD` **plus** the working tree — the whole branch | **every** installed pass, unconditionally | once, before a push, beside `/audit-history` |
+
+The light gate is cheap enough to run on a one-file change; that is the point, because a gate
+too expensive to run is not run. It buys that with keyword triggers, and **a keyword set finds
+what a word can find and nothing else** — the 2026-09-07 blocker was `*.sh text eol=lf` in
+`.gitattributes`, which no list flags. `full` is where the complete judgment happens, once, over
+the diff that ships. Never treat a light ✅ as the branch being cleared.
 
 The skill is **generic** — work with what you actually find in the repo, and assume nothing
 about the specific project.
@@ -48,28 +61,83 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
    ```bash
    M=$(mktemp -d) && DOCS="BUSINESS.md DECISIONS.md COMPLIANCE.md" &&
-   { git diff --quiet HEAD && git show HEAD || git diff HEAD; } > "$M/diff.patch" &&
-   git status --porcelain > "$M/status.txt" &&
+   git status --porcelain -uall > "$M/status.txt" &&
+   if [ -s "$M/status.txt" ]; then git diff HEAD; else git show --first-parent HEAD; fi > "$M/diff.patch" &&
    git log -n 20 --date=short --format='%h %ad %s' > "$M/log.txt" &&
    git log -n 5 --date=short --format='%h %ad %s' -- $DOCS > "$M/log-docs.txt" &&
-   ls -1 .attest 2>/dev/null | grep -v '^tmp$' | tail -n 3 > "$M/gate-records.txt"; echo "$M"
+   ls -1 .attest 2>/dev/null | grep '^gate-' | tail -n 3 > "$M/gate-records.txt"; echo "$M"
    ```
+
+   In **`full`** mode the diff line is the branch instead of the commit — everything since the
+   base, working tree included, which is what `git diff <base>` with no second commit means:
+
+   ```bash
+   DEF=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||') &&
+   DEF=${DEF:-$(git rev-parse --verify -q main >/dev/null && echo main || echo master)} &&
+   BASE=$(git merge-base HEAD "$DEF" 2>/dev/null || git rev-list --max-parents=0 HEAD | tail -1) &&
+   git diff "$BASE" > "$M/diff.patch" && echo "base: $BASE ($DEF)"
+   ```
+
+   **Say which base you used, in the verdict and the record.** The default branch is asked for
+   rather than assumed — a repo on `master`, or with no `main` at all, would otherwise fall
+   through to the root commit and gate the entire history while the record said *"the branch"*.
+   If it really does come out as the root commit, that is a first-branch repo and worth saying
+   out loud rather than hiding in a range.
+
+   Three details in that first block are each a bug someone hit (attest ADR-0067):
+   **cleanliness comes from `git status --porcelain`**, never `git diff --quiet`, which reports a
+   tree with three new untracked files as clean; **`git show --first-parent`**, because plain
+   `git show` on a merge commit prints no diff at all and the gate would silently audit nothing;
+   and **`gate-records.txt` is filtered to `gate-*`**, because `ls | tail -3` is alphabetical and
+   `ship-` sorts after `gate-`, so three ship records used to push every gate record out of the
+   list an audit scopes itself by.
 
    `status.txt` is the full porcelain status, untracked files included. `log.txt` is **dated**
    and `log-docs.txt` holds the commits that last touched each control document — together
    with the newest `.attest/` record names (each carries the HEAD sha it gated) they are what
    lets an audit scope itself to *"since the last audit"* without git of its own. If the tree
-   was clean the diff is `git show HEAD` — **say so in the verdict**, you gated the last
-   commit, not pending work. **Echo `$M` and hand the absolute paths on** — step 2's
+   was clean the diff is `git show --first-parent HEAD` — **say so in the verdict**, you gated
+   the last commit, not pending work. **Echo `$M` and hand the absolute paths on** — step 2's
    subagents cannot expand a variable from your shell.
-2. **Launch the passes as parallel subagents**, each returning only findings — the document
+
+   **1b. Run stage 0 — the passes are chosen by a script, not by you** (attest ADR-0067).
+   In `full` mode skip this step entirely and run every installed pass:
+
+   ```bash
+   sh .claude/skills/gate/triggers.sh "$M" && cat "$M/triggers.txt"
+   ```
+
+   It reads the diff, the untracked files `status.txt` names, and the two declaration documents,
+   and writes one line per pass — `run`, `skip`, or `not-installed` — plus, for each **document**
+   pass that runs, a `$M/trigger-<pass>.txt` of `file:line` hits it starts from (the `reviewer`
+   gets none: its ground is the whole diff).
+
+   **Two lines in that file are not about a pass, and both have to reach the verdict:**
+   `posture none · …` is `/compliance`'s **minor** — an unfilled `COMPLIANCE.md` reads as
+   *declared* to every later audit, which is the whole of ADR-0030 — so report it under
+   `/compliance` with the remedy that skill's Step 0 names, **even on a run where the compliance
+   pass itself skipped**; and a `note · …` line reports a fault in the project's own
+   configuration, such as a `gate-watch` list that will not compile. Neither is a finding the
+   trigger stage invented: each is a fact about the repository that a pass would otherwise have
+   been launched to discover. No model is involved, so
+   the stage costs nothing; a pass that skips costs nothing either, which is the whole point —
+   four contexts for a one-file change is the price that stopped the gate being run.
+   **If `triggers.txt` is missing or unreadable, run every pass.** The script exits 0 and writes
+   nothing when it cannot decide, and a stage that cannot decide must never be the reason an
+   audit was skipped.
+2. **Launch only the passes stage 0 marked `run`**, as parallel subagents, each returning only
+   findings — the document
    audits read-only **by capability**, the reviewer read-only **by rule** (it keeps Bash to
    run the tests; see its ground rules). **Which document audits exist is a fact on disk, not
-   an assumption**: run one per **document-audit** skill present — `business`, `decision`,
+   an assumption**: a pass exists per **document-audit** skill present — `business`, `decision`,
    `compliance` (the others own no document audit). `/compliance` is
    opt-in and absent in projects that declared themselves out of regulated scope (attest
    ADR-0030) — then it is three passes, not four, and the verdict says
-   *"compliance — not installed"* rather than *"skipped"*, because those mean different things:
+   *"compliance — not installed"* rather than *"skipped"*, because those mean different things.
+   **Hand a running document pass its `$M/trigger-<pass>.txt`** as the place to start: it is
+   evidence, not a boundary — the hits are where the diff touched that pass's ground, and the
+   pass still reads the whole diff. In `full` mode there are no trigger files and every pass
+   runs:
    - the **`reviewer` subagent** (`.claude/agents/reviewer.md`) — the code-level pass,
      run as itself;
    - one **`doc-auditor` subagent per document audit** (`.claude/agents/doc-auditor.md` —
@@ -77,9 +145,10 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
      given: the audit-mode section of its skill (`.claude/skills/business/SKILL.md` Mode 3 ·
      `.claude/skills/decision/SKILL.md` Mode 2 · `.claude/skills/compliance/SKILL.md`
      Mode 3, **when that file exists**), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), the `$M` paths
-     (its git material — the agent has no Bash), and the
-     instruction to apply its skill's own skip/trigger rules (`/compliance audit` runs its
-     cheap trigger check first and returns "out of scope" on no hit).
+     (its git material — the agent has no Bash), its `trigger-<pass>.txt` when stage 0 wrote
+     one, and the instruction to apply its skill's own rules. **In `full` mode each pass also
+     applies its own trigger check**, the one written in its skill text; in light mode that
+     check already ran in shell, which is why the pass was launched at all.
 
    This is the kit's own token-hygiene rule (GUIDE PART 4): running the audits inline would
    pull every SKILL.md, every control document and the diff into the main context; in
@@ -142,6 +211,8 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    # gate run — <UTC ISO timestamp>
    - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
+   - mode: <light — the passes the diff needs | full — every pass over <base>..HEAD + worktree>
+   - triggers: <the triggers.txt lines, joined with ·, or "not run (full mode)" / "unavailable — every pass ran">
    - passes: reviewer <ran|skipped (<reason>)|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit
@@ -149,6 +220,14 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
      - <severity> ×<n> · <owning passes>                        (minors and nits, by count)
    - detail: the session output; a durable copy under `.attest/tmp/` (ignored) if you want one
    ```
+
+   **`mode:` and `triggers:` exist so that a skipped pass never reads as a clean one** (attest
+   ADR-0067). Without them a record showing no `/compliance` finding is ambiguous between *ran
+   and found nothing* and *never ran*, and the second is what the light gate produces most of the
+   time. Keep the three words apart here as everywhere: **skipped** (never ran, reason in one
+   word), **degraded** (ran, part of its ground out of reach), **not installed** (the skill is
+   not in this repo). The `triggers:` line carries stage 0's own words, not a summary of them —
+   it is the cheapest way for a later reader to ask *why did nothing run?* and get an answer.
 
    **The record is an attestation, not a report (attest ADR-0049).** One line per blocker and
    major — severity, the pass that owns it, the class of the thing, and the **path**. No line
