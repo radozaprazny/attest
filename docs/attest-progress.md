@@ -21,6 +21,12 @@ told their guards run while the path stayed open. Twenty-three new `smoke.sh` as
 seventeen failing against `332a40b` — the other six are controls that must pass both ways;
 suite 210 → 233.
 
+The same session found the front page claiming *"prove nothing sensitive leaks when you ship"*
+while *What it does not defend against*, ninety lines down, said the opposite at length.
+ADR-0056 states the mechanism instead of the outcome and names the coverage boundary where a
+reader looks for it. **Still open: the GitHub *About* description carries the old sentence and
+is not in the tree** — it has to be changed by hand.
+
 **Second review of `0.8.0` — ADR-0054, one arm wider.** An independent pass over the guard
 series found the record arm of ADR-0051 covers only the shapes that **create** a file: `sed -i`
 on a record went through with no prompt, and so did `sed --in-place` and `perl -pi`. Reproduced

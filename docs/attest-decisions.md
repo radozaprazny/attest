@@ -1652,3 +1652,37 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   the tree, so this gate's one piece of evidence has nothing to say about them, and a prompt on
   every comment trains the click-through that makes the other arms worthless).
 
+---
+
+## ADR-0056 — the front page claims what the hooks do, not what they prove · 2026-09-12 · Accepted
+
+  Related: ADR-0035 (a guard states only what it can back), ADR-0049 (a record is an
+  attestation, not a report).
+
+- **Context** — `README.md` opened with *"prove nothing sensitive leaks when you ship"* and, in
+  *What it does not defend against*, said the opposite at length: forgetting not forgery, a
+  model reading a diff, a record nothing signs, a list of substrings rather than a category. Both
+  paragraphs were written deliberately; only one of them can be true. The same sentence is the
+  repository's public description, so it is the first and often the only line a reader sees, and
+  the honest paragraph is ninety lines below it. ADR-0035 makes a hook state only what it can
+  back — a rule the kit had never applied to its own front page.
+- **Options** — (a) leave it as marketing shorthand that the body corrects; (b) soften "prove"
+  to "help ensure"; (c) state the mechanism instead of the outcome, and say the coverage
+  boundary where a reader goes looking for it.
+- **Decision** — (c). The opening now reads *"turn the leak scan from something you have to
+  remember into a gate that stops you at the moment you would have forgotten it"*, and *What it
+  does not defend against* gains a paragraph naming what the guard cannot see (a deploy script
+  of your own, an exfiltrating `curl`, a publish tool never wired past it), that the scan is a
+  model reading a diff rather than a proof, and that `gitleaks`/`trufflehog` belong alongside it.
+- **Why** — (a) is how a kit about honest declarations loses the right to audit anyone else's;
+  the first line is the claim that travels, and a contradiction the reader has to resolve is a
+  defect wherever it sits. (b) keeps the shape of a promise about outcomes while making it
+  vaguer, which is worse: "help ensure" cannot be checked against the code at all, and the whole
+  method rests on claims that can. (c) is a claim the hooks actually make good on — the scan is
+  no longer yours to remember, and a pass leaves a dated attestation — and it is smaller than
+  *nothing sensitive can leave*, which is the point.
+- **Consequences** — the repository's GitHub **About** description still carries the old
+  sentence and is not in the tree; it has to be changed by hand, or the front page and
+  the social card disagree. Anything quoting the old line (a post, a README badge elsewhere) is now
+  out of step by design. No behaviour changes and no test moves: this entry is a claim being
+  brought back to what ADR-0055 and the existing hooks actually do.

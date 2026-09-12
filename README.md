@@ -3,8 +3,8 @@
 Most Claude Code starters give you convenience. `attest` gives you **governance**:
 living documents, audit-gate skills, and three hooks that run without being asked — together
 they keep an AI-assisted project honest to what you declared: its purpose, its boundaries,
-its decisions, and the rules it must operate under — and prove nothing sensitive leaks when
-you ship.
+its decisions, and the rules it must operate under — and turn the leak scan from something you
+have to remember into a gate that stops you at the moment you would have forgotten it.
 
 Built for work in regulated or high-stakes contexts (EU AI Act, GDPR, …), but useful
 to anyone who wants a repo that answers *the questions an auditor asks, not just the
@@ -104,6 +104,14 @@ document audits are a model reading a diff: they are stable on the primary findi
 the margins, so they advise a merge, never block one (`METHOD.md` property 10). Where the kit
 does have a real boundary it says so and means it — the document auditors run without Bash,
 Edit or Write, so they *cannot* change the repository rather than being asked not to.
+
+**And the ship guard sees what it is pointed at, nothing more.** It is a list, so a deploy
+script of your own, an exfiltrating `curl`, or a publish tool you never wired past it leave no
+prompt behind — the trace under `.attest/tmp/` shows what it decided, and an empty one means
+only that nothing it knows about ran. The scan itself is a model reading a diff and a history,
+not a proof: run `gitleaks` or `trufflehog` alongside it. What the kit does give you is that
+the check is no longer yours to remember, and that when it passes it leaves a dated
+attestation — which is a different and smaller claim than *nothing sensitive can leave*.
 
 ## Does it hold up?
 
