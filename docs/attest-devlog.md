@@ -215,6 +215,53 @@ them:
   about what the code cannot show, and wrote the file. It touched nothing else and did not
   commit. That path had never run before.
 
+### The first run outside a sandbox — 2026-09-11, and the first ✅ anyone had seen
+
+A new personal project, kit 0.8.0, installed into a repo with **no code in it yet**. Before its first real commit the gate ran **five times on one
+HEAD**, dirty tree, documents only:
+
+| run (UTC) | blocker | major | minor | nit | verdict |
+|---|---|---|---|---|---|
+| 19:42:58 | 0 | 3 | 7 | 2 | ⚠️ |
+| 20:14:48 | 0 | 0 | 7 | 2 | ✅ |
+| 20:30:52 | 0 | 0 | 4 | 3 | ✅ |
+| 20:45:09 | 0 | 0 | 3 | 2 | ✅ |
+| 20:56:12 | 0 | 0 | 3 | 2 | ✅ |
+
+Commit at 21:03:31. **73 minutes** across the five runs and **81** from the first run to the
+commit; **49** of those 81 fell after the gate had already said ✅. The series ended because the
+author stopped it by hand.
+
+- **Run 1 earned its keep.** Three real findings at `major`, all of them in documents: a command
+  whose failure mode the text had not noticed, a secret written where it would have been
+  committed, and an ignore rule that did not cover what it was for. What they were, specifically,
+  belongs to that project and not to this page — the same reason a run record carries counts and
+  not contents (ADR-0049).
+- **Runs 2–5 mostly found what the previous round's fixes had introduced** — the author's
+  account, and it matches what two of this repo's own records say about their own series
+  (ADR-0062).
+- **Nothing said stop.** The record said ✅ while the verdict text recommended repairing minors
+  before committing, pointing especially at `DECISIONS.md` and its append-only rule. Both
+  halves were defensible, which is why the loop ran: ✅ *permitted* a commit and nothing
+  declared the round over.
+- **The first commit was 442 added lines, all of them documents**, four ADRs, and no code.
+
+Why this was new information: the sandboxes above tested whether the audits **detect**, with
+planted faults and a known answer key. Nothing had tested whether the loop **ends** — and it
+could not have been seen here, because all ten of this repo's own runs had returned ⚠️, so the
+state after a ✅ had never occurred. The kit's first real adopter reached it in an afternoon.
+
+What it changed: ADR-0061 (the round ends at ✅, and the gate's last line is an instruction),
+ADR-0062 (a fix subtracts before it adds), ADR-0063 (ids from every ref — the same session
+blindness, in another form), ADR-0065 (what day one costs), ADR-0066 (a skeleton is skipped
+before the subagent).
+
+**What this is not.** One series, one project, one afternoon: `n=1`. The counts and the
+timestamps are read off the five records; everything about what the verdict *text* said is the
+author's account, because a record deliberately carries no prose (ADR-0049). The neatest claim
+of the series — that the one round which removed claims rather than adding them was the first to
+introduce no new inaccuracy — is an observation, not a measurement, and is recorded as one.
+
 ## Notes
 
 - `disable-model-invocation: true` skills cost ~0 when idle — the description is not preloaded.
