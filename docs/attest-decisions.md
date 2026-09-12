@@ -2077,3 +2077,36 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   Known limit: this is advice, and advice loses to enthusiasm. What to watch on the next adopter
   is measurable and specific — the size of the first commit, whether `DECISIONS.md` is in it,
   and how many gate rounds it took.
+
+## ADR-0066 — a skeleton is skipped before the subagent, and *skipped* is not *degraded* · 2026-09-12 · Accepted
+
+  Narrows: ADR-0017 (the document audits run in a subagent with no write capability).
+
+- **Context** — `/gate` step 2 has always said a document still in its shipped skeleton is
+  skipped. It said it in the paragraph that a subagent reads, so the skip happened **after** the
+  subagent had been launched and its context spent. The records show what that costs: of the ten
+  gate runs now under `.attest/`, **nine** report `business degraded`, and **seven** of those
+  give the bare reason *"no filled `BUSINESS.md` — nothing declared"* — a full pass, a full
+  context, to return a sentence one `Read` in the main context answers. The other two are a
+  different animal and must not be swept in with them: they say the audit ran against
+  **substitute ground** (README §*"Not a kitchen sink"*, GUIDE PART 2, the carrier's standing
+  constraints). That pass did run, and *degraded* is the right word for it. One word was
+  carrying both facts.
+- **Options** — (a) leave it: the answer is cheap even if the context is not; (b) test the
+  document in the main context before launching the pass, and separate the words *skipped*,
+  *degraded* and *not installed*; (c) write the stage-0 trigger script now and have it decide.
+- **Decision** — (b).
+- **Why** — (a) misprices what is actually scarce: the cost of a document pass is the context it
+  opens, not the length of what it returns, and a reader of the record counts a pass that "ran"
+  when nothing was audited. (c) is the right end state and it is phase B's (`docs/attest-proposal-gate.md`),
+  which changes the record shape and earns a version bump; doing a piece of it early, in a
+  different shape, would be the thing that has to be undone. (b) is an instruction to read
+  before launching — the main context reads the file either way — and it costs nothing to
+  replace when stage 0 lands.
+- **Consequences** — `/gate` step 2 does the skeleton test before the subagent and names the
+  three words: *skipped* (never ran, reason in one word), *degraded* (ran, part of the ground
+  out of reach), *not installed* (the skill is not here). The record's `passes:` line carries
+  the reason for a skip. `/business audit` stops at step 1 on a skeleton and returns one line
+  with no findings, so the same rule holds when the skill is run on its own. Known limits: the
+  test is a judgment made from a read, not a command — that is exactly what stage 0 turns into a
+  script; and it applies to documents only, since the `reviewer` always has ground.

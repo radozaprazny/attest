@@ -87,7 +87,15 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
    A missing piece **degrades, never fails**: no `BUSINESS.md` → note "nothing declared —
    run `/business`" and skip that pass; a document still the shipped skeleton → same; the
-   reviewer agent absent → say so and run the other three; the `doc-auditor` agent absent
+   reviewer agent absent → say so and run the other three;
+   **and the skip happens here, in the main context, before the subagent exists** (attest
+   ADR-0066). Read the document first: if everything outside its HTML comments and
+   `<angle-bracketed>` placeholders is empty, it is still the skeleton — do not launch that
+   pass. Launching it costs a whole subagent context to be told what one `Read` already
+   answered, which is what happened on all nine runs recorded here. Three words, three
+   different facts, and they do not substitute for each other: **skipped** — the pass never
+   ran, with the reason in one word; **degraded** — it ran and part of its ground was out of
+   reach; **not installed** — the skill is not in this repo. the `doc-auditor` agent absent
    (an older install) → fall back to general-purpose subagents with the same material and
    say in the verdict that those passes were read-only by instruction only. If a subagent
    reports it **cannot read `$M`** (a temp dir is outside the project, and a harness may
@@ -128,7 +136,7 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    # gate run — <UTC ISO timestamp>
    - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
-   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…|not installed>
+   - passes: reviewer <ran|skipped (<reason>)|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit
      - <severity> · <owning pass> · <class of thing> · <path>   (one line per blocker and major)
