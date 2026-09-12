@@ -23,7 +23,8 @@ relation (`Widens`), and the grep that ends a three-entry series of the same dri
 **ADR-0065** — what day one costs, said where first-run advice is actually read · **ADR-0066** —
 a skeleton is skipped *before* the subagent, and *skipped* is not *degraded*.
 
-Suite **240 → 244**; the new grammar check was verified to fail on a planted `Contradicts:`,
+Suite **240 → 244** from the change itself, and **245** as the branch stands: `smoke.sh` asserts
+one case per ship record and this branch writes one. The new grammar check was verified to fail on a planted `Contradicts:`,
 including the mid-line and tab-indented shapes its first version missed. **Kit stays 0.8.0** — the
 maintainer's call, made explicitly rather than by omission: the record template's `passes:` line
 now carries a reason inside the existing word (`skipped (template)`), which the records have
