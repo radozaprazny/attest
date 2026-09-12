@@ -27,6 +27,23 @@ ADR-0030). `/business` makes that call for you once it knows the archetype. Docu
 not adopted cost nothing — the skills read them on demand, and an audit degrades to a note
 ("nothing declared") when one is absent.
 
+**Day one is two placeholders, not five documents** (attest ADR-0065). Fill `CLAUDE.md`, run
+`/business` for the non-goals, and start. `DECISIONS.md` is *supposed* to be empty until a
+choice lands — an empty log is a correct state, not a gap, and `/decision` records one entry at
+the moment you choose, never a design written forward. The reason is not tidiness: over a first
+commit that is documents only, every pass has nothing but prose to judge, which is the case
+where rounds do not converge (ADR-0061, ADR-0062). The gate is worth most on your first real
+change; before that, take its blockers and majors, send the rest to *Next*, and commit.
+
+**One session at a time in these documents.** Two Claude sessions in one repository cannot see
+each other: the declaration hook prints the state at the start of *its own* session, and a skill
+reads the file from disk at the moment it runs, so a choice made in the other window exists
+nowhere either of them can look. The failure is quiet and it is not hypothetical — it put two
+different decisions into one adopter's log for one question, and it put two open PRs in *this*
+repository both claiming `ADR-0055` through `ADR-0057` (attest ADR-0063). Ids are now read from
+every ref, which catches the clash as soon as the other branch has been pushed; the rest is a
+habit no file can enforce — one window owns the control documents at a time.
+
 ### 1.1 `CLAUDE.md` — project rules and conventions
 - **How:** a file in the repo root; loaded **automatically every turn**. Quick add: start a
   prompt with `#` and Claude appends the line for you.
@@ -379,7 +396,10 @@ one output shape and one severity ladder so they read as a family:
   merges the findings under the shared ladder + ownership contract into **one** verdict. What
   flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
   there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
-  rule here.
+  rule here. The last line it prints is what to **do** — *commit*, or *fix these N, then
+  `/gate`* — and on a ✅ that is the end of the round: minors travel to `PROGRESS.md` *Next*,
+  they do not buy another run (attest ADR-0061, the reason in the ladder under *✅ ends the
+  round*).
 - **What for:** the whole per-change gate in one invocation. Touches no document and
   no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
   passes, verdict, and findings at **attestation altitude** (severity · pass · class · path,

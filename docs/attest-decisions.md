@@ -15,23 +15,27 @@
 > `/audit-history` and the ship guard defend, for the same reason: what has left cannot be
 > recalled from whoever already read it.
 >
-> A new entry may carry, under its title, any of **five** relations, in two kinds. All five are
+> A new entry may carry, under its title, any of **six** relations, in two kinds. All six are
 > fields of the **new** entry and touch nothing older, so none of them costs an exception to the
-> rule above (attest ADR-0045, ADR-0056).
+> rule above (attest ADR-0045, ADR-0056, ADR-0064).
 >
 > **They change the older entry's reach:** `Supersedes: ADR-N` (it is reversed — this one alone
 > earns the `Status` flip) · `Supersedes in part: ADR-N` (half of it is) · `Narrows: ADR-N` (it
-> still stands entirely, and its scope turns out smaller than its text says). `Narrows` is for
-> the case this log kept hitting, and is what to reach for instead of editing an entry whose
-> reasoning was right and whose wording was too broad — editing is the one thing this log cannot
-> allow.
+> still stands entirely, and its scope turns out smaller than its text says) · `Widens: ADR-N`
+> (it still stands entirely, and its ground turns out larger — the mirror of `Narrows`).
+> `Narrows` is for the case this log kept hitting, and is what to reach for instead of editing an
+> entry whose reasoning was right and whose wording was too broad — editing is the one thing this
+> log cannot allow.
 >
 > **They only point:** `Extends: ADR-N` (this builds on that) · `Relates to: ADR-N` (read that
 > alongside this). Neither says anything about the older decision's scope, so neither is a softer
-> `Narrows` — reaching for one where the scope really did shrink hides a narrowing.
+> `Narrows` or `Widens` — reaching for one where the scope really did move hides the move.
 >
-> All five share a limit worth knowing: the field sits on the **new** entry, so a reader who
+> All six share a limit worth knowing: the field sits on the **new** entry, so a reader who
 > lands on the old one is not told — searching the log for its id is what finds the relation.
+> One spelling variant exists and is not to be repeated: ADR-0058 and ADR-0059 write `Related:`
+> where the field is `Relates to:`. Both entries were pushed before it was noticed, so they stand
+> as written; `scripts/smoke.sh` accepts that one legacy word and fails on any other.
 
 <!--
 Every entry below was reconstructed from a written record — the design-workflow `reject`
@@ -1882,3 +1886,235 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   append, no space after `>`, a write in the last part of a compound, and reading a record into
   a file. Coverage stays deliberately partial (an editor, `python -c`) and README still says so.
   Suite 233 → 240.
+
+## ADR-0061 — a ✅ ends the round, and the gate's last line says what to do · 2026-09-12 · Accepted
+
+  Extends: ADR-0055 (the verdict line flips on a blocker or a major, and on nothing else).
+
+- **Context** — ADR-0055 gave the verdict line a rule and stopped there: it says when the line
+  reads ✅, never what follows a ✅. Nothing in the kit says when a gate may be run again, so
+  *"once more, to be sure"* was always available and always defensible. The first evidence that
+  this matters came from **outside this repository**, and could not have come from inside it:
+  all ten runs recorded here returned ⚠️ — the nine ADR-0055 counted, plus the run that produced
+  it — so the state after a ✅ had never occurred. An adopter running kit 0.8.0 gated one HEAD **five
+  times before the project's first real commit**, with no code in the tree at all — ⚠️ with three
+  majors, then ✅ four times over; minors 7 · 7 · 4 · 3 · 3; **81 minutes** from the first run to
+  the commit, **49 of them after the gate had already said yes** (the five runs themselves span
+  73 of those 81); the series ended because the author stopped it by hand. The author's account of the runs adds the part no record can carry
+  (a record holds no prose, ADR-0049): the ✅ verdicts recommended repairing minors *before*
+  committing, so the file said ready while the text said not yet, and the later rounds mostly
+  found inaccuracies introduced by the fixes of the round before.
+- **Options** — (a) leave it: ✅ already permits a commit, and a person who re-runs anyway has
+  made a choice; (b) detect the N-th run on one HEAD and narrow what the later runs may report;
+  (c) state the terminus where the verdict rule already lives, and make the gate's last line an
+  instruction rather than a list.
+- **Decision** — (c).
+- **Why** — (a) is what we had, and it lost: *permitted* is not *finished*, and the gap between
+  them is where an hour goes. The fuel was never the minors themselves but the absence of a
+  sentence saying **stop**, and prose that recommended work the verdict line called optional —
+  a contradiction the reader resolves in the direction of more work, every time. (b) was
+  weighed and rejected on two grounds, both fatal: it makes a run's severities depend on its
+  position in a series, so `0 major` in the fourth record would not mean what it means in the
+  first — and this record is a published attestation, read later by someone who cannot see the
+  series; and demoting wording findings to `nit` on a later pass contradicts ADR-0005 and
+  ADR-0029, which put stale wording on the ladder as `minor` deliberately. The bounded loop
+  that phase C proposes is the honest version of (b): a cap on rounds, not a sliding scale of
+  what counts.
+- **Consequences** — the ladder gains *✅ ends the round*, beside the rule it completes: commit,
+  carry the minors to `PROGRESS.md` *Next*, and do not re-run — including after fixing them,
+  because that fix is a new change and is gated when it is committed. `/gate` step 4 gains a
+  **last line**, one imperative sentence, derived from the verdict rather than judged, with
+  nothing permitted after it; GUIDE 3.6 says the same in one sentence for the human. Record
+  shape untouched, no version bump. Two limits worth naming: the rule binds the gate, not the
+  person — nothing prevents a re-run and nothing should, the point is that the gate stops
+  asking for one; and *Next* is the right home for a minor only while the document it names is
+  still editable, so a minor against an entry whose commit has been pushed needs a new entry
+  instead (ADR-0057).
+
+## ADR-0062 — a recommended fix subtracts before it adds, and claims only what it read · 2026-09-12 · Accepted
+
+  Relates to: ADR-0061 (a ✅ ends the round).
+
+- **Context** — ADR-0061 stops the rounds; it does not touch what makes another round productive
+  in the first place. The records are blunt about that: on `ce439a5` the major count across four
+  runs went **4 · 2 · 3 · 5**, and two records say in their own text why —
+  `.attest/gate-20260828-144100-ce439a5.md`, *"opened by the fixes made after the 12:57Z run"*,
+  and `.attest/gate-20260907-110842-d91f69f.md`, *"the first round of fixes introduced two of
+  these"*. The same shape came back from an adopter's five-run series (ADR-0061), whose author
+  observed that the one round which **removed** claims and tied the rest to measurements was the
+  first that introduced no new inaccuracy — an observation from a single series, not a
+  measurement, and recorded as one. The mechanism is not mysterious. Three of the four passes
+  judge prose, so prose is the material; a fix that adds two sentences adds two sentences to
+  audit. One detail from the 08-28 record points the other way and is worth keeping: the fix
+  that broke `install.sh` with a stray `set -e` was caught *immediately*, by `smoke.sh` — where
+  a command is the judge, a bad fix is found in the same round, not the next one.
+- **Options** — (a) nothing: how to fix a finding is the author's business, and an audit that
+  prescribes style oversteps; (b) direct every audit to prefer the fix that removes or narrows a
+  claim, and to mark any fact in a recommendation that it did not read in the tree;
+  (c) forbid audits from proposing added text at all, and return only the finding.
+- **Decision** — (b).
+- **Why** — (a) is where we were, and it is not neutral: an audit that says *"say more about
+  X"* is already prescribing, just in the direction that costs the most. (c) overshoots — some
+  findings **are** omissions (an undocumented dependency, a decision made in code and never
+  recorded) and the only thing that closes them is the missing entry; a rule that cannot express
+  that would be worked around within a week. (b) is cheap because it changes no severity, no
+  verdict and no shape: two paragraphs in the file every audit already reads at runtime. The
+  second half matters as much as the first: a recommendation is written in the audit's voice, so
+  an unchecked number inside one is laundered into a control document and is never re-examined.
+  Marking it *unverified* leaves it in the author's hands, where a claim without evidence
+  belongs.
+- **Consequences** — `_shared/audit-ladder.md`, *Output shape*, gains the two rules, so they
+  reach `/business`, `/decision`, `/compliance`, `/audit-history`, `doc-auditor` and `reviewer`
+  through the one file they all read. *unverified* is deliberately **not** a rung: it marks a
+  claim inside a recommendation, never a finding, and nothing counts it. Known limit: this is
+  guidance to a judge, not a check a command can run — unlike the ADR-0060 arm or `smoke.sh`,
+  nothing fails when it is ignored, and the next series is the only way to tell whether it
+  helped. The number to watch is the one that moved here: majors across rounds on one tree.
+
+## ADR-0063 — the next id is read from every ref, and a landed collision is renumbered · 2026-09-12 · Accepted
+
+  Narrows: ADR-0057 (an entry becomes immutable when its commit is pushed).
+
+- **Context** — ids here are sequential and, until now, read from whatever checkout the session
+  happened to be in. Two sessions on one repository therefore take the same number without
+  either of them being able to notice. It happened in this repository on 2026-09-12: PR #18
+  (opened 09:48Z) and PR #19 (10:00Z) were written in parallel sessions and **both** recorded
+  `ADR-0055`, `ADR-0056` and `ADR-0057` — six different decisions on three ids, each branch
+  internally consistent, the clash visible only when the second one merged. Measured at that
+  point: 26 citations of those ids on #18, 45 on #19. The same blindness has a softer form an
+  adopter hit first: `/decision` in one session recorded a dependency choice the other session
+  had already decided the other way, and neither window could see the other (the author's
+  account; nothing in a repository records it).
+- **Options** — (a) leave it: a human notices at review, as happened here; (b) read the next id
+  from **every ref**, and write down who renumbers when a collision has already landed;
+  (c) drop sequential ids for something collision-free — a timestamp, a hash, a uuid.
+- **Decision** — (b).
+- **Why** — (c) ends the problem and costs more than it saves: the short id **is** this log's
+  citation surface. Sixty entries cite each other by number, and so do `audit-ladder.md`, four
+  skills, `ship_guard.sh`, `smoke.sh`, `install.sh` and GUIDE; `ADR-0037` is readable in a
+  sentence and `ADR-9f3c1e` is not, and converting would rewrite every one of those citations to
+  solve a clash that is rare and cheap to catch. (a) is what we had: it was caught, but only
+  after both branches were pushed, and the fix was a mechanical rewrite of 26 citations under a
+  merge that could as easily have been done by someone who did not know both branches. (b) is
+  one command in Mode 1, and it fails safe — a ref it cannot see it does not claim to have
+  checked.
+- **Consequences** — `/decision` Mode 1 takes the id from `git for-each-ref` over local **and**
+  remote refs after a `git fetch --all`; the shipped `DECISIONS.md` carries the rule in two
+  lines; GUIDE PART 1 states the wider fact that two sessions in one repository cannot see each
+  other. **The renumber is a sanctioned edit of a pushed entry**, which is why this narrows
+  ADR-0057: it rewrites **ids only**, never a word of content, and the alternative — a log with
+  two `ADR-0055`s — breaks every citation in it. The branch that merges second renumbers; where
+  the order is yours to pick, merge the branch with more citations first, since a `sed` over
+  fewer ids is the cheaper side. Worked example: #19 kept 0055–0057, #18 became 0058–0060.
+  Known limit, stated rather than papered over: the check sees only refs that exist and have
+  been fetched, so two sessions that both start before either pushes still collide — for that
+  case the rule is the renumber, not the prevention.
+
+## ADR-0064 — the log's sixth relation, and a grep that ends the series · 2026-09-12 · Accepted
+
+  Extends: ADR-0056 (the log's fourth and fifth relations are a decision too, and they ship).
+
+- **Context** — this is the third entry in a row spent on the same failure. ADR-0045 recorded the
+  third relation after it had been in use; ADR-0056 recorded the fourth and fifth after five
+  entries carried them; and merging PR #18 beside PR #19 brought in two more words that no
+  rule-home named: **`Widens:`** under ADR-0058 and **`Related:`** under ADR-0058 and ADR-0059.
+  Counted as relation fields under an entry title — the shape the rule binds — over the log at
+  the merge, sixty entries: `Narrows` 11 · `Extends` 5 · `Relates to` 2 · `Related` 2 ·
+  `Widens` 1 — and `Supersedes` and `Supersedes in part` **0**, which is worth knowing on its
+  own: in sixty entries this log has never reversed a decision, only ever moved the edges of one. Each time, the drift was found by an audit, one entry too late.
+- **Options** — (a) record `Widens` as the last two entries recorded their relations, and expect
+  a fourth such entry later; (b) record it **and** put the vocabulary under a check a command
+  runs; (c) refuse it and require `Extends` in its place.
+- **Decision** — (b).
+- **Why** — (c) fails twice over: the two entries are pushed, so ADR-0057 puts them out of reach
+  anyway, and it is wrong on the merits — `Extends` only points, so using it where an older
+  decision's ground actually grew hides the widening exactly as ADR-0056 said a pointer hides a
+  narrowing. `Widens` is the mirror of `Narrows` and the reach kind was missing it. (a) is the
+  option this log has now taken twice; taking it a third time would be recording the rule again
+  rather than fixing why it keeps escaping. A rule that has drifted three times does not need a
+  fourth statement, it needs a test: `smoke.sh` now greps every relation field in the log and
+  fails on any word the rules do not name, and separately asserts that all six words appear in
+  each of the three rule-homes — so the vocabulary cannot move in one place only.
+- **Consequences** — six relations in two kinds, in all three homes; suite 240 → 244, and the
+  new check was verified to fail on a planted `Contradicts:` before it was kept. `Related:`
+  stays in the two entries that carry it and is accepted by the check as a legacy spelling,
+  named in the log header as not to be repeated — the append-only cost of noticing late, made
+  visible rather than tidied away. One limit, stated plainly: the check carries the list, which
+  makes it a **fourth** copy of the vocabulary. That is accepted because it is the only copy
+  that fails loudly, and because it reads the other three — a change made in one home and not
+  the others now breaks the suite instead of surfacing in an audit two entries later.
+
+## ADR-0065 — day one is two placeholders, and the log starts empty · 2026-09-12 · Accepted
+
+  Relates to: ADR-0061 (a ✅ ends the round), ADR-0030 (compliance is opt-in).
+
+- **Context** — GUIDE PART 1 has said *"adopt on a gradient"* since the kit's early days: three
+  documents are the minimum, `DECISIONS.md` earns its keep later. An adopter still reached their
+  first commit with **442 added lines, all of them documents, four ADRs, and no code** — and
+  then gated that tree five times (ADR-0061). The gradient was true and it was in the one place
+  a new adopter reads last: a 618-line guide. The two surfaces they do read said something
+  closer to the opposite — `install.sh`'s closing block offered `/decision — the choices you
+  have already made`, which reads as *empty your head into the log before you start*, and
+  README's step 3 left it open.
+- **Options** — (a) leave it: the gradient is documented, and how much a project writes up front
+  is the project's business; (b) say it where first-run advice is actually read — the
+  installer's NEXT block, README *First 5 minutes*, GUIDE PART 1 — and say why; (c) enforce it:
+  a `--minimal` install that lands fewer templates, or a flag that defers `DECISIONS.md`.
+- **Decision** — (b).
+- **Why** — (a) has been tried: the sentence existed and the first real adopter front-loaded
+  anyway, which makes it evidence rather than opinion. (c) costs a new dimension in the install
+  matrix — every flag multiplies what `install.sh` must stay idempotent about and what
+  `smoke.sh` must pin — to solve a habit. The kit spends a flag exactly once, on `--compliance`,
+  and only because an **empty** posture file reads as *declared* to a later audit (ADR-0030). An
+  empty `DECISIONS.md` misleads nobody: `/decision` already treats a template-only file as
+  empty, and says so. The reason worth stating in the text is not tidiness but the mechanism the
+  last two entries named: over a first commit that is documents only, every pass has nothing but
+  prose to judge, and prose is where rounds do not converge (ADR-0062).
+- **Consequences** — the installer's NEXT block, README step 3 and GUIDE PART 1 now say the same
+  three things: fill `CLAUDE.md`, declare the non-goals, start; an empty log is a correct state,
+  not a gap; `/decision` records one entry as a choice lands, never a design written forward. No
+  flag, no new file, no behaviour change — three sentences and one reworded installer line.
+  Known limit: this is advice, and advice loses to enthusiasm. What to watch on the next adopter
+  is measurable and specific — the size of the first commit, whether `DECISIONS.md` is in it,
+  and how many gate rounds it took.
+
+## ADR-0066 — a skeleton is skipped before the subagent, and *skipped* is not *degraded* · 2026-09-12 · Accepted
+
+  Relates to: ADR-0017 (the document audits run in a subagent with no write capability).
+
+- **Context** — `/gate` step 2 has always said a document still in its shipped skeleton is
+  skipped. It said it in the paragraph that a subagent reads, so the skip happened **after** the
+  subagent had been launched and its context spent. The records show what that costs: of the ten
+  gate runs now under `.attest/`, **nine** report `business degraded`, and **seven** of those
+  give the bare reason *"no filled `BUSINESS.md` — nothing declared"* — a full pass, a full
+  context, to return a sentence one `Read` in the main context answers. The other two are a
+  different animal and must not be swept in with them: they say the audit ran against
+  **substitute ground** (README §*"Not a kitchen sink"*, GUIDE PART 2, the carrier's standing
+  constraints). That pass did run, and *degraded* is the right word for it. One word was
+  carrying both facts.
+- **Options** — (a) leave it: the answer is cheap even if the context is not; (b) test the
+  document in the main context before launching the pass, and separate the words *skipped*,
+  *degraded* and *not installed*; (c) write the stage-0 trigger script now and have it decide.
+- **Decision** — (b).
+- **Why** — (a) misprices what is actually scarce: the cost of a document pass is the context it
+  opens, not the length of what it returns, and a reader of the record counts a pass that "ran"
+  when nothing was audited. (c) is the right end state and it is phase B's (`docs/attest-proposal-gate.md`),
+  which changes the record shape and earns a version bump; doing a piece of it early, in a
+  different shape, would be the thing that has to be undone. (b) is an instruction to read
+  before launching — the main context reads the file either way — and it costs nothing to
+  replace when stage 0 lands.
+- **Consequences** — `/gate` step 2 does the skeleton test before the subagent and names the
+  three words: *skipped* (never ran, reason in one word), *degraded* (ran, part of the ground
+  out of reach), *not installed* (the skill is not here). The record's `passes:` line carries
+  the reason for a skip. `/business audit` stops at step 1 on a skeleton and returns one line
+  with no findings, so the same rule holds when the skill is run on its own.
+  **The skip is scoped to a pass whose ground is the document itself — today that is
+  `/business` alone**, and the gate's own text says so. `/decision` and `/compliance` audit the
+  **diff**; their document is a reference, not their ground. Skipping `/decision` on an empty
+  `DECISIONS.md` would silence it exactly when a young project is making its first unrecorded
+  decisions — which is the state ADR-0065 declares normal — so that pass runs as always, and
+  `/compliance` keeps its own trigger check. This scoping was itself a `/decision audit` finding
+  on the run that gated this entry: the first draft said *"that pass"* and reached every
+  document audit. Known limits: the test is a judgment made from a read, not a command — that is
+  exactly what stage 0 turns into a script; and the `reviewer` is never in scope, since its
+  ground is the diff and it always has one.

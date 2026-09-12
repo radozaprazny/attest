@@ -65,24 +65,51 @@ the other?"* If yes, record it; if no, leave it to the commit.
 ```
 
 - **IDs** are sequential, zero-padded (`ADR-0001`, `ADR-0002`, …). **Dates** ISO `YYYY-MM-DD`.
+- **The next id comes from every ref, not from your checkout** (attest ADR-0063). Two sessions
+  on one repository, or a session and a branch someone else is pushing to, otherwise take the
+  same number, and the collision surfaces only at the merge — by which time both entries are
+  written, cited and pushed:
+
+  ```sh
+  LOG=DECISIONS.md                      # attest's own log is docs/attest-decisions.md
+  git fetch --all --quiet 2>/dev/null   # a ref you have not fetched cannot be seen
+  git for-each-ref --format='%(refname)' refs/heads refs/remotes \
+    | xargs -I{} git grep -h -E '^## ADR-[0-9]{4} — [^<]' {} -- "$LOG" 2>/dev/null \
+    | grep -oE 'ADR-[0-9]{4}' | sort -u | tail -1
+  ```
+
+  The `— [^<]` is load-bearing: the shipped template carries `## ADR-0001 — <short imperative
+  title>` inside an HTML comment, and a pattern that only asks for the heading counts that
+  example as an entry — every project's first real ADR would then be numbered `0002`. A
+  skeleton prints nothing here, which is the right answer: start at `ADR-0001`.
+
+  Take the next number above what that prints. If two sessions both start before either has
+  pushed, nothing local can see the clash and it lands at the merge: then **the branch that
+  merges second renumbers**, and when you choose the order, merge the branch with more citations
+  to its own ids first — renumbering is a mechanical `sed` over ids, so the cheaper side is the
+  one with fewer of them. That renumber is the one edit of a pushed entry this log sanctions,
+  and it changes ids only: a duplicate id breaks every citation in the log, which is worse than
+  the exception.
 - **Append-only, forward-only:** past entries are **immutable**. To reverse `ADR-0007`, append
-  a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
-  touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
+  a **new** entry carrying a `Supersedes: ADR-0007` line under its title. **Two** touches to an
+  old entry are permitted and no others — the id-only renumber above, and flipping its `Status`
+  from `Accepted` to `Superseded by ADR-000M` —
   **never** rewrite its rationale.
 - **"Past" starts at the push, not the commit** (attest ADR-0057): an entry is immutable once
   the commit carrying it has left the machine. Until then it is a draft — correct it in place,
   which is what the commit-time gate is *for*. It is the same boundary the ship gate defends,
   and it is checkable from the checkout, which "once the branch merges" is not.
-- **Five relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
+- **Six relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
   an exception to the rule above. **They change how far the older entry reaches:**
-  `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only `Supersedes` earns
-  the `Status` flip. **`Narrows` is the one to reach for when an entry's reasoning was right and
+  `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N` · `Widens: ADR-N` (the
+  mirror of `Narrows`: the decision stands and its ground turns out larger than its text claims).
+  Only `Supersedes` earns the `Status` flip. **`Narrows` is the one to reach for when an entry's reasoning was right and
   its wording too broad** — the decision still stands and its scope is smaller than its text
   claims. The alternative people reach for instead is editing the old wording, which is the one
   thing the log cannot allow. **They only point:** `Extends: ADR-N` (this builds on that) ·
   `Relates to: ADR-N` (read that alongside this) — neither says anything about the older
-  decision, so neither is a softer `Narrows`: using one where the scope really did shrink hides
-  the narrowing. All five share a limit worth knowing: the field is on the **new** entry, so
+  decision, so neither is a softer `Narrows` or `Widens`: using one where the scope really did
+  move hides the move. All six share a limit worth knowing: the field is on the **new** entry, so
   landing on the old one shows nothing — finding a relation means searching the log for that id.
 
 ## Two modes
@@ -97,8 +124,9 @@ the other?"* If yes, record it; if no, leave it to the commit.
 
 1. **Confirm it clears the threshold** above. If it is really a non-goal / a rule / an
    obligation, route it to the right doc instead and say so.
-2. **Read `DECISIONS.md`** to find the next `ADR-NNNN` id and match the house tone (an
-   empty template has no entries — start at `ADR-0001`).
+2. **Read `DECISIONS.md`** to match the house tone, and take the next `ADR-NNNN` id from
+   **every ref** with the command above — never from this checkout alone (an empty template has
+   no entries — start at `ADR-0001`).
 3. **Append one entry** with the five fields. Capture the **Options** and **Why** honestly —
    the discarded alternatives are the point. If the decision is compliance-relevant, note the
    regulatory consequence in `COMPLIANCE.md` and cross-reference this ADR id (record the fact

@@ -95,6 +95,20 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    pass, and delete **the files you wrote** afterwards — it is scratch, never a record. Delete
    your files, not the directory: `.attest/tmp/` is shared ignored scratch and the ship guard
    keeps its decision trace there too (attest ADR-0034).
+
+   **The skeleton skip happens here, before the subagent exists** (attest ADR-0066) — and it
+   applies to a pass whose **ground is the document itself**, which today means `/business`,
+   whose findings are drift against declared non-goals. Read `BUSINESS.md` first: if everything
+   outside its HTML comments and `<angle-bracketed>` placeholders is empty, it is still the
+   skeleton, so do not launch that pass. Launching it spends a whole subagent context to be told
+   what one `Read` already answered — which is what seven of the ten runs recorded here did.
+   **`/decision` and `/compliance` are not covered by this**: their ground is the **diff**, not
+   their document. An empty `DECISIONS.md` is the normal state of a young project (ADR-0065) and
+   is exactly when an unrecorded decision is most likely, so that pass runs on the diff as
+   always; `/compliance` applies its own cheap trigger check instead. Three words, three
+   different facts, and they do not substitute for each other: **skipped** — the pass never ran,
+   with the reason in one word; **degraded** — it ran and part of its ground was out of reach;
+   **not installed** — the skill is not in this repo.
 3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
    the same hunk, keep the **owner's** finding and drop the other — the contract names the
    owner, including for the two edges it resolves explicitly. Order everything by the shared
@@ -114,7 +128,13 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - **advisory** — the minors, and the reviewer's `nit`s last. Report them in full, but keep
      them under the act-on list and never let their number argue with the verdict: thirteen
      minors and a ✅ is a coherent result, and saying so is the point of the rung;
-   - each pass's recommended document update, if any — but **make none of them**.
+   - each pass's recommended document update, if any — but **make none of them**;
+   - **last line: what to do now, in one imperative sentence** — the only line that tells the
+     reader what to *do*, so nothing may follow it. It is derived, never judged: on ✅ it is
+     *"commit; the N minors go to `PROGRESS.md` Next"* (and a re-run is not among the options —
+     `_shared/audit-ladder.md`, *✅ ends the round*); on ⚠️ it names the act-on count and the
+     command that follows the fix, *"fix the N above, then `/gate`"*. A reader who stops after
+     this line has not missed an instruction (attest ADR-0061).
 5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
    if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
 
@@ -122,7 +142,7 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    # gate run — <UTC ISO timestamp>
    - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
-   - passes: reviewer <ran|skipped|degraded> · business <…> · decision <…> · compliance <…|not installed>
+   - passes: reviewer <ran|skipped (<reason>)|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit
      - <severity> · <owning pass> · <class of thing> · <path>   (one line per blocker and major)

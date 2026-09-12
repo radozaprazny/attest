@@ -192,7 +192,12 @@ You own what the code **does**;
 `/audit-history` owns what the repo **ships** (bytes in the tree or history) — so a violated
 *behaviour* non-goal ("no network access") is yours, even if it looks like a leak risk.
 
-1. **Read `BUSINESS.md`** — focus on **Non-goals** and **Scope**; note the archetype.
+1. **Read `BUSINESS.md`** — focus on **Non-goals** and **Scope**; note the archetype. **If
+   everything outside its HTML comments and `<angle-bracketed>` placeholders is empty, the file
+   is still the shipped skeleton: stop here.** Return one line — *"nothing declared — run
+   `/business`"* — and no findings. An audit of a skeleton has no ground to stand on, and
+   reporting it as a half-audit spends a whole pass to say what the first read already said
+   (attest ADR-0066).
 2. **Survey reality** — the working diff (`git diff` and `git diff --staged`), the commits
    since the last audit or the last `BUSINESS.md` edit (not the whole history — repeated
    gate runs must not re-flag the same old drift), and the code/dependency structure. For an

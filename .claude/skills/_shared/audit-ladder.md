@@ -62,6 +62,20 @@ is always red is a line nobody reads — the same argument that removed this kit
 about it is the author's call, not the gate's. (Attest ADR-0055, which extends ADR-0023 from
 `nit` to `minor`.)
 
+**✅ ends the round, and only a blocker or a major earns another one.** When the line reads ✅
+the gate is finished with this change: commit it, and carry the minors to wherever the project
+keeps its pending work (`PROGRESS.md`, *Next*). Do not re-run to watch them disappear, and do
+not fix them first and re-run to check the fix — that fix is a new change and gets gated when it
+is committed, like any other. Saying this out loud is the other half of the rule above: a
+verdict that merely *permits* a commit leaves *"once more, to be sure"* on the table, and that
+is the run where the gate stops paying for itself. Three of its four passes are judgment over
+prose, so a second look at the same tree returns a different list rather than an empty one, and
+every round's edits are fresh ground for the round after it. Measured in a repository that did
+exactly this before its first real commit: five runs on one HEAD, ✅ from the second run on,
+seven minors closing to three — 81 minutes from the first run to the commit, of which **49 came
+after** the gate had already said yes (attest ADR-0061; the run is in attest's own devlog, not
+in the kit).
+
 **The ship gate's threshold is narrower, and it was never weighed against this one.**
 `ship_guard.sh` reads `findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a
 record carrying a **major** clears a push while the same counts at commit time read ⚠️. That
@@ -162,6 +176,22 @@ Every audit returns the same shape:
    - a **severity** from the ladder above.
 3. **A recommended update** — which document, roughly what — but **do not make it**. Recording
    is a separate, human-approved step (each skill's write mode).
+
+**A recommended fix subtracts before it adds.** Where a finding can be closed either by removing
+or narrowing a claim or by writing a new one, recommend the removal, and say which claim goes.
+Prose is the material these passes judge, so every sentence a fix adds is fresh ground for the
+next audit — that is why rounds do not converge: across four runs on one tree here the major
+count went 4 · 2 · 3 · 5, and two of those records note in their own text that the previous
+round's fixes opened what the next one found. *Prefer*, not *never add*: some findings are
+omissions by nature — an undocumented dependency, a decision made in code and never recorded —
+and the only thing that closes them is writing the missing entry.
+
+**A recommended fix states as fact only what you read in the tree**, with the `file:line` that
+proves it. Anything else — a number that would have to be measured, a date, a source, a claim
+about how something behaves — goes in as the question it is, marked *unverified*, for the
+author to settle before the text lands. A fix that smuggles an unchecked claim into a control
+document turns one finding into two, and the second one is written in the voice of the audit,
+so nobody looks at it again. (Attest ADR-0062.)
 
 **Every audit is read-only on your work** — it changes no control document and no code. Two
 sanctioned artifacts exist, both of them records *that* a gate ran and what it returned:
