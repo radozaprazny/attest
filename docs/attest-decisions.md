@@ -9,14 +9,23 @@
 > Append-only — never edit or delete a past entry (except flipping its `Status` line when
 > superseded); to reverse one, **append** a new entry that supersedes it.
 >
-> A new entry may carry, under its title, any of `Supersedes: ADR-N` · `Supersedes in part:
-> ADR-N` · `Narrows: ADR-N`. All three are fields of the **new** entry and touch nothing older,
-> so they cost no exception to the rule above. `Narrows` is for the case this log kept hitting:
-> the old decision still stands and its scope turns out smaller than its text says. Reach for it
-> instead of editing the older entry, which is the one thing this log cannot allow. Note the
-> limit it shares with the other two: the field sits on the **new** entry, so a reader who lands
-> on the old one is not told — searching the log for its id is what finds the narrowing. Only
-> `Supersedes` earns the `Status` flip.
+> A new entry may carry, under its title, any of **five** relations, in two kinds. All five are
+> fields of the **new** entry and touch nothing older, so none of them costs an exception to the
+> rule above (attest ADR-0045, ADR-0056).
+>
+> **They change the older entry's reach:** `Supersedes: ADR-N` (it is reversed — this one alone
+> earns the `Status` flip) · `Supersedes in part: ADR-N` (half of it is) · `Narrows: ADR-N` (it
+> still stands entirely, and its scope turns out smaller than its text says). `Narrows` is for
+> the case this log kept hitting, and is what to reach for instead of editing an entry whose
+> reasoning was right and whose wording was too broad — editing is the one thing this log cannot
+> allow.
+>
+> **They only point:** `Extends: ADR-N` (this builds on that) · `Relates to: ADR-N` (read that
+> alongside this). Neither says anything about the older decision's scope, so neither is a softer
+> `Narrows` — reaching for one where the scope really did shrink hides a narrowing.
+>
+> All five share a limit worth knowing: the field sits on the **new** entry, so a reader who
+> lands on the old one is not told — searching the log for its id is what finds the relation.
 
 <!--
 Every entry below was reconstructed from a written record — the design-workflow `reject`
@@ -1644,3 +1653,50 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   `nit` to `minor`. There is no `Extends:` relation in this log, and one was not invented here;
   a fourth relation would be its own decision, and the last time a relation arrived without an
   entry it was a **major** finding of the 2026-09-07 gate.
+
+## ADR-0056 — the log's fourth and fifth relations are a decision too, and they ship · 2026-09-12 · Accepted
+
+  Extends: ADR-0045 (the log's third relation is a decision, and ships with the kit).
+
+- **Context** — ADR-0045 closed exactly this gap for `Narrows` on 2026-09-07 and said so in its
+  Consequences: *"`DECISIONS.md` and `decision/SKILL.md` now name all three relations."* That
+  sentence stopped being true almost immediately. This log has since used **`Extends:`** under
+  four entry titles — ADR-0047, ADR-0049, ADR-0051, ADR-0053, three of them landing *after*
+  ADR-0045 — and **`Relates to:`** under ADR-0048, while all three homes of the rule still say
+  three: the log header, the shipped `DECISIONS.md`, and `decision/SKILL.md`. The same
+  divergence, the same window, the same pass finding it: `/gate`'s `/decision` audit, run over
+  the commit that carries ADR-0055.
+  **It also found ADR-0055 asserting the opposite as fact.** That entry's Consequences end
+  *"There is no `Extends:` relation in this log, and one was not invented here"*, written from
+  the three rule-homes without reading the entries. There were four. The claim was the stated
+  reason for omitting a relation field, so a false fact is doing load-bearing work in a recorded
+  entry — the one thing this log exists to prevent.
+- **Options** — (a) withdraw `Extends` and `Relates to`, and convert the five uses to the
+  documented three; (b) keep them as attest house style and leave the kit teaching three;
+  (c) record both, say what each is *for*, and propagate them to all three homes as ADR-0045
+  did for the third.
+- **Decision** — (c). Five relations, in two kinds: **`Supersedes` · `Supersedes in part` ·
+  `Narrows`** change what an older entry means or how far it reaches, and `Supersedes` alone
+  earns the `Status` flip; **`Extends` · `Relates to`** change nothing about the older entry and
+  are pure pointers — *this builds on that* and *read that alongside this*.
+- **Why** — (a) is not available, and noticing why matters more than the choice: withdrawing a
+  relation from five **landed** entries would mean editing them, which is the single thing this
+  log forbids. Append-only makes adoption the only reachable option once a grammar is in use —
+  which is an argument for catching this at the first use, not the fifth. (b) is the divergence
+  made permanent, rejected here for the reason ADR-0045 rejected it: a kit whose own log uses a
+  grammar the kit does not teach has stopped dogfooding the document it sells. (c) also draws
+  the line the previous entry blurred — a pointer relation is *not* a weaker `Narrows`; reaching
+  for `Extends` when an entry's scope really did shrink would hide a narrowing, so the two kinds
+  are named separately rather than listed as five equals.
+- **Consequences** — The header of this log, `DECISIONS.md` and `.claude/skills/decision/SKILL.md`
+  name five relations in two kinds; the kit's adopters get the grammar attest actually writes.
+  **ADR-0055 is not edited.** Its verdict rule stands unchanged and correct; the false sentence
+  in its Consequences stays where it is, because attest's own practice fixes the window at the
+  commit (`.attest/gate-20260906-113757-93fc862.md`) and that entry is committed and pushed.
+  This entry is the correction, and a reader who lands on ADR-0055 is not told — the limit every
+  relation field shares, and the reason `/decision audit` exists. Had the pass run before the
+  commit rather than beside it, the sentence would have been corrected instead; that is a point
+  in favour of the proposed `fix` loop (`docs/attest-proposal-gate.md` §2.4), not against the
+  window. One thing ADR-0055 should also have carried and did not: **ADR-0049** drew the
+  blocker-plus-major boundary first, when it fixed the run record at *"one line per blocker and
+  major"*; the act-on / advisory split is that same line drawn at the verdict.

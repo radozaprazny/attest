@@ -5,8 +5,9 @@
 > last 40 non-merge commits on `main` (at `332a40b`). **§2.1 is now ADR-0055 and is implemented**
 > — the entry in `docs/attest-decisions.md` is the decision, and the draft in §5 is kept only as
 > the proposal it came from. **Everything else here is still undecided**: §2.2–2.4 change no
-> file yet, the drafts for ADR-0056 and ADR-0057 are `DRAFT`, the change list in §4 is a plan and
-> not a diff, and the six questions in §6 are open. Delete this file once B and C are decided
+> file yet, the drafts for ADR-0057 and ADR-0058 are `DRAFT` (renumbered: 0056 was taken by the
+> relation fix this proposal's own first gate run produced), the change list in §4 is a plan and
+> not a diff, and the seven questions in §6 are open. Delete this file once B and C are decided
 > too; what survives it is the ADR log.
 
 ## 0. In ten lines
@@ -232,12 +233,12 @@ between. B and C rows are untouched.
 | `GUIDE.md` §3.6, §4.2, PART 4 note, PART 9 | modes; stage 0 and what light cannot see; the material includes the evidence file; per-change = `/gate`, ship = `/audit-history` + `/gate full` | B |
 | `README.md` lines 70–76 and 214 | *"every document audit the project installed"* → *the passes the diff needs; `full` runs them all*; the workflow line | B |
 | `METHOD.md` *Two gates, two cadences* and the cost line | *"a model run per commit"* → a run per pass the diff needs, the full judgment once per push | B |
-| `docs/attest-decisions.md` | ADR-0056 | B |
+| `docs/attest-decisions.md` | ADR-0057 | B |
 | `docs/attest-progress.md` | close F65 *"what `/gate` is for"* and the P1 gate-scoping items | B |
 | `.claude/skills/gate/SKILL.md` | the `fix` section (§2.4), the `round:` line | C |
 | `.claude/agents/reviewer.md` | *re-review mode*: inputs (previous findings, fix hunks, touched files), output (per finding: addressed / not / regressed, plus new findings), checks re-run | C |
 | `GUIDE.md` §3.6 and PART 5 | a pointer: for *until green*, `/gate fix`, not `/loop` | C |
-| `docs/attest-decisions.md` | ADR-0057 | C |
+| `docs/attest-decisions.md` | ADR-0058 | C |
 | `.attest/gate-*.md` | no change to any existing record (append-only); new records carry the new lines | — |
 
 ## 5. ADR drafts
@@ -248,13 +249,20 @@ records the entry, at which point it becomes `Accepted` and the date the day it 
 ## ADR-0055 — the verdict line flips on blocker or major, and on nothing else · RECORDED 2026-09-12
 
   **No longer a draft.** Recorded in `docs/attest-decisions.md` as ADR-0055 and implemented; the
-  text there is the entry, this is the proposal it came from. Two things changed on the way in.
-  It carries **no relation field**: this draft had `Extends: ADR-0023`, and `Extends` is not one
-  of the log's three relations (`Supersedes` · `Supersedes in part` · `Narrows`) — inventing a
-  fourth without an entry is precisely what the 2026-09-07 gate scored a **major**, so the
-  relationship is stated in prose instead. And `.claude/agents/reviewer.md` joined the change
-  list: its output shape said *"no blocking findings"* and defined blocking nowhere, so the rule
-  would have had two homes disagreeing the moment it was written in one.
+  entry there is the decision, this is the proposal it came from. Two things changed on the way
+  in, and a third went wrong. `.claude/agents/reviewer.md` joined the change list: its output
+  shape said *"no blocking findings"* and defined blocking nowhere, so the rule would have had
+  two homes disagreeing the moment it was written in one. The entry carries **no relation
+  field**, where this draft had `Extends: ADR-0023`.
+
+  **And the reason given for dropping it was false.** The entry argued that `Extends` is not one
+  of the log's relations and was not invented here. The log had been using `Extends:` under four
+  entry titles since 2026-09-07, and `Relates to:` under a fifth; only the *rules* said three.
+  The `/decision` pass of the gate run over that very commit caught it — ADR-0056 records the
+  two relations properly and states the correction, because ADR-0055 was already committed and
+  this log's window closes at the commit. Worth keeping visible here: the mistake was reasoning
+  about a document from the rules that describe it instead of from the entries in it, which is
+  the exact failure the audits are pointed at.
 
 
 - **Context** — Nine gate runs, nine ⚠️, and the rule that produces the line is written nowhere
@@ -273,7 +281,7 @@ records the entry, at which point it becomes `Accepted` and the date the day it 
   not a greener history. The rule lives in the ladder beside ADR-0023's, and `gate/SKILL.md`
   step 4 cites it instead of restating it.
 
-## ADR-0056 — a pass runs only when the diff touched its ground; `full` runs them all · 2026-09-12 · DRAFT
+## ADR-0057 — a pass runs only when the diff touched its ground; `full` runs them all · 2026-09-12 · DRAFT
 
 - **Context** — `/gate` launches four subagents on every diff. `/compliance audit`'s "cheap"
   trigger check costs a full subagent before it returns *out of scope*; `/business` and
@@ -298,7 +306,7 @@ records the entry, at which point it becomes `Accepted` and the date the day it 
   deferred until the light gate has a history to measure. Attest's own diffs are the worst case
   for keyword triggers, prose about the very words on the lists, and still halve the runs.
 
-## ADR-0057 — `/gate fix` loops only on what a command can verify, at most three times · 2026-09-12 · DRAFT
+## ADR-0058 — `/gate fix` loops only on what a command can verify, at most three times · 2026-09-12 · DRAFT
 
   Narrows: ADR-0016 (*"the run record is the gate's only write"* holds for `/gate` and
   `/gate full`; `fix` is a named mode whose code edits are the author's, made in the main
@@ -345,6 +353,12 @@ records the entry, at which point it becomes `Accepted` and the date the day it 
 6. **Naming.** `full` and `fix` as words on `/gate` (mirrors `/audit-history full`) or a separate
    `/converge` skill. Proposed: words on `/gate`; a fourth skill widens the surface the README
    promises to keep narrow.
+7. **Should the ship guard block on a major, not only a blocker?** Surfaced by the `/decision`
+   pass of this proposal's own first gate run. `ship_guard.sh` reads `findings: 0 blocker`
+   (ADR-0037), so a record carrying a major clears a push while the same counts read ⚠️ at
+   commit time. The asymmetry is defensible — the two gates ask different questions — and it is
+   now stated in the ladder rather than left for the next reader to notice. Proposed: leave it,
+   and revisit only with evidence of a major that should have stopped a push.
 
 ## 7. Order of work
 

@@ -69,14 +69,17 @@ the other?"* If yes, record it; if no, leave it to the commit.
   a **new** entry carrying a `Supersedes: ADR-0007` line under its title. The **only** permitted
   touch to an old entry is flipping its `Status` from `Accepted` to `Superseded by ADR-000M` —
   **never** rewrite its rationale.
-- **Three relations, all of them fields of the *new* entry**, so none of them costs an exception
-  to the rule above: `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only
-  `Supersedes` earns the `Status` flip. **`Narrows` is the one to reach for when an entry's
-  reasoning was right and its wording too broad** — the decision still stands and its scope is
-  smaller than its text claims. The alternative people reach for instead is editing the old
-  wording, which is the one thing the log cannot allow. All three share a limit worth knowing:
-  the field is on the **new** entry, so landing on the old one shows nothing — finding a
-  narrowing means searching the log for that id.
+- **Five relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
+  an exception to the rule above. **They change how far the older entry reaches:**
+  `Supersedes: ADR-N` · `Supersedes in part: ADR-N` · `Narrows: ADR-N`. Only `Supersedes` earns
+  the `Status` flip. **`Narrows` is the one to reach for when an entry's reasoning was right and
+  its wording too broad** — the decision still stands and its scope is smaller than its text
+  claims. The alternative people reach for instead is editing the old wording, which is the one
+  thing the log cannot allow. **They only point:** `Extends: ADR-N` (this builds on that) ·
+  `Relates to: ADR-N` (read that alongside this) — neither says anything about the older
+  decision, so neither is a softer `Narrows`: using one where the scope really did shrink hides
+  the narrowing. All five share a limit worth knowing: the field is on the **new** entry, so
+  landing on the old one shows nothing — finding a relation means searching the log for that id.
 
 ## Two modes
 

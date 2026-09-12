@@ -61,6 +61,14 @@ always red is a line nobody reads — the same argument that removed this kit's 
 about it is the author's call, not the gate's. (Attest ADR-0055, which extends ADR-0023 from
 `nit` to `minor`.)
 
+**The ship gate's threshold is narrower, and stays that way.** `ship_guard.sh` reads
+`findings: 0 blocker` out of an `/audit-history` record (ADR-0037), so a record carrying a
+**major** clears a push while the same counts at commit time read ⚠️. That asymmetry is
+deliberate and predates this rule: the two gates answer different questions on different clocks
+— *should this change go in as it stands* versus *must these bytes not leave the machine* — and
+the second is the one where a false pass cannot be taken back. Do not "fix" one threshold to
+match the other; if the ship guard should ever block on a major, that is its own decision.
+
 ---
 
 ## Ownership — one hunk is flagged once

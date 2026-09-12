@@ -300,13 +300,27 @@ aesthetic:
   subagents on a one-file change, four and five rounds per tree, and no run ever green.
   `docs/attest-proposal-gate.md` answers it in four parts, in build order — **A** a finish line,
   **B** triggers in shell plus `/gate full` on the push cadence, **C** a bounded `fix` loop —
-  with three ADR drafts, a per-file change list and six open questions. Read it there; it is a
+  with three ADR drafts, a per-file change list and seven open questions. Read it there; it is a
   proposal and is deleted once decided.
   - **A is done** (ADR-0055): the verdict flips on a blocker or a major and on nothing else,
     stated once in `_shared/audit-ladder.md` and cited by `/gate` step 4, `reviewer.md` and
     GUIDE 3.6. It buys a stopping condition, not a greener log — on the nine existing records it
-    would have changed no verdict, because every run carried a major.
-  - **B and C are not started**, and B is gated on the six open questions (§6 of the proposal) —
+    would have changed no verdict, because every run carried a major. The ladder also now states
+    why the **ship** gate's threshold stays narrower (`0 blocker`, ADR-0037): the two gates ask
+    different questions, and only one of them is about bytes that cannot be recalled.
+  - **The gate run over A found a major in A** (ADR-0056), which is the argument for the whole
+    proposal in one example. ADR-0055 justified omitting a relation field by asserting the log
+    has no `Extends:` relation. It has four, plus a `Relates to:` — used since 2026-09-07, while
+    all three rule-homes still said three. This is **ADR-0045 repeating**: same divergence, same
+    pass finding it, two relations later. ADR-0056 records both (five relations, in two kinds:
+    three that change an older entry's reach, two that only point) and propagates them to the
+    log header, `DECISIONS.md` and `decision/SKILL.md`. ADR-0055 is **not** edited — it was
+    committed, and the window closes at the commit — so ADR-0056 carries the correction and a
+    reader landing on ADR-0055 is not told. Two lessons worth keeping: the mistake was reasoning
+    about the log from the rules that describe it instead of from the entries in it; and the
+    pass ran *beside* the commit rather than before it, which is what `/gate fix` (§2.4) exists
+    to change.
+  - **B and C are not started**, and B is gated on the seven open questions (§6 of the proposal) —
     the first of them, where a project declares the words its non-goals turn on, is the one that
     decides whether `/business audit` can be triggered mechanically at all. B is where the token
     cost actually falls: measured over the last 40 non-merge commits, 10 touch only `.attest/`,
