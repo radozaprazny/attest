@@ -396,21 +396,29 @@ one output shape and one severity ladder so they read as a family:
   reads each skill's audit section at runtime (the skills are manual-only and cannot be
   model-invoked) — and merges the findings under the shared ladder + ownership contract into
   **one** verdict.
+  What flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
+  there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
+  rule here. The last line it prints is what to **do** — *commit*, or *fix these N, then
+  `/gate`* — and on a ✅ that is the end of the round: minors travel to `PROGRESS.md` *Next*,
+  they do not buy another run (attest ADR-0061, the reason in the ladder under *✅ ends the
+  round*).
 - **Two modes, and the second one is not optional** (attest ADR-0067): **`/gate`** is the light,
   per-commit gate — roughly a third of the subagent runs the old shape spent, measured in
   ADR-0067 and not repeated here. **`/gate full`** runs **every** pass unconditionally over `<base>..HEAD` plus
   the working tree, and belongs to the **ship** cadence, once, before a push. The light gate
   triggers on keyword sets, and *a keyword set finds what a word can find and nothing else*: the
   2026-09-07 blocker was `*.sh text eol=lf` in `.gitattributes`, which no list flags. Never read
-  a light ✅ as the branch being cleared — that is what `full` is for. What
-  flips that line is the ladder's to say, not the gate's — see *What flips the verdict line*
-  there (attest ADR-0055); minors and nits are reported and counted, never restated as a second
-  rule here. The last line it prints is what to **do** — *commit*, or *fix these N, then
-  `/gate`* — and on a ✅ that is the end of the round: minors travel to `PROGRESS.md` *Next*,
-  they do not buy another run (attest ADR-0061, the reason in the ladder under *✅ ends the
-  round*).
-- **What for:** the whole per-change gate in one invocation. Touches no document and
-  no code; its one write is a dated **run record** under `.attest/` — SHA, kit version,
+  a light ✅ as the branch being cleared — that is what `full` is for.
+- **`/gate fix`** (also `/gate full fix`) adds a **bounded repair loop** to either mode (attest
+  ADR-0068): it fixes the `reviewer`'s own blockers and majors in **code**, runs your project's
+  checks (from `CLAUDE.md`, or your CI workflow if `CLAUDE.md` is still the template),
+  re-reviews what it touched, and stops at its finish line — no reviewer-owned blocker or major
+  left — or after **three rounds**, which is two repairs, with *split the change*. It never
+  edits a control document and never takes a minor: a violated non-goal or an unrecorded
+  decision comes back to you under *for you to decide*. Each round appends its own record. This
+  is the answer to *"run it until it's green"*; `/loop` is not (PART 5.1).
+- **What for:** the whole per-change gate in one invocation. Touches no document, and no code
+  outside the named `fix` mode; its one write is a dated **run record** under `.attest/`, one per round — SHA, kit version,
   passes, verdict, and findings at **attestation altitude** (severity · pass · class · path,
   never values or line numbers — the record publishes with the repo; attest ADR-0049) — the
   attestation that the gate ran (attest ADR-0016; stage it with the commit it gates). The document audits run in the `doc-auditor` agent — no Bash/Edit/Write,
@@ -466,6 +474,11 @@ one output shape and one severity ladder so they read as a family:
   prompt — one a command can decide (the test command exiting `0`), not a matter of taste.
   Auto mode (`Shift+Tab` cycles the permission modes) keeps a long run from stopping on
   approval prompts.
+- **Never `/loop` the gate.** For *"until the gate is green"* the kit has `/gate fix`
+  (PART 3.6, attest ADR-0068): it loops the one layer where a command is the judge, caps
+  itself at three rounds, records each one, and hands every document finding back to you. A
+  `/loop` around a judgment pass has no checkable stop condition — it ends when the judge
+  tires, which is the failure ADR-0061 was written to close.
 
 ---
 

@@ -93,6 +93,28 @@ for home in "DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decis
   fi
 done
 
+# --- 0b2. `/gate fix`: the contract, in the two files that have to agree ----------------
+# The loop itself is model behaviour and this suite cannot run it. What it can pin is the pair
+# of statements the loop is made of — a cap and a record line in the skill, a re-review mode in
+# the agent — because those living in two files is exactly how one of them drifts (ADR-0068).
+echo "gate fix — the contract:"
+check "the skill caps the loop at three rounds" \
+  grep -q 'cap is \*\*three rounds\*\*' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and the record carries the round it was" \
+  grep -q 'round: <n>/3' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and fix is said to edit code, never a control document" \
+  grep -q 'never edits a control document' "$KIT/.claude/skills/gate/SKILL.md"
+check "the reviewer has the re-review mode the loop calls" \
+  grep -q '^## Re-review mode' "$KIT/.claude/agents/reviewer.md"
+check "…and is told not to re-litigate an untouched hunk" \
+  grep -q 'Do not re-litigate' "$KIT/.claude/agents/reviewer.md"
+check "…and counts to the same cap the skill states" \
+  grep -q 'round <n>/3' "$KIT/.claude/agents/reviewer.md"
+check "the skill no longer promises the gate changes no code" \
+  grep -q 'changes no code except in the named' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and the ladder carries the same exception" \
+  grep -q 'no code with' "$KIT/.claude/skills/_shared/audit-ladder.md"
+
 # --- 0c. the gate's stage 0: which passes does this diff need? -------------------------
 # Five rules, five fixtures. Each one stands for a subagent context that used to be spent to
 # discover nothing — and the last two for the opposite risk, a pass skipped that should have

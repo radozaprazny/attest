@@ -7,6 +7,17 @@
 
 ## Current state
 
+**Phase C is in, and with it the proposal is spent — `/gate fix`, a bounded repair loop
+(ADR-0068).** The contract is in `.claude/skills/gate/SKILL.md`; what matters for the thread is
+that the series is finished and what it cost. **C was gated by the loop it adds**, and the two records say what that cost:
+round 1 returned **1 blocker and 10 majors** (the blocker: three files still promising *"the
+gate changes no code"* while `fix` edits code — the same rule-home drift ADR-0045, ADR-0056 and
+ADR-0064 each paid an entry for), and round 2's re-review confirmed eleven of twelve repairs and
+found **two more majors**, one of them a disagreement between the two halves of the loop's own
+contract. Both closed; the loop stopped at its finish line, not at its cap. `docs/attest-proposal-gate.md` is deleted, as it said it would be;
+ADR-0068 maps its sections to the entries that own them, and **six of its seven questions are
+answered** (the seventh, the ship guard's `major` threshold, stays flagged in the ladder).
+
 **Phase B is in — the gate asks only the questions a diff raises, and `full` asks them all
 (ADR-0067, kit 0.9.0).** `.claude/skills/gate/triggers.sh` is a POSIX `sh` stage that runs
 before any subagent exists: it reads the diff, the untracked files and the two declaration
@@ -307,6 +318,21 @@ aesthetic:
 
 ## Next
 
+- **From the phase-C rounds (`gate-20260913-0744*`) — the minors, unfixed on purpose:**
+  - **GUIDE PART 9's per-change step 3 does not mention `fix`**, while `reviewer.md` sends the
+    reader there for the full loop. Either add the word or stop pointing at it.
+  - `docs/attest-progress.md` still carries `./scripts/smoke.sh  # 177 passed` in an older
+    block; the suite is at 280. A stale count in a status doc is the cheapest kind of lie.
+  - **`smoke.sh` pins the narrowed *"no code"* sentence in two homes and not in `GUIDE.md`**,
+    which is the third; and nothing pins the record's shape against the entry that prescribes it
+    — the round-2 major was exactly that pair disagreeing.
+  - *"What flips that verdict line"* — after the bullet was reordered, the demonstrative in
+    GUIDE 3.6 points at *verdict*, not at *line*.
+  - **The limit this series demonstrated and ADR-0068 does not name:** in a repository whose
+    product is prose, `fix` has almost nothing it is allowed to touch — seven of the eight files
+    changed here are documents. The loop is built for code and this repo is the wrong dogfood
+    for it; the next adopter with real tests is the first honest test.
+
 - **From the phase-B gate (`gate-20260912-224046-4baa8d5.md`) — the minors, unfixed on purpose:**
   - **`smoke.sh` fixtures that pass for the wrong reason.** The line-number case uses a hunk
     where the old start, the new start and a hunk-relative count all give 2, so it cannot tell
@@ -425,55 +451,22 @@ aesthetic:
   the declaration hook mis-handles multi-line HTML comments and fenced blocks, and its 24-line
   cap counts blank separators (15 non-goals arrive as 12).
 
-- **What `/gate` is for (was F65) — answered, and phases A and B have shipped** (ADR-0055,
-  ADR-0067; C is the last one open).
-  F65 read *"gate has not run since 2026-08-28"*; that was stale by 09-07, when
-  the gate ran over the whole of PR #10 and returned **2 blockers, 2 majors, 7 minors** — both
-  blockers things no other check could see (a shallow clone deleting the adopter's own records,
-  ADR-0042; a blanket `.gitattributes` rule reaching adopters through the template button,
-  ADR-0043). The real question was never whether to run it but what it costs: four parallel
-  subagents on a one-file change, four and five rounds per tree, and no run ever green.
-  `docs/attest-proposal-gate.md` answers it in four parts, in build order — **A** a finish line,
-  **B** triggers in shell plus `/gate full` on the push cadence, **C** a bounded `fix` loop —
-  with three ADR drafts, a per-file change list and seven open questions. Read it there; it is a
-  proposal and is deleted once decided.
-  - **A is done** (ADR-0055): the verdict flips on a blocker or a major and on nothing else,
-    stated once in `_shared/audit-ladder.md` and cited by `/gate` step 4, `reviewer.md` and
-    GUIDE 3.6. It buys a stopping condition, not a greener log — on the nine existing records it
-    would have changed no verdict, because every run carried a major. The ladder also now states
-    why the **ship** gate's threshold stays narrower (`0 blocker`, ADR-0037): the two gates ask
-    different questions, and only one of them is about bytes that cannot be recalled.
-  - **Gating A found a major in A, twice over** — which is the proposal's own argument, paid
-    for in full. The `/decision` pass caught ADR-0055 justifying a format choice with a false
-    fact: it asserted this log has no `Extends:` relation. It has four, plus a `Relates to:`,
-    used since 2026-09-07 while all three rule-homes still said three — **ADR-0045 repeating**,
-    two relations later. **ADR-0056** records both (five relations in two kinds: three that
-    change an older entry's reach, two that only point) and propagates them. Then the
-    `reviewer` pass caught ADR-0056 *undercounting its own evidence* — "three of the four"
-    landed after ADR-0045 when all four did, read off two matching date lines instead of the
-    history. Same failure mode, one entry later.
-  - **ADR-0057 came out of that** and is the one worth keeping. Both corrections ran into a
-    question the log had never answered: *when does an entry become immutable?* Attest's own
-    notes disagreed — `gate-20260906` says the window closes at the commit, `gate-20260907`
-    corrects an entry because it had not yet landed. It is now recorded: **at the push**, the
-    same boundary the ship gate defends, and checkable from the checkout in a way "once it
-    merges" is not. ADR-0055 and ADR-0056 stay as written, both having been pushed before their
-    errors surfaced; the corrections live in ADR-0057.
-  - **A gained its missing half (ADR-0061).** The finish line said when the line is green; it
-    did not say a green line ends the round. The ladder now does, and `/gate` step 4 closes with
-    one imperative sentence. The evidence came from outside — an adopter's five runs on one
-    HEAD, ✅ from the second — because every run recorded here had carried a major, so the state
-    after a ✅ had never occurred in this repo.
-  - **The lesson is the roadmap.** Every one of these cost an entry only because the passes ran
-    *beside* the commits instead of ahead of them — twice in one session. That is exactly what
-    `/gate fix` (§2.4) is for, and it is now the strongest single argument for phase C.
-  - **B and C are not started.** §6's seven questions gate both: Q1, Q2, Q5 and Q7 are B's,
-    Q3, Q4 and Q6 are C's. **Q1** — where a project declares the words its non-goals turn on —
-    is the one that decides whether `/business audit` can be triggered mechanically at all.
-    B is where the token cost actually falls: measured over the last 40 non-merge commits,
-    10 touch only `.attest/`, 24 only `*.md`, and a document audit would have had a trigger on
-    18 — 160 subagent runs today against 61 with stage 0. B changes the record shape (`mode:`,
-    `triggers:`), so cut **0.9.0** with it.
+- **What `/gate` is for (was F65) — closed. All three phases have shipped.** The question was
+  never whether to run the gate but what it cost: four parallel subagents on a one-file change,
+  four and five rounds per tree, and no run ever green. **A** gave the verdict a finish line and
+  the round a terminus (ADR-0055, ADR-0061); **B** made a shell stage choose the passes and added
+  `/gate full` on the push cadence (ADR-0067, kit 0.9.0); **C** added the bounded `fix` loop
+  (ADR-0068). `docs/attest-proposal-gate.md` has been **deleted**, as it said of itself it would
+  be — its parts are in those entries, and ADR-0068 carries the map from each of its sections to
+  the entry that now owns it. **Six of its seven open questions are answered**; the seventh —
+  should the ship guard block on a `major`, not only a `blocker`? — is flagged in the ladder,
+  where the asymmetry lives, and wants evidence rather than an argument.
+  - **What the phases cost each other, which is the part worth keeping:** gating A found a major
+    *in* A twice over (ADR-0056, ADR-0057), and gating B found two blockers in B — a stage that
+    could not parse a diff rendering that as a decision, and a posture check dead against the
+    shipped template. Every one of them was found by the passes running **beside** the commits
+    rather than ahead of them. That is the argument `fix` was built on, and it was paid in full
+    before `fix` existed.
 
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live

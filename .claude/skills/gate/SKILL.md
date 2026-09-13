@@ -7,7 +7,8 @@ description: >-
   installed, /compliance audit (regulated ground) — each in its own subagent, then merges
   their findings under the shared audit ladder and ownership contract into ONE verdict and
   appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
-  control document and changes no code — the run record is its only write. Does NOT include
+  control document, and changes no code except in the named `fix` mode, which repairs
+  reviewer-owned blockers and majors and nothing else. Does NOT include
   /audit-history (that is the separate ship gate, run before a push/release). Generic —
   usable in any repo. Run it before a commit; each sub-audit fires only where relevant.
 disable-model-invocation: true
@@ -21,12 +22,13 @@ returns **one** merged verdict. The **ship** gate stays separate: run `/audit-hi
 `/audit-history full` before a public release; `/gate` deliberately excludes it so the two
 cadences (every commit vs. leaving the machine) stay distinct.
 
-## Two modes, one word apart (attest ADR-0067)
+## Two modes and one suffix, a word apart (attest ADR-0067, ADR-0068)
 
 | | scope | passes | when |
 |---|---|---|---|
 | **`/gate`** | the working diff, or `HEAD` when the tree is clean | only those a shell stage says the diff touched | before every commit |
 | **`/gate full`** | `<base>..HEAD` **plus** the working tree — the whole branch | **every** installed pass, unconditionally | once, before a push, beside `/audit-history` |
+| **`/gate fix`** (also `/gate full fix`) | as the mode it suffixes | the same, then a bounded repair loop | when you want the code-level findings closed as they are found |
 
 The light gate is cheap enough to run on a one-file change; that is the point, because a gate
 too expensive to run is not run. It buys that with keyword triggers, and **a keyword set finds
@@ -212,7 +214,8 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
    - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
    - mode: <light — the passes the diff needs | full — every pass over <base>..HEAD + worktree>
-   - triggers: <the triggers.txt lines, joined with ·, or "not run (full mode)" / "unavailable — every pass ran">
+   - round: <n>/3 (fix)                         (only in `fix` mode; omit the line otherwise)
+   - triggers: <the triggers.txt lines, joined with " · ", or "not run (full mode)" / "unavailable — every pass ran">
    - passes: reviewer <ran|skipped (<reason>)|degraded> · business <…> · decision <…> · compliance <…|not installed>
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit
@@ -265,6 +268,76 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    findings' full text, and never a fact whose home is a control document (the router
    stands).
 
-**The gate writes nothing to the control documents and nothing to code** — the run record
-above is its one artifact. If a finding warrants a document change, that is the owning
+**The gate writes nothing to the control documents, and nothing to code outside `fix`** — the
+run record above is its one artifact, one per round. If a finding warrants a document change, that is the owning
 skill's write mode, run by me afterwards — recording stays a separate, human-approved step.
+`fix` below is the one named exception, and it is narrow: it edits **code**, never a document.
+
+## `fix` — a bounded loop, only where a command is the judge (attest ADR-0068)
+
+`/gate fix` and `/gate full fix` add a repair loop to the mode they suffix.
+
+**Count rounds this way, because two texts that count differently are two caps.** **Round 1 is
+the gate run itself** — it finds, it repairs nothing, and it is recorded like any other run.
+Every round after it is one repair cycle: *fix → checks → stage 0 on the hunks → re-review*.
+The cap is **three rounds**, which is **two repairs**: find · fix-and-verify · fix-and-verify.
+
+**The finish line this loop watches is its own, and narrower than the verdict line.** It is:
+**no `reviewer`-owned blocker or major stands.** A document finding never holds a round open —
+`fix` is forbidden to touch its ground, so letting one keep the loop alive would burn every
+round and end on *split the change* for a change that is not too large, only out of scope. Those
+findings go to the final verdict under *for you to decide*, exactly as they would without `fix`.
+
+Each repair round:
+
+1. **Fix only what the `reviewer` owns, and only at `blocker` or `major`.** The edit is yours,
+   made in the main context, visible in the session — not a subagent's, because a subagent that
+   edits is a subagent whose read-only contract stopped being true (ADR-0017). **Nothing left
+   for `fix` to touch → stop here and say so**, with the verdict as it stands; an empty round is
+   not a round worth spending, and it is a different outcome from hitting the cap.
+2. **Run the project's own checks.** Take them from `CLAUDE.md` (*Tests*, *Formatting and lint*);
+   if it is still the shipped template, take them from the project's CI workflow if it has one,
+   and **say where you got them**. Red → back to 1, **same round, at most twice**; still red →
+   this round ends red and counts, because a check that stays red for a reason the fix cannot
+   reach (a missing toolchain, a flaky test, a fault in someone else's hunk) is a finding for
+   the person, not a reason to keep editing. **A round that ends red still finishes** — steps 3
+   and 4 run, because a re-review over a failed repair is exactly where the reason shows — and
+   the loop ends saying *the checks are red for something `fix` cannot reach*, which is a
+   different diagnosis from *split the change* and must not be printed as one. **This step is load-bearing**: it is the only judge
+   in the loop that gives the same answer twice for the same input.
+3. **Re-run stage 0 on the fix hunks alone.** If a document trigger hits on them — the fix added
+   a dependency, say — that pass runs once, on those hunks. This is the whole of the "graph": a
+   fix re-opens the ground it touched and nothing else.
+4. **Re-review.** Launch the `reviewer` in re-review mode with **its own** previous findings —
+   never a document pass's, which are not its ground to judge and would make it break either the
+   ownership contract or its own rule against dropping a finding — plus the fix
+   hunks, the touched files **and the round number** (it prints that number, so it has to be
+   given it). It says, per finding, *addressed / not addressed / regressed*, looks for what the
+   fix broke, and runs the checks again.
+5. **Finish line reached → stop.** Otherwise the next round, up to the third. Still red after
+   the third → **stop and say *split the change***: a fourth round is not a repair, it is
+   evidence that the change is too large to gate in one piece.
+
+**Every round appends its own record**, with one extra line — `round: <n>/3 (fix)` — so the
+series is legible afterwards and ADR-0016's one-file-per-run shape is untouched. In a repair
+round the `passes:` line says **`reviewer re-review (fix hunks)`**, never a bare `reviewer ran`:
+a later round looks at less than the first one did, and a record that hides that would let
+`0 major` in round 3 read as the same statement as `0 major` in round 1. The `record_guard.sh`
+prompt is unaffected.
+
+**Three things `fix` never does**, and each is a rule rather than a habit:
+
+- **It never edits a control document.** A violated non-goal, an unrecorded decision, regulated
+  ground: these come back in the final verdict under *for you to decide*, with the owning
+  skill's write mode named as the next step. What a command can verify may loop; what a
+  declaration governs needs the person (ADR-0017, ADR-0051).
+- **It never takes a `minor` or a `nit`.** Advisory stays advisory, the diff stays minimal, and
+  a fix that adds text to close an advisory finding is new ground for the next round — which is
+  the mechanism ADR-0062 exists to slow down. Ask for one by name if you want it.
+- **It never runs by itself.** Not a `Stop` hook, not `/loop`: ADR-0028 removed this kit's nags
+  on purpose. `fix` is a word you type, with a cap you can read.
+
+**If no checks can be found at all — not in `CLAUDE.md`, not in CI — say so and run at most one
+repair round.** Without a command as judge the loop is exactly the judgment loop the ladder
+refuses: a pass that returns a different list on the same tree, asked again until it tires. One
+repair, reviewed once, is worth having; a second is not, and the record says why it stopped.
