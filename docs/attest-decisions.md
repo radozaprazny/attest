@@ -2308,3 +2308,151 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   its own reasons. Those citations resolve in history rather than in the tree —
   the file is at `e947f1c` and every commit before it — and this paragraph is the forward
   pointer they cannot carry themselves.
+
+---
+
+## ADR-0069 — the ship list matches a command, not a spelling of one · 2026-09-13 · Accepted
+
+  Widens: ADR-0028 (make the ship boundary real), ADR-0058 (the publish path that never opens a
+  shell — the same gate, the other missing half).
+  Narrows: ADR-0028 again, at the one exception its Consequences carved — the `--dry-run` bypass
+  that applies *"only to a simple command"*. Both relations point at the same entry because this
+  one moves its scope in both directions: more spellings reach the list, and fewer commands
+  escape past it.
+  Extends: ADR-0038, which named this leak in as many words — *"the dry-run exemption still
+  leaks by substring — `# --dry-run` is not a dry run"* — and knowingly left it *"to the matching
+  work this entry does not cover"*. This is that work.
+  Relates to: ADR-0035 (a guard states only what it can back), ADR-0059 (the front page claims
+  what the hooks do), ADR-0060 (the record arm is judged per command part).
+
+- **Context** — the external review of `v0.4.0` left this as P0 item 5 and it has outlived four
+  releases. The guard's coverage is a `case` of literal substrings, which is deliberate and
+  stays: a reader can check a list against what they type, and ADR-0035 wants exactly that. But
+  a substring list matches **characters**, and one command has many spellings. Verified silent
+  against `448b57b`, each of them a real push with no prompt and no trace line:
+  `git -C . push` · `git -c user.name=x push` · `git --no-pager push` · `git  push` with two
+  spaces · a tab in the same place. The dry-run escape was looser still, and it is the half that
+  matters, because it lets a push through that the list **did** match: `--dry-run` was tested as
+  a substring, so `git push --push-option=--dry-run` — a value git hands to the server, not a
+  dry run — read as one; a `#` parked the flag where no shell would ever read it as a flag; and
+  compound meant `&&` but not a bare `&`, so `git push --dry-run & git push origin main` was
+  waved through on the first half's flag while the second half shipped. **Two of those three
+  were not discovered here**: ADR-0038 wrote down `# --dry-run` and the backgrounded push in
+  2026-09-04 and deferred them on purpose. What this entry adds to them is the third, the flag
+  value, and the fact that they are now fixed rather than logged. This is the
+  believed-but-false gate ADR-0035 refuses, and ADR-0059 has just finished rewriting the front
+  page so it would stop claiming more than the hooks do — the honest next move is to make the
+  hook do what the narrowed claim already says.
+- **Options** — (a) leave it and say so in GUIDE 2.2, as `gh pr merge` is left; (b) replace the
+  literal list with patterns per command; (c) normalise the command once, then match the same
+  literal list against the normalised form.
+- **Decision** — (c), plus a whole-word test for `--dry-run` and a wider notion of compound.
+- **Why** — (a) is what ADR-0035 permits when a hook *cannot* cover a path; it does not fit
+  here, because nothing about `git -C . push` is out of reach. (b) buys the same coverage by
+  making every entry a pattern, and then the list — the one artifact a person comes to this file
+  to read — stops being checkable by reading it; GUIDE 2.2 tells adopters to add their own
+  command *literally* and *not to make the patterns clever*, and (b) would make that advice
+  false at the same moment it made the code cleverer. (c) puts all the cleverness in one place,
+  above the list, where it can be read once and then trusted, and the list below it is the same
+  list as before.
+- **What normalising means, precisely, since a guard may claim only what it can back.** Three
+  passes, in one `awk`: quotes are dropped; runs of whitespace collapse to one space, which
+  awk's field splitting does for free and which fixes every arm at once rather than the git ones
+  only; and git's **global** options are removed from between the word `git` and its subcommand.
+  **Seven of those options take a separate argument and must lose it with them** — `-c` `-C`
+  `--git-dir` `--work-tree` `--namespace` `--config-env` `--attr-source` — and the list is exact
+  because **both** ways of getting it wrong are a silent miss: an option left off it leaves its
+  argument to be read as the subcommand, so the walk stops one word short of `push`, while a
+  plain flag wrongly added to it eats `push` itself. `--super-prefix` is absent because 2.43 no
+  longer takes it at all. Seven smoke cases pin the list, one per entry, and an eighth pins that
+  the `=` spelling still goes through the ordinary single-word skip.
+  **The method is worth stating, because the first one was wrong and shipped a wrong list.** The
+  first measurement asked each candidate whether `git <opt> <value> <subcommand>` **exited 0**.
+  `--exec-path` does exit 0 — it prints the exec path and stops, never reaching the subcommand —
+  so it was read as taking a separate value and went onto the list, where it would have eaten
+  the next word. The second measurement asks whether the **subcommand actually ran**, which is
+  the thing the walk depends on, and it removes `--exec-path` and nothing else. An exit status
+  was a proxy for the question rather than the question; the re-review caught it, and it is the
+  same failure this repo's own rule already names — *a matching total is not confirmation*.
+  **The walk is left to right and never steps over a subcommand, and that is the load-bearing
+  property**: `git --no-pager log --grep push` loses `--no-pager`, and then `log` stops the
+  walk, so it never becomes `git push`. A backtracking pattern is free to step over `log` to
+  reach `push`, and the first draft of this entry used one — four of the controls below exist
+  because of it.
+- **The dry-run bypass needs a simple, UNQUOTED command, and the quote rule is doing real work.**
+  The whole-word test alone closes `--push-option=--dry-run`. It does nothing for
+  `gh pr create --title x --body "adds a --dry-run flag"`, which opened a real pull request on
+  the strength of a word in its own description — silently, on `448b57b` as well as on the first
+  draft of this entry. Quoting is the cheapest signal that separates the two, and it is not a
+  heuristic about intent: a quote means part of this command is **data**, and a flag read out of
+  data is not a flag. The alternative is knowing which options of which command take a value,
+  which is a grammar this guard has no business carrying. A quoted command that really is a dry
+  run now asks; that is one prompt, weighed against a publish that was silent.
+- **Coverage is untouched, and the distinction is the whole scope of this entry.** P0 item 5
+  also listed `npm run release`, `yarn publish`, `make deploy` and `gh release upload` as
+  silent. They still are, and deliberately: those are **not** spellings of anything on the list,
+  they are commands that are not on it, and adding them is a decision about what this kit claims
+  to know — with its own argument, its own README sentence and its own entry. The review itself
+  put it this way: *fix detectability before coverage*. Doing both here would have made this
+  entry unreviewable, and `.gitattributes` of 2026-09-07 is the standing reminder that a list
+  which grows quietly is a list nobody re-reads.
+- **Consequences** — **twenty-two new `smoke.sh` assertions, of which seventeen fail against
+  `448b57b`** (suite 281 → 303; measured by running the new suite over both hooks in the same
+  tree, which is the method this repo had to settle twice). The other five are controls, and they
+  are the half worth naming: `git log --grep push` and `git --no-pager log --grep push` are not
+  pushes, `git commit -m fix-the-push` is not one, `git  push  --dry-run` is still waved through,
+  and `bash -c 'git push'` asked before this change — the raw string holds the substring — and
+  must keep asking now that quotes are stripped. The cheap way to make seventeen
+  failing cases pass is to over-match, and an over-matching guard prompts on reads, which is
+  what trains the click-through that makes the arms that *do* gate something worthless
+  (ADR-0054, ADR-0060). **If `awk` is missing or its program fails, the normalised string falls
+  back to the raw command**, which returns the publish list and the record arm to exactly what
+  they matched before this entry — the same fail-open direction the rest of the file takes,
+  landing on a narrower gate and never on an open one. The dry-run arm is the one that does not
+  return, and saying so is the point of the sentence: its compound test reads `$CMD` and not the
+  normalised string at all, so `&`, `#`, `$(`, a backtick and a quote are judged whether awk ran
+  or not. **The two strings are deliberately different there**, and that is the only place in
+  this change where they are: compound is a property of what the shell was handed, quotes
+  included and therefore still visible, while the whole-word test for the flag needs the
+  collapsed spacing that only `$NORM` has.
+  `$CMD` itself is never rewritten: it is what the prompt and the trace quote,
+  and a prompt naming a command nobody typed is a prompt nobody can check. The record arm reads
+  the normalised string too, so `sed  -i` with two spaces is judged like `sed -i`; newlines
+  deliberately **survive** normalisation, because that arm splits on them and flattening them
+  would put a redirect from one command and a record path from another back into the same part,
+  which is the bug ADR-0060 closed. **The version does not move**: 0.9.0 is not tagged yet, so
+  this ships inside it rather than beside it, and a bump for a fix to an unreleased version
+  would make the marker mean less rather than more.
+- **Known limits.** Normalisation is a fixed walk, not a shell parser: it does not expand
+  aliases, does not follow a script, and does not know that `p` is someone's alias for `git
+  push`. `git push -n` is git's own short spelling of `--dry-run` and is **not** recognised as
+  one, so it asks — a prompt on a command that publishes nothing, which is the cost this file
+  prefers and not a hole.
+  **The one in this class that is NOT closed, and the honest place to say so:** `--dry-run` given
+  as another option's separate value — `git push --push-option --dry-run origin main` — is
+  unquoted and is a whole word, so it still takes the dry-run exit and a real push goes through
+  in silence. It does so on `448b57b` too, so this entry neither causes it nor claims it; it is
+  deliberately **not** pinned in `smoke.sh`, because a test asserting that a real push is silent
+  reads as a behaviour someone wanted. Closing it needs to know that `--push-option` consumes the
+  next word, and that is per-command grammar. The class this entry closes is therefore the
+  quoted and the `=`-joined forms, not every way a flag can be worn by something else.
+  **And the walk fires on any word ending in `git`**, so `grep -r git -l push` normalises to
+  `grep -r git push` and asks. A prompt on a `grep` is the cost; the alternative, a closed list
+  of git's global flags, buys it back by missing whichever option git adds next.
+  **A quoted value holding a space is the third**, and it is a miss rather than a prompt:
+  `git -c user.name="John Doe" push` loses its quotes, `Doe` is read as the subcommand and the
+  push goes through in silence — on `448b57b` as well, so this entry neither causes it nor fixes
+  it. Every one of these three wants the same thing and is refused the same way: knowing that a
+  quoted run is one word is a shell parser, and a guard whose coverage a person is supposed to
+  check by reading it cannot carry one.
+  Two of the new compound markers, `#` and `$(`, will ask on a command
+  that was not going to publish anything either; that cost is one prompt on a shape that is
+  rare, against a miss on a shape that ships.
+  One more, found while gating this entry and **measured against both hooks before being written
+  down**: the record arm splits on `;` `&` `|` without knowing which of them the shell quoted, so
+  `cp 'x;y' .attest/ship-a.md` puts the verb in one part and the record path in the other and
+  goes through in silence. It does so on `448b57b` as well — this entry neither causes it nor
+  fixes it, and stripping quotes changed nothing about it. It is the mirror image of the bug
+  ADR-0060 closed: that one joined two commands the shell had separated, this one separates one
+  the shell kept whole. Fixing it needs a notion of quoting the record arm deliberately does not
+  have, so it is recorded here rather than patched in passing.

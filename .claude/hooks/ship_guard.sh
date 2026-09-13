@@ -47,6 +47,72 @@ CMD="$(printf '%s' "$PAYLOAD" |
 TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
   sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')"
 
+# NORMALISE BEFORE MATCHING (attest ADR-0069). The list below is literal substrings, and that is
+# the point — a reader can check it against what they type. But a substring list reads SPELLING,
+# and one command has many: `git  push` with two spaces, `git -C . push`, `git -c k=v push`,
+# `git --no-pager push`, `git --work-tree /w push`. Every one of those was silent, so the gate
+# the README advertises was a gate on one spelling of each command. (`bash -c "git push"` was
+# NOT: the raw string carries the substring, so it asked before this change and has to keep
+# asking after it — it is a control here, not a fix.) Three cheap passes make the spellings
+# converge and leave the list itself untouched.
+#
+# What they do NOT converge is a quoted value holding a SPACE: `git -c user.name="John Doe" push`
+# loses its quotes, `Doe` is read as the subcommand and the push goes through in silence — as it
+# did before this file was touched. Tracking that needs to know a quoted run is one word, which
+# is the parser this normalisation is explicitly not. It is written down in attest ADR-0069.
+#
+#   1. quotes are dropped, so a push written inside one word of them is still a push;
+#   2. runs of whitespace collapse to one space, which awk's default field splitting does for
+#      free (tabs included);
+#   3. git's GLOBAL options are dropped from between the word `git` and its subcommand.
+#
+# SEVEN OF THOSE OPTIONS TAKE A SEPARATE ARGUMENT and have to lose it with them, or the argument
+# becomes the subcommand and the walk stops one word short of `push`. The list is git's, not
+# ours, and it was measured against `git version 2.43.0` rather than read off a man page:
+# `-c` `-C` `--git-dir` `--work-tree` `--namespace` `--config-env` `--attr-source`.
+# Getting this list wrong MISSES a push in both directions — an option left off it eats the
+# subcommand, and a plain flag wrongly put on it eats `push` itself — which is why it is exact
+# and why seven smoke cases pin it, one per entry. The `=` spellings need no entry:
+# `--git-dir=/x` is one word, so it falls to the ordinary single-word skip.
+#
+# `--exec-path` LOOKS like it belongs here and does not, which is worth one line because the
+# first version of this list had it. Given no `=`, git prints its exec path and exits without
+# ever reaching the subcommand — so `git --exec-path /x push` pushes nothing, and normalising it
+# to something that does not match is the correct answer rather than a miss. Only `--exec-path=`
+# reaches a subcommand, and that spelling is one word.
+#
+# The walk goes left to right and never steps over a subcommand, which is what keeps it from
+# inventing a push out of a git command that merely reads one: `git --no-pager log --grep push`
+# loses `--no-pager`, and then `log` stops the walk, so it never becomes `git push`. It is not a
+# parser, and the claim stops there — because the walk fires on any word ENDING in `git`, a
+# non-git command can still be normalised into a match (`grep -r git -l push` becomes
+# `grep -r git push` and asks). That direction costs a prompt, never a miss, which is the trade
+# this file makes everywhere.
+#
+# Newlines survive on purpose — the record arm below splits on them (attest ADR-0060), and
+# flattening them here would put a redirect from one command and a record path from another back
+# in the same part, which is the exact bug that entry closed.
+#
+# $CMD itself is untouched: it is what the human is shown, and a prompt quoting a command nobody
+# typed is a prompt nobody can check. If awk is missing or the program fails, $NORM falls back to
+# $CMD and every arm matches exactly what it matched before this entry — a narrower gate, never
+# an open one.
+NORM="$(printf '%s' "$CMD" | awk '
+  {
+    gsub(/[\042\047]/, "")
+    out = ""
+    for (i = 1; i <= NF; i++) {
+      out = (out == "" ? $i : out " " $i)
+      if ($i ~ /git$/)
+        while (i < NF && substr($(i+1), 1, 1) == "-") {
+          if ($(i+1) ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) i++
+          i++
+        }
+    }
+    print out
+  }' 2>/dev/null)"
+[ -n "$NORM" ] || NORM="$CMD"
+
 # The publish path that never opens a shell (attest ADR-0058). A GitHub MCP server pushes files,
 # opens pull requests and creates repositories over the API, so `git push` is never typed and the
 # `Bash` matcher never fires — the gate the README advertises was simply absent on that path,
@@ -84,7 +150,7 @@ esac
 # branch protection and required CI, which are server-side and catch every path (ADR-0035).
 # `|| case` rather than an `if` wrapping the whole block: the MCP arm above has already decided,
 # and re-indenting these arms to nest them would obscure the one list a reader comes here to read.
-[ -n "${KIND:-}" ] || case "$CMD" in
+[ -n "${KIND:-}" ] || case "$NORM" in
   *"git push"*|*"git send-email"*) ACT="sends data off the machine" ;;
   *"gh pr create"*|*"gh release create"*|*"gh gist create"*) ACT="sends data off the machine" ;;
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*) ACT="sends data off the machine" ;;
@@ -127,7 +193,7 @@ esac
 # path is what separates writing a record from reading one into something else (`cat
 # .attest/ship-a.md >/tmp/x`).
 if [ -z "${ACT:-}" ]; then
-  _parts="$(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
+  _parts="$(printf '%s' "$NORM" | sed 's/\\n/;/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
   _oifs="$IFS"; IFS='
 '
   for _part in $_parts; do
@@ -185,9 +251,11 @@ trace() { # trace <decision>
   } 2>/dev/null || true
 }
 
-# The MCP arm answers here, before the dry-run and record arms below: both of those read `$CMD`,
-# which for an MCP call is the raw payload, so `--dry-run` appearing anywhere in a file being
-# pushed would otherwise wave the push through (attest ADR-0058).
+# The MCP arm answers here, before the dry-run and record arms below. Those read `$CMD` and
+# `$NORM`, and for an MCP call both are built from the raw payload — so `--dry-run` appearing
+# anywhere in a file being pushed would otherwise wave the push through (attest ADR-0058).
+# Normalising changed nothing about why this ordering matters, only how many strings it is true
+# of (attest ADR-0069).
 if [ "${KIND:-}" = mcp ]; then
   trace mcp
   printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
@@ -203,13 +271,41 @@ fi
 # command that took it left no line at all — so a miss and an unregistered hook looked the same
 # from the log, which is the one ambiguity ADR-0034 introduced the log to remove. A decision to
 # let something through is still a decision; it gets a line.
+#
+# Both halves of that judgment were too loose, and each was a real command going through
+# silently (attest ADR-0069). `git push --dry-run & git push origin main` held no `&&` and was
+# waved through on the first half's flag; `--dry-run` was matched as a SUBSTRING, so
+# `git push --push-option=--dry-run` — a value git hands to the server, not a dry run — read as
+# one; and `gh pr create --body "adds a --dry-run flag"` opened a real pull request on the
+# strength of a word in its own description. What follows asks for a SIMPLE, UNQUOTED command
+# and a WHOLE WORD.
+#
+# Quoting is what separates those last two from a genuine dry run, and it is the cheapest
+# reliable signal available here: `git push --dry-run` and `npm publish --dry-run` carry no
+# quotes, while a flag named inside prose is quoted by definition. Deciding it any other way
+# needs to know which options of which command take a value — a grammar this guard deliberately
+# does not have. A quoted command that really is a dry run now asks; that is one prompt, against
+# a publish that was silent.
 NL='
 '
+# SC2016 is the point here, not a slip: `$(` is being matched as two literal characters, because
+# what makes a command compound is that it CONTAINS a substitution, never what one expands to.
+# shellcheck disable=SC2016
 case "$CMD" in
-  # a compound command — ';' '&&' '||' '|' or a newline, the last of which survives JSON
-  # escaping as the two characters \n
-  *';'*|*'&&'*|*'||'*|*'|'*|*"$NL"*|*'\n'*) ;;
-  *--dry-run*) trace dryrun; exit 0 ;;
+  # Compound, or able to hold a second command: ';' '&' (which covers '&&' and a background
+  # job) '|' (which covers '||') '$(' a backtick, a '#' comment that can park the flag out of
+  # the shell's sight, or a newline — the last surviving JSON escaping as the two characters \n.
+  # A quote of either kind joins them: it means some of this command is DATA, and a flag read
+  # out of data is not a flag. In the payload a double quote arrives escaped, as \" — the
+  # pattern below sees the quote character itself either way.
+  *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
+  # A simple command, so the flag can only belong to it. Whole word, tested by padding both
+  # sides with the single space $NORM has already collapsed every run of whitespace into: that
+  # is what keeps `--push-option=--dry-run` and `--dry-run-ish` out while `git push --dry-run`
+  # and `git  push  --dry-run` both stay in.
+  *) case " $NORM " in
+       *" --dry-run "*) trace dryrun; exit 0 ;;
+     esac ;;
 esac
 
 # A record write never reaches the evidence check below — it IS the evidence being made

@@ -80,12 +80,15 @@ a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before 
 leaves the machine — and it is no longer on your memory: a `PreToolUse` hook matches **a short,
 literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
 the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
-substrings, not a category — `git -C … push`, `npm run release` and your own deploy script do not
-match, and widening it means adding them. It also covers the publish path that never opens a
-shell — a GitHub MCP server's `push_files`, `create_or_update_file`, `create_pull_request`,
-`create_repository` — where it always asks, because those calls send bytes chosen in the call
-and a record about your HEAD is evidence about a different thing (the whole loop is laid out in
-[`GUIDE.md`](GUIDE.md) PART 9).
+substrings, not a category — `npm run release`, `make deploy` and your own deploy script do not
+match, and widening it means adding them. What the list no longer reads is **spelling**: the
+command is normalised first, so `git -C … push`, `git -c k=v push`, `git --no-pager push` and
+`git --work-tree … push` all reach the same entry, and the `--dry-run` exemption now needs a
+simple, unquoted command to apply at all (attest ADR-0069). It also covers the publish path that
+never opens a shell — a GitHub MCP server's `push_files`, `create_or_update_file`,
+`create_pull_request`, `create_repository` — where it always asks, because those calls send
+bytes chosen in the call and a record about your HEAD is evidence about a different thing (the
+whole loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
 
 > **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
 > answers a different question. It runs whatever permission mode you are in and does not depend
