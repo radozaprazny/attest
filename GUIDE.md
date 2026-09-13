@@ -154,11 +154,25 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   this HEAD answers with `permissionDecision: "ask"`, and the reason says which of the two it
   was — no record, or a record that does not attest a clean scan.
 - **The list is literal, and that is the coverage.** It is a `case` of fixed substrings, not a
-  category of command. `git -C … push`, `git --no-pager push`, `npm run release`, `make deploy`
-  and a deploy script of your own do **not** match, and a non-matching command leaves no trace
-  line either — so an empty log is not proof the hook is alive, only that nothing it knows about
-  ran. This is a net for *forgetting*, not for variants; widen it by adding your own project's
-  commands to that `case`.
+  category of command. `npm run release`, `make deploy`, `yarn publish` and a deploy script of
+  your own do **not** match, and a non-matching command leaves no trace line either — so an empty
+  log is not proof the hook is alive, only that nothing it knows about ran. This is a net for
+  *forgetting*, not for variants; widen it by adding your own project's commands to that `case`.
+- **What the list no longer reads is spelling** (attest ADR-0069). A substring list matches the
+  characters you typed, and one command has many spellings — so `git -C . push`,
+  `git -c k=v push`, `git --no-pager push`, `git --work-tree /w push` and `git  push` with two
+  spaces were all silent while `git push` asked. The command is normalised before the `case` sees
+  it: quotes are dropped, runs of whitespace collapse to one space, and git's **global** options
+  are removed from between the word `git` and its subcommand. Seven of those options take a
+  **separate argument** and lose it with them — `-c` `-C` `--git-dir` `--work-tree` `--namespace`
+  `--config-env` `--attr-source` — and that list is exact rather than generous, because an option
+  missing from it leaves its value to be read as the subcommand while a plain flag added to it
+  would swallow `push`; both mistakes end in a silent miss. The walk is left to
+  right and never steps over a subcommand, which is why `git --no-pager log --grep push` stays a
+  log search: `--no-pager` goes, and then `log` stops the walk. It is not a parser, though, and
+  it fires on any word ending in `git`, so `grep -r git -l push` now asks — a prompt, never a
+  miss. **Coverage is untouched by all this** — normalising spellings is not the same as adding
+  commands, and the script-shaped paths above still need adding by hand.
 - **The publish path that never opens a shell** (attest ADR-0058). A GitHub MCP server pushes
   files, opens pull requests and creates repositories over the API — `git push` is never typed,
   so the `Bash` matcher never fires and, until this arm, the gate was simply absent there. The
@@ -206,10 +220,22 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   to delete at any time.
 - **Adding your own ship command:** it is a `case` statement near the top of the script. Put
   your deploy script or submit CLI in it literally — do not make the patterns clever.
-- **A dry run publishes nothing** and is allowed through (`--dry-run`) — but only when the
-  dry run is the *whole* command. In a compound one the flag may belong to a different call
-  than the one that ships (`git push --dry-run && git push origin main`), so anything holding
-  `;` `&&` `||` `|` or a newline is judged as a whole and still asks.
+- **A dry run publishes nothing** and is allowed through (`--dry-run`) — but only when the dry
+  run is a **simple, unquoted** command and `--dry-run` is a **whole word** of it (attest
+  ADR-0069). In a compound command the flag may belong to a different call than the one that
+  ships (`git push --dry-run && git push origin main`), so anything holding `;` `&` `|` `$(` a
+  backtick, a `#` comment or a newline is judged as a whole and still asks. **A quote counts
+  too**, because it means part of the command is *data*, and a flag read out of data is not a
+  flag: `gh pr create --body "adds a --dry-run flag"` used to open a real pull request on the
+  strength of a word in its own description. All three used to be looser and each was a real
+  publish going through in silence — a single `&` was not compound, so
+  `git push --dry-run & git push origin main` shipped on the first half's flag, and the flag was
+  matched as a substring, so `--push-option=--dry-run` read as a dry run.
+  - **What this still does not catch:** `--dry-run` handed to another option as its *separate*
+    value, as in `git push --push-option --dry-run origin main`. That is unquoted and it is a
+    whole word, so it takes the exit and the push is silent — before ADR-0069 as well as after
+    it. Telling it apart needs to know that `--push-option` consumes the next word, which is
+    per-command grammar this hook deliberately has none of.
 
 ### 2.3 `PreToolUse` on `Write|Edit` — the record guard (`record_guard.sh`)
 - **How:** before a file is written, the hook looks at `tool_input.file_path`. Anything that is

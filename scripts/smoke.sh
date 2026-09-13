@@ -416,6 +416,65 @@ says "an upload asks too"                    "$(guard 'curl --upload-file x http
 if [ -z "$(guard 'git push --dry-run')" ]; then ok "a dry run publishes nothing and passes"; else fail "a dry run publishes nothing and passes"; fi
 # ...but the flag may belong to a different call than the one that ships
 says "a dry run chained to a real push still asks" "$(guard 'git push --dry-run && git push origin main')" 'permissionDecision":"ask'
+
+# --- one command, many spellings (ADR-0069) -------------------------------------------
+# A substring list reads spelling, and every case down to the CONTROLS divider is silent against
+# the pre-0069 hook. All but one are a real publish going through unasked; the exception is here
+# for the same reason — `git push --dry-run $(echo origin)` really is a dry run, and it now asks
+# because a substitution can hold a second command. An over-prompt is the price of the rule, and
+# pinning it is how the price stays visible.
+# The controls below that divider pass both ways and are the half that matters, because the
+# cheap way to make the ones above pass is to over-match.
+says "git with -C in front of the subcommand asks"   "$(guard 'git -C . push origin main')" 'permissionDecision":"ask'
+says "…and with -c, whose value is a separate word"  "$(guard 'git -c user.name=x push origin main')" 'permissionDecision":"ask'
+says "…and with a long global option"                "$(guard 'git --no-pager push origin main')" 'permissionDecision":"ask'
+says "…and with several of them at once"             "$(guard 'git -c a=b -C /tmp --no-pager push')" 'permissionDecision":"ask'
+says "…and with two spaces between the words"        "$(guard 'git  push origin main')" 'permissionDecision":"ask'
+says "…and with a tab between them"                  "$(guard "$(printf 'git\tpush origin main')")" 'permissionDecision":"ask'
+# The dry-run escape was a substring test, so a flag VALUE that merely ends in it opened the door.
+says "a --dry-run inside another flag's value is not a dry run" \
+     "$(guard 'git push --push-option=--dry-run')" 'permissionDecision":"ask'
+# ...and a '#' parks the flag where the shell will never read it as one.
+says "a --dry-run in a comment is not a dry run"     "$(guard 'git push origin main # --dry-run')" 'permissionDecision":"ask'
+# A single '&' is a command separator too; only '&&' was judged compound before.
+says "a dry run backgrounded beside a real push asks" \
+     "$(guard 'git push --dry-run & git push origin main')" 'permissionDecision":"ask'
+# SC2016 deliberately: the fixture has to reach the hook as the literal characters a user typed.
+# shellcheck disable=SC2016
+says "…and a command substitution counts as compound" \
+     "$(guard 'git push --dry-run $(echo origin)')" 'permissionDecision":"ask'
+# Five of git's global options take a SEPARATE argument on top of `-c` and `-C`. Leaving one off
+# the list makes that argument read as the subcommand, and the walk then stops one word short of
+# `push` — a silent miss, which is the direction that matters. `--git-dir` carries a trailing
+# slash here on purpose: without one it passed before ADR-0069 by accident, because the string
+# `.git push` happens to contain `git push`, and an accident is not a pin.
+# `--exec-path` is deliberately NOT among these: with no `=`, git prints its exec path and exits
+# without reaching the subcommand, so that spelling pushes nothing and has nothing to gate.
+says "git --work-tree with a separate argument asks" "$(guard 'git --work-tree /tmp/w push origin main')" 'permissionDecision":"ask'
+says "…and --namespace"                              "$(guard 'git --namespace foo push')" 'permissionDecision":"ask'
+says "…and --git-dir, whose value ends in a slash"   "$(guard 'git --git-dir /tmp/w/.git/ push')" 'permissionDecision":"ask'
+says "…and --config-env"                             "$(guard 'git --config-env user.name=HOME push')" 'permissionDecision":"ask'
+says "…and --attr-source"                            "$(guard 'git --attr-source HEAD push')" 'permissionDecision":"ask'
+# ...while the `=` spellings are one word and must keep working through the ordinary skip.
+says "…and the = spelling of the same option"        "$(guard 'git --work-tree=/tmp/w push')" 'permissionDecision":"ask'
+# A flag named inside PROSE is not a flag. Quoting is what tells them apart, because deciding it
+# any other way needs to know which options of which command take a value — which is also why
+# the unquoted sibling of this case, `git push --push-option --dry-run origin main`, is NOT
+# pinned here: it still takes the dry-run exit, it did so before ADR-0069 as well, and it is
+# written down as a known limit in that entry rather than asserted as behaviour anyone wants.
+says "a --dry-run quoted inside a PR body is not a dry run" \
+     "$(guard "gh pr create --title x --body 'adds a --dry-run flag'")" 'permissionDecision":"ask'
+
+# CONTROLS — these pass against the pre-0069 hook too, and must keep passing.
+# Quotes are spelling, not coverage: this one asked before the change because the raw string
+# carries the substring, and it has to keep asking now that the quotes are stripped.
+says "a push inside a quoted -c argument asks"       "$(guard "bash -c 'git push origin main'")" 'permissionDecision":"ask'
+# Normalisation must not invent a push out of a GIT command that merely reads one.
+if [ -z "$(guard 'git log --grep push')" ]; then ok "a log search for the word push is not a push"; else fail "a log search for the word push is not a push"; fi
+if [ -z "$(guard 'git --no-pager log --grep push')" ]; then ok "…not even behind a global option"; else fail "…not even behind a global option"; fi
+if [ -z "$(guard 'git commit -m fix-the-push')" ]; then ok "…and a commit message mentioning it is not one"; else fail "…and a commit message mentioning it is not one"; fi
+if [ -z "$(guard 'git  push  --dry-run')" ]; then ok "a dry run still passes with the spacing normalised"; else fail "a dry run still passes with the spacing normalised"; fi
+
 # --- what the record has to SAY, not merely that it exists (ADR-0037) -----------------
 rm -f "$S"/.attest/ship-*.md
 : > "$S/.attest/ship-20260904-000000-$SHA.md"

@@ -7,6 +7,31 @@
 
 ## Current state
 
+**The ship list stops reading spelling — ADR-0069, and P0 item 5 is closed after four
+releases.** `git -C . push`, `git -c k=v push`, `git --no-pager push`, `git --work-tree /w push`
+and `git  push` with two spaces were every one of them a real push with no prompt and no trace
+line. The dry-run escape was the worse half, because it let through a command the list *did*
+match: `--push-option=--dry-run` read as a dry run, a `#` parked the flag out of the shell's
+sight, `&` was not compound, and `gh pr create --body "adds a --dry-run flag"` opened a real pull
+request on the strength of a word in its own description. **Two of those were ADR-0038's, written
+down on 2026-09-04 and deferred on purpose** — this closes them rather than discovering them. The
+command is now normalised once, above the list, and **the list is
+unchanged** — that was the whole argument against writing a pattern per entry. Suite **281 →
+303**, with **17 of the 22 new cases failing against `448b57b`**; the other five are controls,
+and `git --no-pager log --grep push` is the one that caught the first draft, which backtracked
+over `log` to reach `push`. **Its own gate earned its keep three times, and the third is the one
+worth keeping.** The `/decision` pass caught the entry citing ADR-0033 for a rule ADR-0028 owns
+and presenting two known holes as new findings. The `reviewer` pass caught the first fix still
+missing `git --work-tree /w push` — five of git's global options take a **separate** argument on
+top of `-c`/`-C`, and only those two were losing theirs. Then the **re-review** caught the repair
+for that: `--exec-path` had gone onto the list on the strength of a measurement that asked the
+wrong question, *did the command exit 0*, which it does by printing its path and stopping before
+the subcommand. Asking *did the subcommand run* removes it and nothing else. A proxy for the
+question is not the question, and a round-2 pass is what turned it up.
+**Coverage was left alone on purpose** (`npm run release`,
+`yarn publish`, `make deploy` still silent): a spelling and a missing command are different
+decisions, and the review that raised this said *fix detectability before coverage*.
+
 **Phase C is in, and with it the proposal is spent — `/gate fix`, a bounded repair loop
 (ADR-0068).** The contract is in `.claude/skills/gate/SKILL.md`; what matters for the thread is
 that the series is finished and what it cost. **C was gated by the loop it adds**, and the two records say what that cost:
@@ -88,8 +113,9 @@ suite 210 → 233.
 The same session found the front page claiming *"prove nothing sensitive leaks when you ship"*
 while *What it does not defend against*, ninety lines down, said the opposite at length.
 ADR-0059 states the mechanism instead of the outcome and names the coverage boundary where a
-reader looks for it. **Still open: the GitHub *About* description carries the old sentence and
-is not in the tree** — it has to be changed by hand.
+reader looks for it. **Closed 2026-09-13: the GitHub *About* description was changed by hand**
+to *"…and makes the leak scan a gate, not a memory"* — 343 of the 350 characters GitHub allows,
+read back with `gh repo view` — it was never in the tree, so no commit carries it.
 
 **ADR-0060, found by the guard watching itself.** The push for the above left
 `record … grep -c . README.md > /tmp/n && ls .attest/ship-a.md` in the trace — a command
@@ -423,12 +449,12 @@ aesthetic:
   outside a git checkout, and keeps any name whose tail is not sha-shaped.
 
   **P0 — still open:**
-  5. ⬜ **Normalise the matching** (F01, F02) — whitespace, global git options, `git … push` as two
-     words, `--dry-run` only as a whole word of a simple command; treat `&`, `#`, `$(`, backtick
-     as compound. Verified silent today: `git -C . push`, `git -c k=v push`, `git --no-pager
-     push`, two spaces, `# --dry-run`, `--push-option=--dry-run`, `& git push`, and every
-     script-shaped path (`npm run release`, `yarn publish`, `make deploy`, `gh release upload`).
-     Deliberately **after** (1): fix detectability before coverage.
+  5. ✅ **Normalise the matching** (F01, F02) — **closed by ADR-0069**, which owns the reasoning
+     and the known limits; *Current state* above carries the headline. Coverage was deliberately left
+     alone: `npm run release`, `yarn publish`, `make deploy` and `gh release upload` are still
+     silent, because they are not spellings of anything on the list but commands absent from it.
+     That is a separate decision with its own README sentence — *fix detectability before
+     coverage*, as the review itself put it.
   6. ⬜ **`"matcher": "Bash|PowerShell"`** (F06) — the docs wording was checked verbatim; on Windows
      without Git Bash the hook does not run at all, which deserves a sentence in GUIDE 2.2.
   7. ⬜ **The non-git directory** (F14, F50) — the hook's own header and ADR-0028 promise it
