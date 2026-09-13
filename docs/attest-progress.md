@@ -7,6 +7,12 @@
 
 ## Current state
 
+**`v0.9.0` is tagged at `b1b6e0e`** — the first tag since `v0.8.0` on 2026-09-10, and it carries
+the whole gate series plus the guard fix below: ADR-0067 (a pass runs only when the diff touched
+its ground; `full` runs them all — the record shape change that earned the bump), ADR-0068 (the
+bounded `fix` loop) and ADR-0069 (the ship list matches a command, not a spelling). Until it was
+cut, `main` claimed kit 0.9.0 with no such tag anywhere, so an adopter had nothing to pin.
+
 **The ship list stops reading spelling — ADR-0069, and P0 item 5 is closed after four
 releases.** `git -C . push`, `git -c k=v push`, `git --no-pager push`, `git --work-tree /w push`
 and `git  push` with two spaces were every one of them a real push with no prompt and no trace
@@ -497,9 +503,16 @@ aesthetic:
 - **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
   `.claude/settings.local.json` (gitignored), so the next session start here is the first live
   run.
-- **Enable branch protection** on `main` — now load-bearing, not housekeeping: ADR-0035 names
-  branch protection plus required CI as *the* merge boundary, precisely because the ship guard
-  deliberately does not cover merges. Until it is on, that boundary does not exist anywhere.
+- ✅ **Branch protection on `main` — on since 2026-09-13**, and with it the merge boundary
+  ADR-0035 names actually exists somewhere. Read back from the API rather than assumed:
+  required status check `check` with `strict: true` · `enforce_admins: true` · pull request
+  required at **0** approvals · force pushes and deletions refused. **`enforce_admins` is the
+  part worth defending**: the only account that merges here is the maintainer's, so protection
+  that exempts admins would exempt the one person it is for. Zero approvals is the other half —
+  GitHub will not let you approve your own pull request, so any higher number locks a solo
+  maintainer out of their own repository, and *required PR* is the property that was wanted
+  anyway. **The standing cost, noticed the first time it bites:** a one-line documentation fix
+  now needs a branch and a PR too. PR #24 is this entry paying it.
 - **Decide on going public** — the guard now asks at the flip itself (ADR-0035). The right
   answer to that prompt is an `/audit-history full` run, not an approval. A README demo GIF
   stays an open nice-to-have; never fabricate a transcript.
