@@ -31,8 +31,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
-      - name: shellcheck — installer, hooks, smoke test, template cleanup
-        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh
+      - name: shellcheck — installer, hooks, the gate's stage 0, smoke test, template cleanup
+        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh .claude/skills/gate/triggers.sh
 
       - name: smoke — hooks, install.sh and the template cleanup
         run: ./scripts/smoke.sh

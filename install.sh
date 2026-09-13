@@ -367,6 +367,12 @@ ensure_attribute ".claude/hooks/* text eol=lf"
 # alone between Windows and a false diagnosis. Narrow, like the line above: `.attest/` is the
 # kit's own directory, never the user's source.
 ensure_attribute ".attest/*.md text eol=lf"
+# The gate's stage-0 script is the kit's first executable outside .claude/hooks/, and a CR at
+# the end of its last token breaks it exactly as it breaks a hook — with the difference that
+# this one fails open and silently, so the gate would quietly run every pass instead of
+# refusing to start. Narrow like the two above: only the kit's own skill directories
+# (attest ADR-0039, ADR-0067).
+ensure_attribute ".claude/skills/*/*.sh text eol=lf"
 
 ensure_ignore ".claude/settings.local.json"
 # The run records under .attest/ are meant to be committed; only the shared scratch is not —

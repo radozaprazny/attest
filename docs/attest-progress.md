@@ -7,8 +7,22 @@
 
 ## Current state
 
-**The id collision resolved, and six entries on top — ADR-0061 … ADR-0066 (branch
-`integration`, not pushed).** PR #18 and PR #19 were written in parallel sessions and **both**
+**Phase B is in — the gate asks only the questions a diff raises, and `full` asks them all
+(ADR-0067, kit 0.9.0).** `.claude/skills/gate/triggers.sh` is a POSIX `sh` stage that runs
+before any subagent exists: it reads the diff, the untracked files and the two declaration
+documents, and writes one `run` / `skip` / `not-installed` line per pass plus a `file:line`
+evidence file for each pass that runs. **Measured over the last 40 non-merge commits: 50
+subagent runs against 160** — reviewer 32 · decision 10 · compliance 8 · business 0, with 8
+records-only commits (32 + 8 = 40). The proposal predicted 61, and **three of the four
+components moved, not one** — the detail is in ADR-0067, which is the one home for this number.
+Twenty-four `smoke.sh` cases pin the rules, including the ones that give the others meaning: a
+diff **no** list names leaves its pass off, a stage with no material writes nothing and exits 0,
+and a patch it cannot parse produces no verdict at all rather than a false "records only". The record gains `mode:` and `triggers:`, so a skipped pass
+can never be read as one that ran clean. **`/gate full` joins the ship cadence** in GUIDE PART 9
+beside `/audit-history`: the light gate triggers on words, and the 2026-09-07 blocker
+(`*.sh text eol=lf`) is the standing proof that a word is not always there.
+
+**The id collision resolved, and six entries on top — ADR-0061 … ADR-0066 (merged as PR #20).** PR #18 and PR #19 were written in parallel sessions and **both**
 claimed `ADR-0055`–`ADR-0057`, for six different decisions. #19 keeps the numbers it recorded;
 #18 is renumbered **0058–0060** — the cheaper side, measured: 26 citations against 45 — by a 1:1
 `sed` over ids that changed no word of content. The merge had exactly one conflict, both
@@ -293,7 +307,27 @@ aesthetic:
 
 ## Next
 
-- **From the 2026-09-12 gate on this branch — the minors, unfixed on purpose** (ADR-0061: a ✅
+- **From the phase-B gate (`gate-20260912-224046-4baa8d5.md`) — the minors, unfixed on purpose:**
+  - **`smoke.sh` fixtures that pass for the wrong reason.** The line-number case uses a hunk
+    where the old start, the new start and a hunk-relative count all give 2, so it cannot tell
+    the three apart; use `@@ -10,2 +20,3 @@` and expect `:21:`. Section 0c also has no negative
+    case for `/compliance` (`skip · no trigger` is never asserted) and no case for the 2000-line
+    or 200-file caps.
+  - **`triggers.sh` calls `git log` for the new-top-level-directory rule**, which its own
+    contract does not list among its inputs; where git is absent every top-level directory reads
+    as new and `/business` runs every time. Either widen the contract or drop the rule.
+  - **The `trigger-<pass>.txt` files are a second local store of matched lines** — for the
+    compliance pass, by definition the lines that matched a personal-data pattern. They live in
+    `mktemp -d` and step 2 deletes them, but `COMPLIANCE.md` §7 records the ship guard's trace
+    (ADR-0038) and does not record this one. Decide whether it belongs there.
+  - `.claude/agents/doc-auditor.md` has a 158-char line in a file whose longest was 91; the
+    `triggers.sh` file mode is 644 where every other `.sh` is 755; the record's `triggers:` line
+    joins with `·`, which each line already contains.
+  - **`/gate full`'s base is now derived** (`origin/HEAD`, then `main`/`master`, then the root
+    commit) but the entry does not say what the base was — a record that says *"the branch"*
+    should name the range it meant.
+
+- **From the 2026-09-12 gate on the ADR-0061…0066 branch — the minors, unfixed on purpose** (ADR-0061: a ✅
   ends the round and minors travel here; these rode a ⚠️ whose majors were fixed, and the same
   rule applies to what was left):
   - `/decision`'s id command runs `git fetch --all --quiet 2>/dev/null`, so a fetch that fails
@@ -379,20 +413,21 @@ aesthetic:
      blockers nothing else could, so the answer is not "run it less" — it is a cheaper mode that
      is still worth running on a one-file change.
 
-  **P1** — gate scoping (first-parent diff on a merge HEAD; cleanliness from `git status
+  **P1** — ~~gate scoping (first-parent diff on a merge HEAD; cleanliness from `git status
   --porcelain`, not `git diff --quiet`, which ignores untracked; `gate-records.txt` filtered to
-  `gate-*`, since `ls | tail -3` is alphabetical and drops every gate record once three ship
-  records exist) · `/compliance` Mode 3's `###` siblings make "hand Mode 3 to the subagent"
-  deliver 55 words · `/audit-history full` breaks on its own `-----BEGIN` pattern (exit 129) and
-  should pipe through `xargs git grep -I -l -e`. *(What flips the verdict to ⚠️ was on this list
-  and is now ADR-0055 — see the gate-loop item below.)*
+  `gate-*`)~~ and ~~`/compliance` Mode 3's `###` siblings~~ **are closed by ADR-0067**, all four
+  in `/gate` step 1 and the compliance skill's headings. What remains: `/audit-history full`
+  breaks on its own `-----BEGIN` pattern (exit 129) and should pipe through
+  `xargs git grep -I -l -e`. *(What flips the verdict to ⚠️ was on this list and is now
+  ADR-0055.)*
 
   **P2** — smoke has no fixture for never-clobber, hook wiring or the negative dry-run cases;
   the declaration hook mis-handles multi-line HTML comments and fenced blocks, and its 24-line
   cap counts blank separators (15 non-goals arrive as 12).
 
-- **What `/gate` is for (was F65) — the design question now has a written answer, and phase A of
-  it has shipped.** F65 read *"gate has not run since 2026-08-28"*; that was stale by 09-07, when
+- **What `/gate` is for (was F65) — answered, and phases A and B have shipped** (ADR-0055,
+  ADR-0067; C is the last one open).
+  F65 read *"gate has not run since 2026-08-28"*; that was stale by 09-07, when
   the gate ran over the whole of PR #10 and returned **2 blockers, 2 majors, 7 minors** — both
   blockers things no other check could see (a shallow clone deleting the adopter's own records,
   ADR-0042; a blanket `.gitattributes` rule reaching adopters through the template button,

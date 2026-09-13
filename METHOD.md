@@ -45,7 +45,11 @@ what a change is allowed to be measured against.
 
 **At commit time** — before the change is recorded: does it violate a declared boundary, does
 it contain a decision nobody wrote down, does it touch regulated ground the declared posture
-does not cover, and does it hold up as code.
+does not cover, and does it hold up as code. Make this one **cheap or it will not be run**:
+decide which of those questions a diff actually raises with a mechanism that costs nothing —
+the file names and words it touched — and ask only those. Then say in the record which
+questions were skipped, or a gate that asked one of four will later read as one that asked all
+four and found nothing.
 
 **At ship time** — before anything leaves the machine: does the history carry a secret,
 personal data, a client's name, an internal hostname. This is a different question on a
@@ -118,9 +122,11 @@ difference an auditor will ask about, so state which one you have.
 ## What it costs, and where it is thin
 
 The documents have to be maintained; a stale declaration audits worse than none, because it
-launders drift as approval. The commit-time gate costs a model run per commit. The judgment
-passes vary on secondary findings across runs — treat a blocker as reliable and a minor as
-advisory.
+launders drift as approval. The commit-time gate costs one model run per question the diff
+actually raises — on the kit that implements this, about a third of what asking every question
+every time would cost — plus one complete pass over the branch before a push.
+The judgment passes vary on secondary findings across runs — treat a blocker as reliable and a
+minor as advisory.
 
 The method also has a seam that property 3 does not close. Evidence (property 5) is a file, and a
 file is written by something — so a host that cannot restrain *writing* leaves the attestation

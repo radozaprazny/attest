@@ -93,6 +93,184 @@ for home in "DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decis
   fi
 done
 
+# --- 0c. the gate's stage 0: which passes does this diff need? -------------------------
+# Five rules, five fixtures. Each one stands for a subagent context that used to be spent to
+# discover nothing — and the last two for the opposite risk, a pass skipped that should have
+# run. The script decides from the diff alone, so the fixtures are diffs (attest ADR-0067).
+echo "gate stage 0 — triggers:"
+TRG="$KIT/.claude/skills/gate/triggers.sh"
+S0="$WORK/stage0"
+mkdir -p "$S0/repo/.claude/skills/compliance" "$S0/M"
+: > "$S0/M/status.txt"
+
+stage0() { # stage0 — run the script over $S0/M/diff.patch inside the fixture repo
+  rm -f "$S0/M/triggers.txt" "$S0/M"/trigger-*.txt
+  ( cd "$S0/repo" && sh "$TRG" "$S0/M" >/dev/null 2>&1 )
+  cat "$S0/M/triggers.txt" 2>/dev/null
+}
+
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/.attest/gate-20260101-000000-abc1234.md b/.attest/gate-20260101-000000-abc1234.md
+--- /dev/null
++++ b/.attest/gate-20260101-000000-abc1234.md
+@@ -0,0 +1,2 @@
++# gate run
++- findings: 0 blocker · 0 major · 0 minor
+EOF
+out=$(stage0)
+says     "a records-only diff skips every pass"      "$out" 'reviewer skip · records only'
+says_not "…including the reviewer"                   "$out" 'reviewer run'
+
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/package.json b/package.json
+--- a/package.json
++++ b/package.json
+@@ -3,5 +3,6 @@
+   "dependencies": {
++    "left-pad": "^1.3.0"
+   }
+EOF
+out=$(stage0)
+says "a dependency manifest runs /decision audit" "$out" 'decision run'
+says "…and the reviewer with it"                  "$out" 'reviewer run'
+check "the hits are handed over as evidence" test -s "$S0/M/trigger-decision.txt"
+
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/src/user.py b/src/user.py
+--- a/src/user.py
++++ b/src/user.py
+@@ -1,2 +1,3 @@
+ class User:
++    email = ""
+EOF
+out=$(stage0)
+says "a personal-data field runs /compliance audit" "$out" 'compliance run'
+says "…and does not run /decision on it"            "$out" 'decision skip'
+# The line number is the one the finding will cite: line 2 of the new file, not of the hunk.
+check "the evidence cites the new file's own line" grep -q '^src/user\.py:2:' "$S0/M/trigger-compliance.txt"
+
+# Same diff, with the skill removed: a project that opted out must read as "not installed",
+# never as a pass that ran and found nothing (ADR-0030).
+mv "$S0/repo/.claude/skills/compliance" "$S0/repo/.claude/skills/compliance-off"
+out=$(stage0)
+says "without the skill, compliance is not-installed" "$out" 'compliance not-installed'
+mv "$S0/repo/.claude/skills/compliance-off" "$S0/repo/.claude/skills/compliance"
+
+# BUSINESS.md still the shipped skeleton: nothing declared, and no subagent to say so.
+cp "$KIT/BUSINESS.md" "$S0/repo/BUSINESS.md"
+out=$(stage0)
+says "a template BUSINESS.md declares nothing, without a pass" "$out" 'business skip · nothing declared'
+
+# Filled, with the project's own watch list: the words it names are the words that fire.
+cat > "$S0/repo/BUSINESS.md" <<'EOF'
+# BUSINESS.md
+## Purpose
+A read-only dashboard.
+## Non-goals
+<!-- gate-watch: subprocess, docker exec -->
+- No writes to the host.
+EOF
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/run.py b/run.py
+--- a/run.py
++++ b/run.py
+@@ -1,1 +1,2 @@
+ x = 1
++subprocess.run(["ls"])
+EOF
+out=$(stage0)
+says "a word from the project's watch list runs /business audit" "$out" 'business run'
+
+# The same tree, a diff the list does not name: the pass stays off. This is the assertion that
+# makes the one above mean something.
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1,1 +1,2 @@
+ # Title
++A sentence about nothing in particular.
+EOF
+out=$(stage0)
+says "a diff no list names leaves /business off" "$out" 'business skip · no trigger'
+
+# A diff is not always shaped the way the parser expects, and the failure mode is the worst one
+# there is: no paths parsed used to read as "records only", so the gate skipped every pass and
+# wrote an attestation saying the diff held nothing but records. One fixture per header shape a
+# real git config produces, and one for a patch that cannot be parsed at all.
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git app.py app.py
+--- app.py
++++ app.py
+@@ -1,1 +1,2 @@
+ x = 1
++import requests
+EOF
+out=$(stage0)
+says "diff.noprefix headers still name their paths" "$out" 'reviewer run'
+says "…and still reach the trigger rules"           "$out" 'decision run'
+
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/old.py b/new.py
+similarity index 100%
+rename from old.py
+rename to new.py
+EOF
+out=$(stage0)
+says "a rename-only diff is not 'records only'" "$out" 'reviewer run'
+
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/logo.png b/logo.png
+Binary files a/logo.png and b/logo.png differ
+EOF
+out=$(stage0)
+says "a binary-only diff is not 'records only'" "$out" 'reviewer run'
+
+printf 'this is not a patch at all\n' > "$S0/M/diff.patch"
+stage0 >/dev/null || true   # no triggers.txt to print is the point; the suite runs under `set -e`
+check "a patch it cannot parse produces no verdict at all" test ! -e "$S0/M/triggers.txt"
+
+# An untracked DIRECTORY: `git status --porcelain` without -uall collapses a whole new feature
+# into one `?? src/` line. The first commit of a feature is exactly what this stage is for.
+mkdir -p "$S0/repo/newfeature"
+printf 'import requests\nemail = "a@b.c"\n' > "$S0/repo/newfeature/collect.py"
+printf '?? newfeature/\n' > "$S0/M/status.txt"
+: > "$S0/M/diff.patch"
+out=$(stage0)
+says "a new untracked directory is walked, not skipped" "$out" 'decision run'
+says "…and its contents reach the compliance rule"     "$out" 'compliance run'
+check "the evidence names the file inside it" grep -q '^newfeature/collect\.py:' "$S0/M/trigger-decision.txt"
+rm -rf "$S0/repo/newfeature"; : > "$S0/M/status.txt"
+
+# The posture check is ADR-0030's rule as a command: an unfilled COMPLIANCE.md declares nothing
+# and must say so, because silence reads as "declared" to every later audit. The shipped
+# template carries prose with no placeholder in it, which is what made the first version of
+# this check pass the template as filled.
+cp "$KIT/COMPLIANCE.md" "$S0/repo/COMPLIANCE.md"
+cat > "$S0/M/diff.patch" <<'EOF'
+diff --git a/a.py b/a.py
+--- a/a.py
++++ b/a.py
+@@ -1,1 +1,2 @@
+ x = 1
++y = 2
+EOF
+out=$(stage0)
+says "a template COMPLIANCE.md reports no posture, without a pass" "$out" 'posture none'
+printf '# COMPLIANCE.md\n\n## Scope\n\n- **Applies:** GDPR only. No model, no inference.\n' > "$S0/repo/COMPLIANCE.md"
+out=$(stage0)
+says_not "a filled one does not"                                   "$out" 'posture none'
+rm -f "$S0/repo/COMPLIANCE.md"
+
+# Fail-open, and note the direction: no material means write nothing, so the skill's rule
+# ("no triggers.txt => run every pass") is what applies. Silence must never read as "skip".
+rm -f "$S0/M/triggers.txt"
+( cd "$S0/repo" && sh "$TRG" >/dev/null 2>&1 ); rc1=$?
+( cd "$S0/repo" && sh "$TRG" /nonexistent/dir >/dev/null 2>&1 ); rc2=$?
+if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]; then ok "stage 0 exits 0 with no material at all"
+else fail "stage 0 exits 0 with no material at all (got $rc1/$rc2)"; fi
+check "…and writes no triggers.txt it cannot stand behind" test ! -e "$S0/M/triggers.txt"
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do
@@ -560,6 +738,9 @@ T1="$WORK/fresh"; mkdir -p "$T1"
 "$KIT/install.sh" "$T1" >/dev/null
 check "fresh install lands the shared ladder" test -f "$T1/.claude/skills/_shared/audit-ladder.md"
 check "fresh install lands /gate"             test -f "$T1/.claude/skills/gate/SKILL.md"
+check "fresh install lands the gate's stage 0" test -f "$T1/.claude/skills/gate/triggers.sh"
+check "the stage-0 script is LF-pinned in the adopter's repo" \
+  grep -q '^\.claude/skills/\*/\*\.sh text eol=lf$' "$T1/.gitattributes"
 check "fresh install lands the ship guard"   test -f "$T1/.claude/hooks/ship_guard.sh"
 check "fresh install lands the declaration hook" test -f "$T1/.claude/hooks/session_declaration.sh"
 check "fresh install lands the settings that wire them" test -f "$T1/.claude/settings.json"
