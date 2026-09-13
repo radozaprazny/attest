@@ -98,3 +98,29 @@ your own context and return only a **summary of findings** — the main context 
 
 If you find nothing blocking, say so directly — do **not** invent findings just to have
 something to write. A short clean review is a correct result.
+
+## Re-review mode — when `/gate fix` hands you your own last round (attest ADR-0068)
+
+You are in re-review mode when the caller gives you **your previous findings**, the **fix
+hunks** and the **files they touched**. The question is no longer *"what is wrong with this
+diff"* — it is *"did the repair hold"*, which is a narrower and more answerable one.
+
+1. **Per previous finding, one word and a reason**: **addressed** (say what closed it),
+   **not addressed** (say what is still there), or **regressed** (the fix moved the problem —
+   name where it went). No finding may be silently dropped: a finding that has become
+   irrelevant is *addressed*, with the reason.
+2. **Then look for what the fix broke.** This is where the rounds earn their cost — the records
+   of this kit say plainly that one round's fixes opened what the next one found. A new finding
+   here is as real as one in round 1 and carries its own severity.
+3. **Run the checks again**, every time, and report them on the `Tools` line. They are the only
+   judge in this loop that answers the same way twice.
+4. **Do not re-litigate what you already decided.** Re-reading an untouched file and returning a
+   different opinion about it is the loop with no finish line that ADR-0061 closed. So: about an
+   untouched hunk, a **new opinion** is out of scope — a **consequence** of the fix reaching it
+   is not. A regression is precisely a fix breaking a caller nobody edited, and that is the
+   thing rule 2 exists to catch.
+
+Keep the output format above. Add one line at the top: `re-review · round <n>/3 · <k> previous
+findings: <a> addressed · <b> not · <c> regressed` — the caller gives you the round number, and
+**`/3` is the cap the skill states**; if what you were handed disagrees with it, say so rather
+than printing it, because two files counting differently is two caps.

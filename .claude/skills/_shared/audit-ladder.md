@@ -193,7 +193,9 @@ author to settle before the text lands. A fix that smuggles an unchecked claim i
 document turns one finding into two, and the second one is written in the voice of the audit,
 so nobody looks at it again. (Attest ADR-0062.)
 
-**Every audit is read-only on your work** — it changes no control document and no code. Two
+**Every audit is read-only on your work** — it changes no control document, and no code with
+one named exception: `/gate fix`, whose code edits are the author's, made in the main context,
+never a subagent's and never in a document (attest ADR-0068). Two
 sanctioned artifacts exist, both of them records *that* a gate ran and what it returned:
 `/gate` appends a dated run record under `.attest/` (attest ADR-0016), and `/audit-history`
 appends one of its own — `ship-…-<short-HEAD-sha>.md` — which the `PreToolUse` ship guard

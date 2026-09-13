@@ -2213,3 +2213,98 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   whole point, that an unfilled posture is worse than an absent one, was unreachable. All three
   were the same mistake in different clothes: **a mechanism that cannot decide must not produce
   the same output as one that decided "nothing to do".**
+
+## ADR-0068 — `/gate fix` loops only where a command is the judge, at most three times · 2026-09-13 · Accepted
+
+  Narrows: ADR-0016 (one dated record per run, *"while the individual audits and all control
+  documents stay untouched"* — that still holds exactly; what turns out narrower than it has
+  been read is the sentence it put in the ladder and the skill, *"changes no code"*, which this
+  entry rewrites in all three homes rather than leaving them to contradict it).
+  Extends: ADR-0061 (a ✅ ends the round), ADR-0067 (a pass runs only when the diff touched its
+  ground).
+
+- **Context** — the loop this kit was trying to stop was the *manual* one: run the gate, read
+  the red, fix, run it again, four and five times per tree. ADR-0061 gave that loop a finish
+  line, which is what makes a bounded automatic loop safe to have at all. The pattern works in
+  CI because a command is the judge — exit `0` or not, the same answer twice for the same input,
+  cheap to ask again. Three of this gate's four passes are not commands: the records show them
+  returning different secondary findings on the same tree, and `METHOD.md` says so in as many
+  words (*"treat a blocker as reliable and a minor as advisory"*). The evidence also says the
+  second run is not optional — `.attest/gate-20260907-110842-d91f69f.md`: *"the first round of
+  fixes introduced two of these"*.
+- **Options** — (a) keep the loop manual, as it is; (b) loop the whole gate until ✅; (c) loop
+  only the `reviewer` and the project's own checks, fix only reviewer-owned blockers and majors,
+  cap the rounds, and hand every document finding to the person.
+- **Decision** — (c), as `/gate fix`, composable with `full`.
+- **Why** — (b) cannot terminate on the evidence available: majors on one tree went 4 · 2 · 3 · 5
+  across four runs, and a loop over a judge that varies ends when the judge tires or the tokens
+  do — asking a judgment pass until it says yes does not make the tree right, it makes the yes
+  worthless. (a) is the cost as it was lived: four recorded runs over one tree here and an
+  adopter's five over another — an estimate of the habit, not a measurement of it, since
+  `.attest/` holds 12 **gate** records across 7 HEADs — 31 files in all, the rest being ship
+  records — and the median is one. (c) puts the
+  loop exactly where the judge is a command and keeps the person exactly where the question is
+  about intent.
+- **The two questions this answers, decided in the maintainer's absence on his instruction.**
+  **Q3, the cap: three, not two.** Rounds are counted so that two texts cannot count
+  differently: **round 1 is the gate run** and repairs nothing; each round after it is one
+  repair cycle. Three rounds is therefore *find · fix-and-verify · fix-and-verify* — **two
+  repairs** — and the records say a fix opens what the next round finds, so a cap of two would
+  stop immediately after the first verification, with whatever that verification turned up left
+  unrepaired. The cost of the extra round is one reviewer context plus the checks, and the
+  alternative to spending it is a human round that costs more. **Q4, whether `fix` should also
+  take reviewer minors in files it has already touched: no.** Advisory stays advisory
+  (ADR-0061), the diff stays minimal, and a fix that adds text to close an advisory finding is
+  fresh ground for the next round — the mechanism ADR-0062 exists to slow down. Ask for one by
+  name and it is an ordinary edit, not a loop.
+- **Consequences** — `/gate` gains the `fix` suffix on both modes; the record gains one line,
+  `round: <n>/3 (fix)` — `mode:` is untouched, it already says light or full — one file per round, so ADR-0016's shape holds and
+  `record_guard.sh` is untouched. `reviewer.md` gains a **re-review mode** whose output is
+  per-finding *addressed / not addressed / regressed*, plus what the fix broke, plus the checks
+  re-run — and an explicit rule against re-litigating an untouched hunk, which is how a bounded
+  loop turns back into an unbounded one. **`fix` edits code and never a control document**: what
+  a command can verify may loop, what a declaration governs needs the person (ADR-0017,
+  ADR-0051). It is a word you type, never a hook and never `/loop` — ADR-0028 removed this kit's
+  nags on purpose, and GUIDE PART 5.1 now points at `fix` for *"until it is green"*.
+  **One rule worth more than the cap: with no checks to be found, `fix` runs at most ONE repair
+  round and says why.** They are looked for in `CLAUDE.md` first and in the project's CI
+  workflow second — a repo whose `CLAUDE.md` is still the shipped template usually still has a
+  workflow that names its real commands, and **this repository is exactly that case**: its
+  `CLAUDE.md` carries `<your conventions …>` placeholders while `.github/workflows/ci.yml` names
+  `shellcheck` and `scripts/smoke.sh`. Without that second source `fix` would be capped at one
+  round in the repository that wrote it, which is how a feature ships undogfooded. Without a command as judge the loop is the
+  judgment loop the ladder refuses, and the version of this feature that quietly looped three
+  times over prose would have been worse than no feature.
+- **Three things this entry decides that a reader should not have to infer.** **The version does
+  not move**: `round:` is an additive line written only by `fix`, every existing consumer of a
+  record reads what it always read, and ADR-0067's bump stands for the shape change that
+  actually happened — a second bump for a line nobody parses would make the marker mean less,
+  not more. **The re-review contract lives in `reviewer.md`, not in the skill**, for the reason
+  ADR-0055 put the verdict rule there: the agent is what reads it at the moment it matters, and
+  a rule stated where it is not read is a rule that drifts — the cost, two files that must
+  agree, is paid by `smoke.sh` asserting the cap on both sides. **And ADR-0061's objection is
+  answered rather than inherited**: it rejected *narrowing what a later run may report*, because
+  a record cannot show the reader that a later pass looked at less. Re-review does look at less,
+  so the record says so — `passes: reviewer re-review (fix hunks)` — and the narrowing is of
+  **opinions about untouched hunks only**, never of consequences: a regression in a file nobody
+  edited is exactly what round 2 exists to catch.
+- **Known limits.** The loop itself is model behaviour, so `smoke.sh` can pin the record lines
+  and the two documents' cap but not the behaviour; `fix` inherits whatever the light gate could not see (ADR-0067); and three rounds
+  is a number with an argument, not a measurement — the first series that hits the cap should be
+  read as evidence about the change's size, which is why the mode stops by saying *split it*.
+- **The proposal is removed, and here is where it went.** `docs/attest-proposal-gate.md` said of
+  itself that it is deleted once B and C are decided; both now are, and a document full of
+  `DRAFT` entries and *open questions* that have been answered is the stale declaration this kit
+  says is worse than none. The parts that decided anything have homes: §2.1 → ADR-0055 · §2.2 and §2.3 →
+  ADR-0067 · §2.4 → this entry · §6's questions → Q1/Q2/Q5 in ADR-0067, Q3/Q4 here, and **Q6 in
+  both** (`full` as a word on `/gate` was settled by ADR-0067's shape, `fix` by this entry's),
+  with **Q7 the only one still open**. The rest is deliberately given no home: §1's evidence is
+  the `.attest/` records themselves, §2.5 restated invariants already recorded elsewhere, and
+  §A's keyword sets now live in `triggers.sh` (should the ship guard block on a `major`, not only a
+  `blocker`? — it is flagged in `_shared/audit-ladder.md`, where the asymmetry lives).
+  **Four landed entries cite the file and cannot be edited** (ADR-0057): ADR-0056 and ADR-0057
+  point at §2.4, ADR-0066 at the file as a whole — meaning phase B, which is §2.2–§2.3 — and
+  ADR-0067 at both §1.3 and §2.2. A fifth citation sits in an `.attest/` record, immutable for
+  its own reasons. Those citations resolve in history rather than in the tree —
+  the file is at `e947f1c` and every commit before it — and this paragraph is the forward
+  pointer they cannot carry themselves.

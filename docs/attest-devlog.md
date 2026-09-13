@@ -262,6 +262,37 @@ author's account, because a record deliberately carries no prose (ADR-0049). The
 of the series — that the one round which removed claims rather than adding them was the first to
 introduce no new inaccuracy — is an observation, not a measurement, and is recorded as one.
 
+### The gate series — 2026-09-12/13, three phases in one night
+
+The question `docs/attest-proposal-gate.md` was written to answer: *the gate takes four and five
+rounds and still ends red.* Three phases, in build order, and each one was gated by the thing
+the previous one had just fixed.
+
+- **A — a finish line** (ADR-0055) and then **a terminus** (ADR-0061). The verdict flips on a
+  blocker or a major and on nothing else; a ✅ ends the round, minors go to *Next*, and `/gate`
+  closes with one imperative sentence. A's own gate found a false fact inside A (ADR-0056), and
+  the correction ran into a question the log had never answered — *when does an entry become
+  immutable?* — which became ADR-0057: **at the push**.
+- **B — the passes a diff needs** (ADR-0067, kit 0.9.0). A POSIX `sh` stage reads the diff
+  before any subagent exists. Measured over the last 40 non-merge commits: **50 subagent runs
+  against 160**. Gating B under B found two blockers, both the same mistake in different
+  clothes — *a mechanism that cannot decide must not produce the same output as one that decided
+  "nothing to do"*: a diff it could not parse read as **records only** and skipped every pass
+  under a record saying so, and the posture check read the shipped `COMPLIANCE.md` as filled,
+  which made ADR-0030's whole point unreachable.
+- **C — a bounded loop where a command is the judge** (ADR-0068). `/gate fix` repairs
+  reviewer-owned blockers and majors in code, runs the project's checks, re-reviews what it
+  touched, and stops at the finish line or after three rounds with *split the change*. It never
+  edits a control document and never takes a minor.
+
+**What the series is actually evidence of**, and it is not the token count: every phase was
+found to be wrong by the phase-shaped machinery around it, and each of those corrections cost an
+entry only because the passes ran *beside* the commits instead of ahead of them. That is the
+argument `fix` was built on, paid in full before `fix` existed.
+
+One number worth remembering out of all of it: the rule that ended the loop was not clever. It
+was the sentence *"a ✅ ends the round"*, which nobody had written down.
+
 ## Notes
 
 - `disable-model-invocation: true` skills cost ~0 when idle — the description is not preloaded.
