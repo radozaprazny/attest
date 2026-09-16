@@ -88,7 +88,10 @@ simple, unquoted command to apply at all (attest ADR-0069). It also covers the p
 never opens a shell — a GitHub MCP server's `push_files`, `create_or_update_file`,
 `create_pull_request`, `create_repository` — where it always asks, because those calls send
 bytes chosen in the call and a record about your HEAD is evidence about a different thing (the
-whole loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9).
+whole loop is laid out in [`GUIDE.md`](GUIDE.md) PART 9). And if you have
+[`betterleaks`](https://github.com/betterleaks/betterleaks) installed, a `git push` is also
+scanned by it over the commits not yet on any remote: a leak asks even when the record is clean,
+and nothing about the guard changes when the tool is absent (attest ADR-0070).
 
 > **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
 > answers a different question. It runs whatever permission mode you are in and does not depend
@@ -115,9 +118,12 @@ Edit or Write, so they *cannot* change the repository rather than being asked no
 script of your own, an exfiltrating `curl`, or a publish tool you never wired past it leave no
 prompt behind — the trace under `.attest/tmp/` shows what it decided, and an empty one means
 only that nothing it knows about ran. The scan itself is a model reading a diff and a history,
-not a proof: run `gitleaks` or `trufflehog` alongside it. What the kit does give you is that
-the check is no longer yours to remember, and that when it passes it leaves a dated
-attestation — which is a different and smaller claim than *nothing sensitive can leave*.
+not a proof — which is why the kit uses a maintained rule-pack for the one class a rule-pack
+reads better, keys and tokens, **when you have installed one**: `betterleaks`, the successor to
+gitleaks by its original author. It is optional, so the kit does not install it and cannot
+promise it ran; the ship record says whether it did, and so does the guard's trace. What the kit does give you is that the
+check is no longer yours to remember, and that when it passes it leaves a dated attestation —
+which is a different and smaller claim than *nothing sensitive can leave*.
 
 ## Does it hold up?
 
@@ -146,7 +152,8 @@ and for a publish made through an MCP server rather than a shell (PART 2.2) — 
 guard asks before a ship record is written at all (PART 2.3).
 **Nothing the kit installs needs an interpreter beyond
 `/bin/sh`** — every hook is POSIX shell (`install.sh` itself is bash, but it runs once and
-installs nothing that depends on it).
+installs nothing that depends on it). The one outside program a hook will call, `betterleaks`,
+is used only if you put it on your PATH yourself.
 
 Every skill here (a) fits the spine and (b) does something a generic plugin can't —
 it's *integrated* (the docs cross-link), *gated* (audits that return a verdict and leave

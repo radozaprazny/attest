@@ -7,6 +7,14 @@
 
 ## Current state
 
+**`git push` is scanned by `betterleaks` when it is installed — ADR-0070, kit 0.10.0, not yet
+tagged.** `/audit-history` uses it as its key layer too; gitleaks and trufflehog are out of the
+advice, for reasons the entry measures. Suite **304 → 350**, **34 of 46** new cases failing against
+the hooks on `main`. **Its gate found four defects in the first draft** and the entry lists them:
+the tool's own `--timeout` read a partial scan as clean at random, the suggested listing printed
+the secret, `leak` erased `blocked` in the trace — and, underneath, **a silent miss already
+released in v0.9.0**: an inherited `KIND` variable let a push with no record through unasked.
+
 **`v0.9.0` is tagged at `b1b6e0e`** — the first tag since `v0.8.0` on 2026-09-10, and it carries
 the whole gate series plus the guard fix below: ADR-0067 (a pass runs only when the diff touched
 its ground; `full` runs them all — the record shape change that earned the bump), ADR-0068 (the
@@ -349,6 +357,22 @@ aesthetic:
   private repo. Publishing makes them resolvable without writing a line.
 
 ## Next
+
+- **From an adopter's first gates on real code — its `.attest/` records for 2026-09-16, read up
+  to the run at 21:22 CEST.**
+  - **`/gate fix` could not close a code bug that a non-goal forbids — observed, not predicted.**
+    In the loop that ran 15:13–15:30 CEST on kit 0.9.0, `fix` repaired the one `reviewer`-owned
+    blocker. The blockers left were owned by `/business` — code putting secret-shaped values on
+    screen, against a non-goal — and they were still open when that loop stopped, and in the light
+    runs at 16:09 and 17:47. A new loop at 21:22 found none, closed by means the records do not
+    show. The ladder gives *code that does what a non-goal forbids* to `/business`, and ADR-0068
+    lets `fix` repair only `reviewer`-owned findings, so a repair that is pure code, with tests as
+    its judge, went to the person. ADR-0068 treats *owned by a document pass* as if it meant
+    *needs a document edit*. Worth an entry: either `fix` may take a document pass's finding whose
+    repair touches only code, or the contract gives such a hunk a code owner.
+  - **`/business` missed those findings in the one run on kit 0.8.0, and owned them in every 0.9.0
+    run while they stood.** A single miss, across a kit upgrade and a diff that kept changing,
+    says nothing about the skill yet.
 
 - **From the phase-C rounds (`gate-20260913-0744*`) — the minors, unfixed on purpose:**
   - **GUIDE PART 9's per-change step 3 does not mention `fix`**, while `reviewer.md` sends the

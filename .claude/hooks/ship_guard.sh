@@ -21,6 +21,14 @@
 
 set -u
 
+# This hook's own state starts empty, whatever the session's environment holds (attest ADR-0070).
+# Every one of these used to be read with `${VAR:-}` before anything set it, so a value inherited
+# from the environment Claude Code was started in was honoured as if the hook had decided it —
+# and one of them was a silent miss: with `KIND` set to anything, a `git push` with no record went
+# through with no prompt, because a non-empty KIND skips the ship list. Measured on the guard as
+# released in v0.9.0 before this line existed.
+KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-
+
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
 [ -n "$PAYLOAD" ] || exit 0
@@ -242,11 +250,17 @@ MODE="$(printf '%s' "$PAYLOAD" |
 # looked like a dead hook. `.attest/tmp/` is the kit's ignored scratch (ADR-0026 as narrowed by
 # ADR-0034), so a trace is never committed and never mistaken for a record. Fail-open like
 # everything else here: an unwritable repo loses the line, never the decision.
+#
+# The fifth column is the leak scanner's outcome (attest ADR-0070): `-` where no scan was in
+# question, then `off`, `absent`, `clean`, `leak` or `error`. It is a column and not a longer
+# decision word so that neither fact hides the other — the decision still says what the RECORD
+# did (`pass` · `ask` · `blocked`), and a `pass` now says whether a scanner looked at all, which is
+# the question a scanner missing from a GUI session's PATH would otherwise leave unanswerable.
 trace() { # trace <decision>
   {
     mkdir -p "$ROOT/.attest/tmp" &&
-      printf '%s %s %s %s %s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${SHA:--}" "${MODE:--}" "$SAFE" \
+      printf '%s %s %s %s %s %s\n' \
+        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${SHA:--}" "${MODE:--}" "$SCAN" "$SAFE" \
         >> "$ROOT/.attest/tmp/ship-guard.log"
   } 2>/dev/null || true
 }
@@ -355,6 +369,74 @@ record_is_clean() {
     grep -Eq '^- findings:[^0-9]*0 blocker'
 }
 
+# THE LEAK SCANNER, WHEN ONE IS INSTALLED (attest ADR-0070). A ship record is a model's reading
+# of a diff: stable on the primary finding, variable at the margins, and its key-shaped layer is
+# the weakest thing it does. `betterleaks` is a maintained rule-pack, from the original author of
+# gitleaks, that answers the one question a regex answers better than a model. So on `git push`
+# — and only there — the guard runs it over the commits not yet on any remote.
+#
+# Four properties, each of them load-bearing, each pinned in smoke.sh:
+#   - OPTIONAL. Not on PATH, or ATTEST_LEAK_SCAN=off, and nothing is scanned: every decision is
+#     the one the guard made before this entry. The kit gains no dependency.
+#   - IT CAN ONLY ADD A QUESTION. A leak or an unfinished scan takes a pass away; a clean scan
+#     never turns an ask into a pass, because the record is the attestation and a regex is not.
+#   - IT NEVER REPEATS THE SECRET. Everything the scanner prints goes to /dev/null, and the prompt
+#     names a REDACTED command that lists the findings. Measured: without `--redact` a verbose run
+#     prints the secret, so the first draft of that advice would have put it into the transcript
+#     the moment someone asked the model to run it (the reasoning of attest ADR-0058).
+#   - A SCAN THAT DID NOT FINISH IS NOT A CLEAN ONE — enforced here, because the tool does not
+#     enforce it. Its own `--timeout` stops a scan part-way, prints "no leaks found", and exits 0
+#     or 1 at random: six identical runs over one history that holds a finding gave 1 0 1 0 0 1.
+#     A 0 there is a silent pass. So the limit is this hook's: a watchdog kills the scanner at
+#     ATTEST_LEAK_SCAN_SECONDS (default 30), a killed scanner exits 143, and anything but 0 or 42
+#     is an error. `--exit-code 42` for the same reason: the tool's default for a leak is 1, which
+#     is also what it exits with when it cannot open the repository.
+#
+# Why a limit at all, and why 30: Claude Code gives a command hook 600 seconds, and a PreToolUse
+# hook that runs out of them "doesn't block the tool call" — the whole guard, record check
+# included, would be discarded and the push would go through the ordinary permission flow. The
+# hook has to end itself, well before. 30 seconds is a bound on how long a push waits; 121 MB of
+# history scanned in 5.2 seconds on the machine this was written on. The variable raises it for a
+# long first push — but only to 540: a limit at or past Claude Code's 600 would reintroduce the
+# exact failure the watchdog exists to prevent, so anything outside 1..540, a non-number, or a run
+# of zeros falls back to 30. A zero would kill every scan, and a quoted value would reach the JSON.
+#
+# Run from the repository root, so the scanner reads that repo's own configuration. Repository
+# content can silence it, and that is named rather than defended against — forgetting, not
+# forgery: `.betterleaksignore` (where a false positive's fingerprint belongs), a
+# `.betterleaks.toml` or `.gitleaks.toml`, an inline `betterleaks:allow` comment, and the
+# `env` block of a committed `.claude/settings.json` setting ATTEST_LEAK_SCAN=off for everyone.
+if [ -n "$FULL" ]; then
+  case "$NORM" in
+    *"git push"*)
+      if [ "${ATTEST_LEAK_SCAN:-on}" = off ]; then
+        SCAN=off
+      elif ! command -v betterleaks >/dev/null 2>&1; then
+        SCAN=absent
+      else
+        _limit="${ATTEST_LEAK_SCAN_SECONDS:-30}"
+        # Digits first, so the numeric test below never sees `$(id)` or a quote; then the range,
+        # which also catches `00` and a number too long for `test` to parse.
+        case "$_limit" in ''|*[!0-9]*) _limit=30 ;; esac
+        { [ "$_limit" -ge 1 ] && [ "$_limit" -le 540 ]; } 2>/dev/null || _limit=30
+        # `exec`, so $! is the scanner itself and the kill reaches it; every descriptor on
+        # /dev/null, so nothing the scanner or a leftover `sleep` holds can keep the hook's
+        # output open; the group's stderr too, so the shell's own "Terminated" notice stays
+        # out of what Claude Code reads.
+        {
+          (cd "$ROOT" && exec betterleaks git . --log-opts="HEAD --not --remotes" \
+             --redact=100 --no-banner --exit-code 42) </dev/null >/dev/null 2>&1 &
+          _bl=$!
+          (sleep "$_limit"; kill "$_bl") </dev/null >/dev/null 2>&1 &
+          _dog=$!
+          wait "$_bl"; _rc=$?
+          kill "$_dog" 2>/dev/null
+        } 2>/dev/null
+        case "$_rc" in 0) SCAN=clean ;; 42) SCAN=leak ;; *) SCAN=error ;; esac
+      fi ;;
+  esac
+fi
+
 if [ -n "$FULL" ]; then
   # EVERY record for this sha has to be clean, not merely one of them. The glob expands
   # lexicographically, so "the first clean one wins" meant the OLDEST won — and the workflow the
@@ -383,10 +465,14 @@ if [ -n "$FULL" ]; then
     record_is_clean "$rec" || BAD=1
   done
   if [ "$FOUND" = 1 ] && [ "$BAD" = 0 ]; then
-    trace pass
-    exit 0
-  fi
-  if [ "$FOUND" = 1 ]; then
+    # The one pass in this file — and the scanner is the only thing that can take it away.
+    case "$SCAN" in
+      leak|error) ;;
+      *) trace pass; exit 0 ;;
+    esac
+    CLEAN_RECORD=1
+    WHY="a clean /audit-history record for HEAD ($SHA) exists"
+  elif [ "$FOUND" = 1 ]; then
     # A distinct word in the log — "a record exists and does not clear this" is a different
     # event from "no record at all", and only the log can tell them apart afterwards. One
     # decision, one line: it is traced at the single exit below, never here (attest ADR-0038).
@@ -399,9 +485,34 @@ else
   WHY="this is not a git checkout, so no ship record could be matched"
 fi
 
+# What the scanner adds, and what the prompt then tells the person to do. The default advice —
+# go and write a clean record — is wrong once the record is already clean, so each outcome that
+# can reach here with a clean record carries its own.
+#
+# The decision word keeps saying what the RECORD did, and only becomes `leak` or `scanerr` when
+# the scanner is the sole reason this push stopped — a clean record it took the pass away from.
+# On a push that asks anyway, the word stays `ask` or `blocked` and the scan column says `leak`
+# or `error` beside it. The first draft let `leak` win outright, which erased the difference
+# ADR-0038 made `blocked` a word to keep; with the column, neither fact hides the other.
+NEXT="Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
+case "$SCAN" in
+  leak)
+    [ "$CLEAN_RECORD" = 1 ] && DEC=leak
+    WHY="$WHY, but betterleaks found at least one secret in the commits not yet on any remote. The values are not repeated here; list them redacted, with the fingerprint each one needs to be ignored, using: betterleaks git . --log-opts='HEAD --not --remotes' --redact=100 --report-format json --report-path -"
+    NEXT="Do not approve until that scan is clean: a secret pushed in one commit stays readable in history after a later commit deletes it. Remove it from the unpushed commits, or add the Fingerprint of a false positive to .betterleaksignore."
+    ;;
+  error)
+    WHY="$WHY, but betterleaks is installed and did not finish (it failed, or passed its $_limit-second limit), so the commits not yet on any remote were not scanned"
+    if [ "$CLEAN_RECORD" = 1 ]; then
+      DEC=scanerr
+      NEXT="Run the scan by hand to see why: betterleaks git . --log-opts='HEAD --not --remotes' --redact=100. Approving proceeds on the record alone; a longer ATTEST_LEAK_SCAN_SECONDS, up to 540, gives a long history time to finish, and ATTEST_LEAK_SCAN=off stops the guard calling the scanner."
+    fi
+    ;;
+esac
+
 trace "${DEC:-ask}"
 
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-  "attest ship gate: this command $ACT ($SAFE) and $WHY. Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
+  "attest ship gate: this command $ACT ($SAFE) and $WHY. $NEXT"
 
 exit 0

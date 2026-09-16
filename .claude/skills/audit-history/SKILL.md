@@ -32,8 +32,10 @@ about the specific project.
 
 ## Not just a secret scanner
 
-Generic scanners (`gitleaks`, `trufflehog`) find API-key-shaped strings — run them too if you
-have them. This skill earns its place by being **EU-first and integrated**:
+A maintained rule-pack finds API-key-shaped strings better than any reading does, so this skill
+uses one when it is installed: **`betterleaks`**, the successor to gitleaks by its original
+author — and the ship guard calls it on `git push` too (attest ADR-0070). This skill earns its
+place by what a rule-pack cannot do — it is **EU-first and integrated**:
 
 - it looks past key-regexes for **personal data** (GDPR) and **client confidentiality** —
   personal names, customer/client names, internal hostnames — which a regex set misses;
@@ -95,6 +97,41 @@ or in file *content*, is the real exposure.
    data class that must not persist) is caught, not just generic patterns.
 3. **Scan** for each taxonomy class. Prefer the repo's own scanner if one is configured; add
    the EU-first / confidentiality classes on top. Anchor every hit to a commit + `file:line`.
+4. **For secrets and keys, use `betterleaks` when it is on PATH** (attest ADR-0070). Give every
+   call `--redact=100 --no-banner --exit-code 42` and read the exit code: `0` is clean, `42` is a
+   finding, and **anything else did not finish** — a degraded layer, never a clean one. `42`
+   rather than the tool's default of `1`, because `1` is also what it exits with when it cannot
+   open the repository. Which call reaches which part of the scope was measured, not assumed:
+   - commits not yet on any remote — `betterleaks git . --log-opts="HEAD --not --remotes"`;
+     in `full` mode, `--log-opts=--all`;
+   - unstaged changes — `betterleaks git . --pre-commit`; staged ones — add `--staged`;
+   - untracked files — **one** `betterleaks dir <path> <path> …` call over every path that
+     `git -c core.quotepath=off ls-files --others --exclude-standard` lists. `quotepath=off`
+     because git otherwise prints a name with diacritics as an escaped string the scanner cannot
+     open; one call because `dir` takes several paths and one exit code is easier to read than
+     many. **If that list is empty, skip the call** — `betterleaks dir` with no path scans the
+     whole directory, and so does `betterleaks dir .`: both read ignored files, so a gitignored
+     `.env` that will never ship reports as a leak.
+
+   On a `42`, list the findings for the session with
+   `--redact=100 --report-format json --report-path -` added to the call that found them: that
+   gives rule, path, commit and the `Fingerprint` a false positive needs in `.betterleaksignore`,
+   with the value itself replaced by `REDACTED`. **Never run a listing without `--redact`** — a
+   verbose run prints the secret, into a transcript that is saved and sent to the model.
+   **Never add `--validation`**: it tests a found secret by sending it to its provider, which is
+   a secret leaving the machine in the name of checking whether it left. The record names the
+   layer that ran — `betterleaks <version>`, from `betterleaks version`, under what was scanned,
+   or, where the tool is absent, a `degraded:` line saying the key-shaped layer was this pass's
+   own patterns.
+
+   **A `42` you triage as a false positive** — a test fixture, an example key in documentation —
+   is not a finding: say in the record which rule and path it was and why it is not a secret.
+   Then tell the person the ship guard will still ask `leak` on this push until the value is
+   gone **from the unpushed commits** — a new commit that deletes it does not do that, because
+   the scan reads every commit not yet pushed — or its `Fingerprint` is in `.betterleaksignore`.
+   That file clears the scan the moment it exists, but commit it, so a `full` audit and every
+   clone see it too. A commit moves HEAD, so make it **before** this record is written, or the
+   record names a sha that is not the one being pushed.
 
 ## Verdict
 

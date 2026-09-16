@@ -212,8 +212,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   and not *"does a file exist"*. A record reporting a blocker does not open the door; neither
   does an empty one (attest ADR-0037). That is why `/audit-history` writes a record even when the
   verdict is clean: a clean ship is the state the guard has to be able to recognise.
-- **It leaves a trace.** Every matched command appends one line — UTC timestamp, decision,
-  HEAD sha, sanitised command — to `.attest/tmp/ship-guard.log`, the **pass** as well as the ask.
+- **It leaves a trace.** Every matched command appends one line to `.attest/tmp/ship-guard.log`,
+  the **pass** as well as the ask — its columns are described under *Reading the trace* below.
   A hook that decides silently cannot be told apart from one that was never registered, which is
   exactly how a real push once slipped past unexplained; `cat` that file to see whether the guard
   is alive and what it decided (attest ADR-0034). It is ignored by git, never a record, and safe
@@ -236,6 +236,37 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
     whole word, so it takes the exit and the push is silent — before ADR-0069 as well as after
     it. Telling it apart needs to know that `--push-option` consumes the next word, which is
     per-command grammar this hook deliberately has none of.
+- **A leak scan on `git push`, when `betterleaks` is installed** (attest ADR-0070). The record is
+  a model's reading, and keys are the one class a maintained rule-pack reads better. So when
+  [`betterleaks`](https://github.com/betterleaks/betterleaks) is on the PATH Claude Code runs
+  with, a `git push` — in any spelling the list normalises, and no other ship command — is also
+  scanned over **the commits HEAD has that no remote-tracking ref has yet**. That is usually what
+  the push sends, and not always: with two remotes, a commit already on one of them is out of
+  range for a push to the other.
+  - **It can only add a question.** A finding asks even when the record is clean; a clean scan
+    never clears a push the record would not. Not installed, or `ATTEST_LEAK_SCAN=off` in the
+    session's environment, and every decision is the one the guard made before.
+  - **It never repeats the secret.** The scanner's own output goes nowhere. The prompt names a
+    listing command with `--redact=100` in it — run it as given, because a verbose run without
+    that flag prints the secret, and if you ask Claude to run it, into a saved transcript.
+  - **A scan that did not finish is not a clean one.** The hook stops the scanner itself at
+    `ATTEST_LEAK_SCAN_SECONDS` (default 30; raise it for a first push of a long history, up to
+    540 — Claude Code discards a hook that runs 600 seconds and lets the push through) and a
+    push the record would have cleared then asks. It does not use the tool's own `--timeout`,
+    which stops part-way, reports *no leaks found*, and exits 0 or 1 at random.
+  - **A false positive** is silenced by adding the `Fingerprint` from that listing to
+    `.betterleaksignore` at the repository root — never in the hook, where silencing one would
+    silence them all. The same repository can also silence real findings, and that is named rather
+    than defended against: that file, a `.betterleaks.toml` or `.gitleaks.toml`, an inline
+    `betterleaks:allow` comment, or an `env` block in a committed `.claude/settings.json` that
+    sets `ATTEST_LEAK_SCAN=off` for everyone.
+  - **The trace says what the scanner did**, in its own column — so a `pass` shows whether
+    anything was scanned, which is how you find out that a session started from a desktop app
+    never had the tool on its PATH.
+  - **Installing it** is yours, on purpose: see its README. Where your distribution has no
+    package, take the release archive for your platform and check it against the release's
+    `checksums.txt` with `sha256sum -c --ignore-missing` before putting the binary on your PATH.
+    Never run it with `--validation`, which tests a found secret by sending it to its provider.
 
 ### 2.3 `PreToolUse` on `Write|Edit` — the record guard (`record_guard.sh`)
 - **How:** before a file is written, the hook looks at `tool_input.file_path`. Anything that is
@@ -311,13 +342,19 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > `COMPLIANCE.md` (§7, sub-processors / transfers). Neither hook sends anything anywhere by
 > itself; both only print, and what reaches the provider is whatever your session already does.
 
-> **Reading the trace.** Five columns — timestamp · decision · short sha · permission mode ·
-> sanitised subject — and six decision words: `pass` (a clean record cleared it) · `blocked`
-> (a record for this commit exists and does not attest a clean scan) · `ask` (no record at
-> all) · `dryrun` (waved through as a simple dry run) · `record` (something was writing a ship
-> record, from either hook) · `mcp` (a publish tool that never opens a shell, which no
-> record can clear — ADR-0058; the subject column is the tool name there, never the bytes
-> it was sending). The **mode** column is what tells "the hook did not fire" from
+> **Reading the trace.** Six columns — timestamp · decision · short sha · permission mode ·
+> scan · sanitised subject — and eight decision words: `pass` (a clean record cleared it) ·
+> `blocked` (a record for this commit exists and does not attest a clean scan) · `ask` (no
+> record at all) · `dryrun` (waved through as a simple dry run) · `record` (something was
+> writing a ship record, from either hook) · `mcp` (a publish tool that never opens a shell,
+> which no record can clear — ADR-0058; the subject column is the tool name there, never the
+> bytes it was sending) · `leak` and `scanerr` (a clean record would have cleared it, and the
+> scanner took the pass away — it found a secret, or it did not finish; ADR-0070). The **scan**
+> column says what `betterleaks` did, beside whichever word the record earned: `-` where no scan
+> was in question · `off` · `absent` (not on the PATH the session had) · `clean` · `leak` ·
+> `error`. So `ask leak` is a push with no record *and* a finding, and `pass absent` is a clean
+> record with no scanner to look. Lines written before ADR-0070 have five columns. The
+> **mode** column is what tells "the hook did not fire" from
 > "the hook fired and the mode auto-approved it" (attest ADR-0050); a payload without one
 > logs `-`. `blocked` and `ask` are both a permission
 > prompt — the difference is what is missing, and afterwards only the log can tell them apart
