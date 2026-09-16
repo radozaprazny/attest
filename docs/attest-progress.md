@@ -7,6 +7,14 @@
 
 ## Current state
 
+**`git push` is scanned by `betterleaks` when it is installed — ADR-0070, kit 0.10.0, not yet
+tagged.** `/audit-history` uses it as its key layer too; gitleaks and trufflehog are out of the
+advice, for reasons the entry measures. Suite **304 → 350**, **34 of 46** new cases failing against
+the hooks on `main`. **Its gate found four defects in the first draft** and the entry lists them:
+the tool's own `--timeout` read a partial scan as clean at random, the suggested listing printed
+the secret, `leak` erased `blocked` in the trace — and, underneath, **a silent miss already
+released in v0.9.0**: an inherited `KIND` variable let a push with no record through unasked.
+
 **`v0.9.0` is tagged at `b1b6e0e`** — the first tag since `v0.8.0` on 2026-09-10, and it carries
 the whole gate series plus the guard fix below: ADR-0067 (a pass runs only when the diff touched
 its ground; `full` runs them all — the record shape change that earned the bump), ADR-0068 (the

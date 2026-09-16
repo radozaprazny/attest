@@ -400,6 +400,11 @@ says_not "…and an override aimed at one selects nothing" \
 
 # --- 3. the ship guard: asks exactly at the boundary -----------------------------------
 echo "hooks — PreToolUse ship guard:"
+# The guard calls `betterleaks` on a push when one is on PATH (ADR-0070). CI has none and a
+# developer machine may, so every guard case in this suite runs with the scanner switched off —
+# otherwise the same suite would pass or fail by what happens to be installed. The one section
+# that tests the scanner switches it back on, against a stub it controls.
+export ATTEST_LEAK_SCAN=off
 S="$WORK/ship"; mkdir -p "$S"
 git -C "$S" init -q .
 git -C "$S" config user.email smoke@example.invalid
@@ -672,7 +677,8 @@ rm -f "$S/.attest/tmp/ship-guard.log"
 echo '{"tool_name":"Bash","permission_mode":"bypassPermissions","tool_input":{"command":"git push origin main"}}' | CLAUDE_PROJECT_DIR="$S" sh "$GUARD" >/dev/null
 says "the trace records the permission mode the call ran under" "$(cat "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" 'bypassPermissions'
 echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' | CLAUDE_PROJECT_DIR="$S" sh "$GUARD" >/dev/null
-says "a payload without a mode still traces, with a dash" "$(tail -1 "$S/.attest/tmp/ship-guard.log" 2>/dev/null)" ' - git push'
+# By column, not by neighbour: ADR-0070 put the scan outcome between the mode and the subject.
+says "a payload without a mode still traces, with a dash" "$(tail -1 "$S/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $4}')" '^-$'
 rm -f "$S/.attest/tmp/ship-guard.log"
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
 guard 'git push origin main' >/dev/null
@@ -716,6 +722,149 @@ says "a push still claims what a push does"   "$(guard 'git push origin main')" 
 # Pinned, not an oversight: by merge time the bytes are already on the remote, the merge commit
 # does not exist yet, and most merges never touch this machine. Do not "fix" this assertion.
 if [ -z "$(guard 'gh pr merge 4 --merge')" ]; then ok "a merge stays silent — a declared gap, not a miss"; else fail "a merge stays silent — a declared gap, not a miss"; fi
+
+# --- the leak scanner, when one is installed (ADR-0070) --------------------------------
+# A STUB stands in for betterleaks: it records its argv one argument per line and the directory it
+# ran in, prints a fake secret on BOTH streams so a leak into the prompt or the trace would show,
+# sleeps if asked to, and exits with whatever the case asks for.
+echo "hooks — ship guard leak scan:"
+L="$WORK/leakscan"; mkdir -p "$L/repo/.attest" "$L/bin"
+git -C "$L/repo" init -q .
+git -C "$L/repo" config user.email smoke@example.invalid
+git -C "$L/repo" config user.name smoke
+: > "$L/repo/f"; git -C "$L/repo" add f; git -C "$L/repo" commit -qm init
+LSHA="$(git -C "$L/repo" rev-parse --short HEAD)"
+LREC="$L/repo/.attest/ship-20260916-000000-$LSHA.md"
+LLOG="$L/repo/.attest/tmp/ship-guard.log"
+# Distinctive, and shaped like no key: a `ghp_…` value here made betterleaks' own github-pat rule
+# fire on this file, so the guard stopped the push that shipped it, and every full audit of this
+# repository — or of a repository generated from it — would have reported it forever.
+STUB_SECRET="SMOKE-STUB-SECRET-never-a-real-credential"
+cat > "$L/bin/betterleaks" <<EOF
+#!/bin/sh
+printf '%s\n' "\$@" > "$L/argv"
+pwd -P > "$L/pwd"
+echo "Secret: $STUB_SECRET"
+echo "Secret: $STUB_SECRET" >&2
+sleep "\${STUB_SLEEP:-0}"
+exit "\${STUB_EXIT:-0}"
+EOF
+chmod +x "$L/bin/betterleaks"
+lguard() { # lguard <stub exit> <command> [VAR=value ...] — later assignments win
+  _e="$1"; _c="$2"; shift 2
+  rm -f "$L/argv" "$L/pwd"
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"}}" |
+    env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT="$_e" CLAUDE_PROJECT_DIR="$L/repo" "$@" sh "$GUARD"
+}
+# col <n> — field n of the last trace line: 2 is the decision, 5 the scan outcome
+col() { tail -n 1 "$LLOG" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+clean_record() { printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$LSHA" > "$LREC"; }
+clean_record
+
+# A clean scan changes nothing — and the scanner was asked exactly the right question, argument by
+# argument, from the repository root.
+if [ -z "$(lguard 0 'git push origin main')" ]; then ok "a clean scan leaves a clean record's pass alone"; else fail "a clean scan leaves a clean record's pass alone"; fi
+says "…and the trace says it scanned clean"          "$(col 2) $(col 5)" '^pass clean$'
+for _arg in git . '--log-opts=HEAD --not --remotes' --redact=100 --no-banner --exit-code 42; do
+  check "…with the argument $_arg, whole" grep -qx -- "$_arg" "$L/argv"
+done
+# Its own --timeout reports "no leaks found" after a partial scan and exits 0 at random.
+check "…and without the tool's own --timeout, which exits 0 on a partial scan" sh -c "! grep -q -- --timeout '$L/argv'"
+check "…run from the repository root, where its ignore file and config live" \
+  test "$(cat "$L/pwd" 2>/dev/null)" = "$(cd "$L/repo" && pwd -P)"
+
+# A leak takes the pass away, and never says what it found.
+_out="$(lguard 42 'git push origin main')"
+says     "a leak turns a clean record's pass into a question" "$_out" 'permissionDecision":"ask'
+says     "…and names the scanner as the reason"               "$_out" 'betterleaks found at least one secret'
+says     "…pointing at a listing that is redacted"            "$_out" ' --redact=100 --report-format json --report-path -'
+says_not "…without advising a record the push already has"    "$_out" 'let it write a clean record'
+says_not "…and without repeating the secret"                  "$_out" "$STUB_SECRET"
+says     "…the trace says leak, twice over"                   "$(col 2) $(col 5)" '^leak leak$'
+says_not "…and the trace holds no secret"                     "$(cat "$LLOG" 2>/dev/null)" "$STUB_SECRET"
+if ! command -v python3 >/dev/null 2>&1; then
+  ok "…in a payload that is valid JSON (skipped: no python3 to parse it with)"
+elif printf '%s' "$_out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+  ok "…in a payload that is valid JSON"
+else
+  fail "…in a payload that is valid JSON"
+fi
+
+# Exit 1 is the tool's own default for a leak AND what it exits with when it cannot run.
+_out="$(lguard 1 'git push origin main')"
+says     "a scanner that did not finish is not a clean one"   "$_out" 'permissionDecision":"ask'
+says_not "…and its exit 1 is not read as a leak"               "$_out" 'found at least one secret'
+says     "…the trace says scanerr, and error beside it"        "$(col 2) $(col 5)" '^scanerr error$'
+
+# The limit is the hook's, and it is enforced by killing the scanner — not by waiting for it.
+_t0=$(date +%s)
+_out="$(lguard 0 'git push origin main' STUB_SLEEP=6 ATTEST_LEAK_SCAN_SECONDS=1)"
+_t1=$(date +%s)
+says "a scanner still running at the limit is stopped and asks" "$_out" 'permissionDecision":"ask'
+says "…and is traced as an unfinished scan"                     "$(col 2) $(col 5)" '^scanerr error$'
+check "…within the limit, not after the scanner's own six seconds" test $((_t1 - _t0)) -le 4
+# By the trace, not by the prompt: a scan the watchdog killed also asks, so "it asked" would pass
+# even with a watchdog that fired on every scan — a review proved exactly that, 347 green.
+lguard 42 'git push origin main' STUB_SLEEP=1 ATTEST_LEAK_SCAN_SECONDS=4 >/dev/null
+says "a slow scan that finishes inside the limit still counts as a finding" "$(col 2) $(col 5)" '^leak leak$'
+lguard 0 'git push origin main' STUB_SLEEP=1 ATTEST_LEAK_SCAN_SECONDS=4 >/dev/null
+says "…and a slow clean one as clean"                                     "$(col 2) $(col 5)" '^pass clean$'
+# The ceiling. Claude Code discards a PreToolUse hook at 600 s and lets the call through, so a
+# limit that high would lose the whole guard — record check included.
+says "a limit past 540 falls back to the default" "$(lguard 1 'git push origin main' ATTEST_LEAK_SCAN_SECONDS=600)" 'its 30-second limit'
+says "…and so does a run of zeros"               "$(lguard 1 'git push origin main' ATTEST_LEAK_SCAN_SECONDS=00)" 'its 30-second limit'
+_out="$(lguard 1 'git push origin main' 'ATTEST_LEAK_SCAN_SECONDS=1"x')"
+says "a limit that is not a number falls back to the default"   "$_out" 'its 30-second limit'
+if ! command -v python3 >/dev/null 2>&1; then
+  ok "…and a hostile value cannot break the JSON (skipped: no python3)"
+elif printf '%s' "$_out" | python3 -c 'import json,sys; json.load(sys.stdin)' 2>/dev/null; then
+  ok "…and a hostile value cannot break the JSON"
+else
+  fail "…and a hostile value cannot break the JSON"
+fi
+
+# The decision word keeps saying what the record did; the scan column says what the scanner did.
+mv "$LREC" "$L/rec.bak"
+_out="$(lguard 42 'git push origin main')"
+says "with no record, a leak still names the missing record" "$_out" 'no /audit-history run record'
+says "…and the leak beside it"                               "$_out" 'betterleaks found at least one secret'
+says "…traced as ask, with leak in the scan column"          "$(col 2) $(col 5)" '^ask leak$'
+lguard 1 'git push origin main' >/dev/null
+says "…and an unfinished scan there as ask, with error"      "$(col 2) $(col 5)" '^ask error$'
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$LSHA" > "$LREC"
+lguard 42 'git push origin main' >/dev/null
+says "a blocking record with a leak stays blocked, with leak" "$(col 2) $(col 5)" '^blocked leak$'
+mv "$L/rec.bak" "$LREC"
+
+# The hook's own state ignores the session's environment. KIND was a silent miss on v0.9.0.
+mv "$LREC" "$L/rec.bak"
+says "an inherited KIND cannot make a push with no record silent" \
+     "$(lguard 0 'git push origin main' KIND=x)" 'permissionDecision":"ask'
+lguard 1 'git push origin main' CLEAN_RECORD=1 DEC=pass >/dev/null
+says "…nor an inherited CLEAN_RECORD or DEC change the decision" "$(col 2) $(col 5)" '^ask error$'
+mv "$L/rec.bak" "$LREC"
+
+# What is never scanned, and how the trace says so.
+if [ -z "$(lguard 42 'git push origin main' ATTEST_LEAK_SCAN=off)" ]; then ok "ATTEST_LEAK_SCAN=off leaves the guard as it was"; else fail "ATTEST_LEAK_SCAN=off leaves the guard as it was"; fi
+says "…and the trace says off"                                "$(col 2) $(col 5)" '^pass off$'
+if [ -z "$(lguard 42 'npm publish')" ] && [ ! -e "$L/argv" ]; then ok "a publish that is not a git push is never scanned"; else fail "a publish that is not a git push is never scanned"; fi
+says "…and the trace says no scan was in question"            "$(col 2) $(col 5)" '^pass -$'
+if [ -z "$(lguard 42 'git push --dry-run')" ] && [ ! -e "$L/argv" ]; then ok "a dry run is never scanned"; else fail "a dry run is never scanned"; fi
+lguard 42 'git -C . push origin main' >/dev/null
+if [ -e "$L/argv" ]; then ok "a normalised spelling of git push is scanned like the plain one"; else fail "a normalised spelling of git push is scanned like the plain one"; fi
+
+# The control: with no scanner installed, nothing about the decision changed — and the trace says why.
+if PATH="/usr/bin:/bin" command -v betterleaks >/dev/null 2>&1; then
+  ok "with no scanner on PATH, a clean record still clears it (skipped: one is in /usr/bin or /bin)"
+  ok "…and the trace says absent (skipped: one is in /usr/bin or /bin)"
+elif [ -z "$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
+             env PATH="/usr/bin:/bin" ATTEST_LEAK_SCAN=on CLAUDE_PROJECT_DIR="$L/repo" sh "$GUARD")" ]; then
+  ok "with no scanner on PATH, a clean record still clears it"
+  says "…and the trace says absent" "$(col 2) $(col 5)" '^pass absent$'
+else
+  fail "with no scanner on PATH, a clean record still clears it"
+  fail "…and the trace says absent"
+fi
 
 # --- 3b. the guard leaves a trace, so "did it fire" is a fact (ADR-0034) ---------------
 echo "hooks — ship guard trace:"

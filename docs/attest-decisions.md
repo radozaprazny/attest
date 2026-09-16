@@ -2456,3 +2456,167 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   ADR-0060 closed: that one joined two commands the shell had separated, this one separates one
   the shell kept whole. Fixing it needs a notion of quoting the record arm deliberately does not
   have, so it is recorded here rather than patched in passing.
+
+---
+
+## ADR-0070 — `git push` is scanned by `betterleaks` when it is installed, and a scan can only add a question · 2026-09-16 · Accepted
+
+  Extends: ADR-0028 (make the ship boundary real) — a second piece of evidence, same boundary.
+  Narrows: ADR-0037 — while a scanner is installed, a clean record alone no longer clears a push
+  the scanner finds a secret in, or does not finish on.
+  Extends: ADR-0034, ADR-0038 — the trace gains a scan column and two decision words.
+  Extends: ADR-0069 — a push is recognised in every spelling that entry normalises.
+  Relates to: ADR-0035 (a guard states only what it can back), ADR-0049 (a record never carries
+  the value), ADR-0058 (a guard never quotes the bytes being shipped), ADR-0065 (day one stays
+  two placeholders).
+
+- **Context** — every ship record written since the kit has had one says the same thing in its
+  `degraded:` line: no generic scanner was installed, so the key-shaped layer was the pass's own
+  patterns. That is the weakest thing `/audit-history` does — a model reading a diff for strings
+  shaped like tokens, which is exactly the job a maintained rule-pack does better. The kit named
+  **`gitleaks` and `trufflehog`** for that job, in the skill and in the README. Read from their
+  sources rather than remembered, on 2026-09-16: gitleaks' README now calls it *"feature
+  complete"*, promises *"security patches only"*, and says its author is *"shifting focus to
+  Betterleaks"*. The claim that betterleaks is the same people was checked against the
+  contributor lists, not taken from its README: the top contributor of both repositories is the
+  same account, and so is the second. trufflehog **verifies what it finds by default** — its
+  entry point sets `Verify: !*noVerification`, so a run without `--no-verification` sends a found
+  secret to its provider. Ubuntu's package is gitleaks 8.16.0, older than gitleaks' own last
+  release. Betterleaks is MIT, first released in February 2026, and ships release archives with
+  a `checksums.txt`, but no Ubuntu package.
+- **Options** — which scanner: gitleaks (frozen), trufflehog (a found secret leaves the machine
+  unless a flag is remembered), betterleaks. Where it runs: (a) swap the name in the advice and
+  change nothing else; (b) have `/audit-history` run it when it is installed, and leave the guard
+  alone; (c) do (b) **and** have the ship guard run it on `git push`; (d) a native git `pre-push`
+  hook; (e) a CI step.
+- **Decision** — betterleaks, wired as (c), chosen explicitly by the maintainer from those options
+  on 2026-09-16.
+- **Why** — trufflehog is out on the rule this entry applies to betterleaks' own `--validation`: a
+  scanner whose default is to send what it finds is the wrong default for a kit whose question is
+  whether anything leaves. (a) keeps the weakest layer as it is and only renames the advice nobody
+  follows. (b) is better and still depends on a pass being run, which is the dependency ADR-0028
+  exists to remove. (c) is the only option under which the scan happens without anyone — person
+  or model — remembering it, and the one case it catches is the case no record can: a record that
+  says ✅ over a key the reading missed. (d) would also cover a push typed in a terminal, which the
+  Claude Code hook never sees. It is refused on two measured facts rather than a rule borrowed
+  from another entry: a hook under `.git/hooks` is not versioned, so it does not travel with the
+  repository; and pointing `core.hooksPath` at a shipped directory **silently switches off every
+  hook the adopter already had** — a `pre-commit` hook that blocked a commit stopped blocking it
+  the moment the setting was made. `install.sh` touches no git configuration and nothing under
+  `.git/` today, and this is not the entry to start. (e) runs after the push, and on a public
+  repository the secret is already out when it reports.
+  **Why a switch, and not PATH alone:** a person may want betterleaks installed for their own use
+  and still not want every push to wait for it. Without `ATTEST_LEAK_SCAN=off`, the only way to
+  stop the guard calling it is to uninstall a tool they use. The scan-error prompt names the
+  switch for the same reason it names a longer limit: a scanner that fails on every push and
+  cannot be told to stop is a prompt people learn to click through, and that costs the other arms.
+- **The four properties the guard arm is built on**, each pinned in `smoke.sh`:
+  - **Optional.** Not on PATH, or `ATTEST_LEAK_SCAN=off`, and every decision is the one the guard
+    made before this entry. The kit gains no dependency, and every hook stays POSIX `sh`.
+  - **It can only add a question.** A finding or an unfinished scan takes a pass away. A clean
+    scan never clears a push the record would not, because the record is the attestation and a
+    regex is not.
+  - **It never repeats the secret.** Everything the scanner prints goes to `/dev/null`. The prompt
+    names a listing command with `--redact=100 --report-format json --report-path -`, which gives
+    rule, path, commit and the `Fingerprint` a false positive needs, with the value replaced by
+    `REDACTED`. Measured: zero copies of the secret in that listing, and its fingerprint, added
+    to `.betterleaksignore`, turned the finding's exit into 0. Without `--redact` a verbose run
+    prints the secret.
+  - **A scan that did not finish is not a clean one** — enforced by the hook, because the tool
+    does not enforce it. Betterleaks' own `--timeout` stops a scan part-way, reports *no leaks
+    found*, and exits **0 or 1 at random**: over one 121 MB history that holds findings, six
+    identical runs at one second gave `1 0 1 0 0 1`, and three at three seconds gave `0 1 0`. A 0
+    there is a silent pass. So the hook starts the scanner with `exec` in a subshell, a watchdog
+    kills it at `ATTEST_LEAK_SCAN_SECONDS` (default 30), a killed scanner exits 143, and anything
+    but 0 or 42 is an error. `--exit-code 42` for the neighbouring reason: the tool's own exit
+    for a leak is 1, which is also its exit for a path that is not a repository and — with the
+    `HEAD`-based scope the guard passes — for a repository with no commits, both measured. (With
+    no `--log-opts` at all, an empty repository exits 0.)
+- **Why a limit at all, and why 30.** Claude Code gives a command hook 600 seconds, and its
+  documentation says of a `PreToolUse` hook that runs out of them: it *"doesn't block the tool
+  call. The call continues through the normal permission flow, so don't count on a stalled hook
+  to act as a gate."* The whole guard would be discarded, record check included, and not just the
+  scan. So the hook has to end itself, well inside that. 30 seconds is a bound on how long a push
+  waits; 121 MB of history scanned in 5.2 seconds on the machine this was written on. A first push
+  of a long history can need more, which is what the variable is for — **up to 540**, because a
+  limit at or past Claude Code's 600 would reintroduce the very failure the watchdog exists to
+  prevent. Anything outside 1..540, a run of zeros, or a value that is not a whole number falls
+  back to 30: a zero would kill every scan, and a quoted value would reach the JSON of the prompt.
+  The ceiling was missing from the second draft and the round-2 re-review found it.
+- **Measured before it shipped**, on betterleaks 1.8.1 and under `dash`, which is `/bin/sh` here:
+  the scope `--log-opts="HEAD --not --remotes"` finds a secret in an unpushed commit and stops
+  finding it once that commit is on the remote. A traced scan made **no socket call of any
+  family**, across betterleaks and the two `git` processes it started — with a control in which
+  the same trace did record a socket, so the zero is a reading and not a blind spot. Validation
+  against live APIs, the one feature that would send a secret anywhere, is off unless asked for
+  (`cmd/root.go`, default `false`). The watchdog, live on the 121 MB history: with a 60-second
+  limit the hook ended at 5.0 s on `leak`; with a 1-second limit it ended at 1.05 s on an
+  unfinished scan, and no scanner process was left running. Over attest's own history the scan
+  found nothing; the positive control — a fake token committed and then deleted, alive only in
+  history — was found.
+- **What the skill's calls cover, also measured rather than read**: `git --pre-commit` sees
+  unstaged changes and not staged ones; `--staged` sees staged ones. Neither sees an untracked
+  file, which only `dir` does — and `dir` with **no path**, like `dir .`, scans the whole
+  directory including ignored files, so a gitignored `.env` that will never ship reports as a
+  leak. The skill passes every untracked path to one call and skips the call when there are none.
+  Git prints a name with diacritics as an escaped string the scanner cannot open, so the list is
+  read with `core.quotepath=off`.
+- **The trace.** A sixth column, **scan**, between the mode and the subject: `-` where no scan was
+  in question, then `off`, `absent`, `clean`, `leak`, `error`. The decision word keeps saying what
+  the record did — `pass`, `ask`, `blocked` — and becomes `leak` or `scanerr` only when the
+  scanner is the sole reason the push stopped. `record_guard.sh` writes `-` there, so both hooks'
+  lines keep one width. The column exists because two questions had no answer in the log
+  otherwise: which record state a leak landed on, the difference ADR-0038 made `blocked` a word to
+  keep; and whether a `pass` was scanned at all, which is what goes wrong when a session started
+  from a desktop app never had the tool on its PATH. Lines written before this entry keep five
+  columns; the file is ignored scratch.
+- **What gating this entry found, and why the entry says so.** The first draft shipped four
+  defects, each of the kind the entry claims to rule out. **It used the tool's own `--timeout`**,
+  and so read a partial scan as clean at random — found by timing out a scan the draft had called
+  measured without ever doing so. **The listing it told people to run had no `--redact`**, so the
+  first time someone asked Claude to run it, the secret would have gone into the transcript.
+  **`leak` overwrote `blocked`** in the trace, erasing what ADR-0038 kept. And **checking the
+  variable initialisation turned up an older silent miss in the guard as released in v0.9.0**:
+  `KIND`, `ACT` and `DEC` were read before anything set them, so values inherited from the
+  session's environment were honoured — and with `KIND` set to anything, a `git push` with no
+  record went through with no prompt, measured. The hook now empties its own state on its first
+  line. The draft also cited ADR-0027 for a rule about git configuration; that entry is about not
+  editing code, and the citation is replaced above by what was measured. **And the ship audit, the
+  first run of the skill's new step with the scanner on PATH, found the entry's own test tripping
+  the rule it exists to exercise**: the stub's fake secret was shaped like a GitHub token, so
+  betterleaks reported `scripts/smoke.sh` and the guard would have stopped the push that shipped
+  it. The stub now holds a value no rule matches — measured — and the skill says how a triaged
+  false positive is recorded, which that run found it did not.
+- **Consequences** — **kit 0.10.0**: the guard can show an adopter a prompt it could not before,
+  and its trace changes shape; the ship record's shape does not, because which layer ran fits the
+  lines the record already has. The tag is not cut here — a tag asks every time. **`smoke.sh`
+  exports `ATTEST_LEAK_SCAN=off`** for every guard case except the new section, which switches it
+  on against a stub it controls, so the same suite gives the same answer on CI, which has no
+  scanner, and on a machine that does. **Forty-six new assertions, thirty-four of them failing
+  against the hooks on `main`** — the new suite run over both in the same tree — and the suite
+  goes 304 → 350. The watchdog cases were then checked against a mutation, because the round-2
+  re-review showed one of them passing for the wrong reason: with a watchdog that killed every
+  scan at 0.3 s, the suite went 347/0. It now fails two cases on that mutation. It was 303 when ADR-0069 closed and 304 on `main`, because the suite asserts one
+  case per ship record and the record for ADR-0069's push was committed after its count was taken.
+  One existing assertion was rewritten rather than added: it found the mode by its neighbour, and
+  the new column moved the neighbour. **`install.sh` is deliberately unchanged**: advising a
+  scanner is a third day-one step, and ADR-0065 cut day one to two. The advice lives in GUIDE 2.2,
+  where the guard is described. `COMPLIANCE.md` §7 is unchanged too: the scan writes no report
+  file, and the trace gains a word from a closed set, not content.
+- **Known limits.** The range is the commits HEAD has that no remote-tracking ref has. A push of
+  another branch scans the wrong range — the HEAD-centred limit the record has had since
+  ADR-0028 — and with two remotes, a commit already on one is out of range for a push to the
+  other, even though that push sends it. A compound `git commit … && git push` pushes a commit
+  that does not exist when the hook runs, and neither the record nor the scan sees it; that is why
+  the skill already says to write the record and ship in two steps. A rule-pack sees key shapes and
+  nothing else — personal data, client names and internal hosts remain the reading's job, which is
+  why this adds a layer and replaces none. Repository content can silence the scanner, and that is
+  named rather than defended against — forgetting, not forgery: `.betterleaksignore`, a
+  `.betterleaks.toml` or `.gitleaks.toml`, and an inline `betterleaks:allow` comment, all three
+  measured; the `BETTERLEAKS_CONFIG*` and `GITLEAKS_CONFIG*` variables its help lists, not tested
+  here; and an `env` block in a committed `.claude/settings.json` setting `ATTEST_LEAK_SCAN=off`,
+  which Claude Code's settings documentation confirms is an ordinary key. Both variables are read
+  from the environment the session started with. A finished scan leaves the watchdog's `sleep`
+  running until its limit, holding no descriptor the hook reads. The network trace was taken in
+  the commit mode the guard uses and not in the others, and none of this was run on macOS, for
+  which the tool ships a binary and the hook is unchanged POSIX `sh`.

@@ -47,8 +47,8 @@ SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
 # decide, and under which mode" for both halves (attest ADR-0034, ADR-0026).
 {
   mkdir -p "$ROOT/.attest/tmp" &&
-    printf '%s %s %s %s %s\n' \
-      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "record" "${SHA:--}" "${MODE:--}" "$SAFE" \
+    printf '%s %s %s %s %s %s\n' \
+      "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "record" "${SHA:--}" "${MODE:--}" "-" "$SAFE" \
       >> "$ROOT/.attest/tmp/ship-guard.log"
 } 2>/dev/null || true
 
