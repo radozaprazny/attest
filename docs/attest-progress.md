@@ -358,6 +358,22 @@ aesthetic:
 
 ## Next
 
+- **From an adopter's first gates on real code — its `.attest/` records for 2026-09-16, read up
+  to the run at 21:22 CEST.**
+  - **`/gate fix` could not close a code bug that a non-goal forbids — observed, not predicted.**
+    In the loop that ran 15:13–15:30 CEST on kit 0.9.0, `fix` repaired the one `reviewer`-owned
+    blocker. The blockers left were owned by `/business` — code putting secret-shaped values on
+    screen, against a non-goal — and they were still open when that loop stopped, and in the light
+    runs at 16:09 and 17:47. A new loop at 21:22 found none, closed by means the records do not
+    show. The ladder gives *code that does what a non-goal forbids* to `/business`, and ADR-0068
+    lets `fix` repair only `reviewer`-owned findings, so a repair that is pure code, with tests as
+    its judge, went to the person. ADR-0068 treats *owned by a document pass* as if it meant
+    *needs a document edit*. Worth an entry: either `fix` may take a document pass's finding whose
+    repair touches only code, or the contract gives such a hunk a code owner.
+  - **`/business` missed those findings in the one run on kit 0.8.0, and owned them in every 0.9.0
+    run while they stood.** A single miss, across a kit upgrade and a diff that kept changing,
+    says nothing about the skill yet.
+
 - **From the phase-C rounds (`gate-20260913-0744*`) — the minors, unfixed on purpose:**
   - **GUIDE PART 9's per-change step 3 does not mention `fix`**, while `reviewer.md` sends the
     reader there for the full loop. Either add the word or stop pointing at it.
