@@ -7,8 +7,23 @@
 
 ## Current state
 
-**`git push` is scanned by `betterleaks` when it is installed — ADR-0070, kit 0.10.0, not yet
-tagged.** `/audit-history` uses it as its key layer too; gitleaks and trufflehog are out of the
+**Kit 0.11.0 on branch `feat/fix-code-repair-and-ship-list`, not merged, not tagged — ADR-0071
+and ADR-0072.** `/gate fix` may now repair a `/business` blocker the pass marks `repair: code`,
+closed only by a test it writes first and sees fail — the gap the adopter's 2026-09-16 loop
+exposed. The ship list gains a registry's publish command (`yarn`/`bun`/`uv`/`poetry publish`,
+`gem push`, `gh release upload`); a script name stays the project's to add. Suite **351 → 367**:
+five pins on the `fix` contract plus one for test-first, and ten guard cases, six of them silent
+on `main`'s guard. The `reviewer` pass on ADR-0071's first draft returned **3 majors**, all
+closed before commit: the version marker still read 0.10.0, `repair: code` would have reached
+the regulated ground `/business` owns in `/compliance`'s absence, and a test that was green
+before any repair would have stayed in the tree.
+
+**`v0.10.0` is tagged at `6425bff` (tag object `46dd03b`), 2026-09-23**, and betterleaks 1.8.1
+is on the maintainer's devbox: the first push after installing it — the tag itself — traced
+`clean` in the scan column where every earlier line read `absent`.
+
+**`git push` is scanned by `betterleaks` when it is installed — ADR-0070, kit 0.10.0.**
+`/audit-history` uses it as its key layer too; gitleaks and trufflehog are out of the
 advice, for reasons the entry measures. Suite **304 → 350**, **34 of 46** new cases failing against
 the hooks on `main`. **Its gate found four defects in the first draft** and the entry lists them:
 the tool's own `--timeout` read a partial scan as clean at random, the suggested listing printed
@@ -318,16 +333,15 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-07 — shellcheck is not on `PATH`, use
-`uvx`:
+Baseline green; every number below re-measured 2026-09-23 on the kit-0.11.0 branch — shellcheck
+is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 177 passed, 0 failed
-./install.sh "$EMPTY"                                 # 16 files + 2 .gitignore + 2 .gitattributes = 20 items
-./install.sh --compliance "$EMPTY"                    # 22 items; a re-run reports "changed nothing"
-git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 on this branch —
-                                                      # the phase-11 status flips are already in main
+./scripts/smoke.sh                                    # 367 passed, 0 failed — a floor (Notes)
+./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
+./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
+git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
 ```
 
 There is no linter step for another language because the kit no longer contains one. Both new
@@ -373,8 +387,6 @@ aesthetic:
 - **From the phase-C rounds (`gate-20260913-0744*`) — the minors, unfixed on purpose:**
   - **GUIDE PART 9's per-change step 3 does not mention `fix`**, while `reviewer.md` sends the
     reader there for the full loop. Either add the word or stop pointing at it.
-  - `docs/attest-progress.md` still carries `./scripts/smoke.sh  # 177 passed` in an older
-    block; the suite is at 280. A stale count in a status doc is the cheapest kind of lie.
   - **`smoke.sh` pins the narrowed *"no code"* sentence in two homes and not in `GUIDE.md`**,
     which is the third; and nothing pins the record's shape against the entry that prescribes it
     — the round-2 major was exactly that pair disagreeing.
@@ -480,8 +492,14 @@ aesthetic:
      there on purpose, is **decided by ADR-0072**: `yarn publish` and `gh release upload` ask now,
      with `bun`/`uv`/`poetry publish` and `gem push`; `npm run release` and `make deploy` stay
      silent by design, pinned so in `smoke.sh`.
-  6. ⬜ **`"matcher": "Bash|PowerShell"`** (F06) — the docs wording was checked verbatim; on Windows
-     without Git Bash the hook does not run at all, which deserves a sentence in GUIDE 2.2.
+  6. ◐ **`"matcher": "Bash|PowerShell"`** (F06) — **the GUIDE 2.2 sentence is in (2026-09-23),
+     and re-reading the docs that day found the gap wider than F06 said.** The PowerShell tool is
+     not only the no-Git-Bash fallback: with Git Bash installed it is **on by default** for
+     claude.ai and Console accounts, and wherever it is on, Claude routes shell commands through
+     it — so on a default Windows setup the `Bash`-only matcher never fires and a push is silent.
+     Widening the matcher closes that where Git Bash exists (hooks still run there); without Git
+     Bash the hook's `sh` is missing and nothing in the matcher helps. **Open:** the matcher
+     change is kit behaviour and wants its own entry; nothing was run on Windows.
   7. ⬜ **The non-git directory** (F14, F50) — the hook's own header and ADR-0028 promise it
      "proceeds untouched"; it actually prompts with advice that cannot be satisfied, and a repo
      with no commits yet is told it is "not a git checkout".
@@ -519,9 +537,9 @@ aesthetic:
     rather than ahead of them. That is the argument `fix` was built on, and it was paid in full
     before `fix` existed.
 
-- **Dogfood the declaration hook** — `ATTEST_THREAD_CARRIER=docs/attest-progress.md` is now set in
-  `.claude/settings.local.json` (gitignored), so the next session start here is the first live
-  run.
+- ✅ **Dogfood the declaration hook — live.** With `ATTEST_THREAD_CARRIER=docs/attest-progress.md`
+  in the gitignored `.claude/settings.local.json`, the 2026-09-23 session opened with this file's
+  *Current state* and *Next* already in context, as `SessionStart:clear` output.
 - ✅ **Branch protection on `main` — on since 2026-09-13**, and with it the merge boundary
   ADR-0035 names actually exists somewhere. Read back from the API rather than assumed:
   required status check `check` with `strict: true` · `enforce_admins: true` · pull request
@@ -532,9 +550,7 @@ aesthetic:
   maintainer out of their own repository, and *required PR* is the property that was wanted
   anyway. **The standing cost, noticed the first time it bites:** a one-line documentation fix
   now needs a branch and a PR too. PR #24 is this entry paying it.
-- **Decide on going public** — the guard now asks at the flip itself (ADR-0035). The right
-  answer to that prompt is an `/audit-history full` run, not an approval. A README demo GIF
-  stays an open nice-to-have; never fabricate a transcript.
+- **A README demo GIF** stays an open nice-to-have; never fabricate a transcript.
 - **Still never exercised in anger:** `/checkpoint` alone (it cannot be, on a template —
   ADR-0006).
 - **Known debt, deliberately not fixed: GUIDE PART 7 dates fastest.** It cites a specific Claude

@@ -196,6 +196,15 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   - **Upgrading from a pre-0.9 stanza:** `install.sh` now requires the MCP matcher as well as
     the three hook filenames before it calls your `settings.json` wired — a file that names
     `ship_guard.sh` under `Bash` alone is reported, with the kit's stanza to merge in.
+- **On Windows the guard may never fire: the shell there is often not `Bash`.** Claude Code's
+  docs, read 2026-09-23: wherever its PowerShell tool is enabled, Claude *"routes shell commands
+  through it"*, and *"a hook that matches only `Bash` never fires there"* — and this kit's matcher
+  is `Bash`. The tool is enabled automatically without Git for Windows, and **on by default with
+  it** for claude.ai and Console accounts. So on a default Windows setup a `git push` proceeds with
+  no prompt and no trace line. Matching `Bash|PowerShell` would reach those calls where Git Bash
+  is installed, since hooks then still run in Git Bash; without it they run in PowerShell, where
+  the hook's `sh` does not exist — a non-blocking error, and the command proceeds either way.
+  None of this was run on Windows; it is the documented behaviour.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
