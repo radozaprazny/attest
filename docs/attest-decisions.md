@@ -2706,3 +2706,47 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   value, and a fingerprint in `.betterleaksignore` is the remedy if the scanner still fires —
   predicted, not measured. The evidence is one adopter, one class of finding and one day, and
   no loop has yet run under this entry.
+
+## ADR-0072 — the ship list names a registry's publish command; a script name stays the project's to add · 2026-09-23 · Accepted
+
+  Widens: ADR-0028 (the ship list) — six commands that publish were silent.
+  Extends: ADR-0069 — decides the coverage question that entry set aside on purpose, *"a decision
+  about what this kit claims to know — with its own argument, its own README sentence and its own
+  entry"*.
+  Relates to: ADR-0035 (a prompt states only a reason the guard can back).
+
+- **Context** — ADR-0069 named four commands still silent: `npm run release`, `yarn publish`,
+  `make deploy`, `gh release upload`. Measured on 2026-09-23 against the guard on `main`, in a
+  scratch repository with the leak scan off: `pnpm publish` and Yarn 2+'s `yarn npm publish`
+  **already asked** — `npm publish` is a substring of both, so they were covered by accident
+  and by nothing that said so. Silent: `yarn publish` (Yarn 1), `gh release upload`,
+  `bun publish`, `uv publish`, `poetry publish`, `gem push`, `npm run release`, `make deploy`,
+  and `gh release edit --draft=false`.
+- **Options** — (a) add the commands whose name is their act: a registry's publish, a release
+  upload; (b) (a), plus a list each project declares for its own scripts; (c) leave it and say
+  so once more.
+- **Decision** — (a): `yarn publish`, `bun publish`, `uv publish`, `poetry publish`, `gem push`
+  and `gh release upload` join the list, and the two accidental substring matches are pinned.
+  `npm run release`, `make deploy` and `gh release edit` stay off it.
+- **Why** — each added command means the same thing on every machine and in every project: it
+  sends a package to a registry or a file to a release, so *"sends data off the machine"* is a
+  claim the guard can back. A script name means whatever one project wrote into its
+  `package.json` or `Makefile` — `release` may only bump a changelog — so matching it would put
+  that same claim in a prompt about a command the guard knows nothing of, the false reason
+  ADR-0035 refuses; the file already tells a project to add its own, and that line is the right
+  home for them. `gh release edit` publishes only with `--draft=false`, most of its calls edit
+  notes, and a prompt on every notes edit teaches the reflex of approving. (b) waits for an
+  adopter who asks: nobody has, and the one-line edit it would replace is already documented.
+  (c) would have left a Yarn 1 or a Bun user with a gate the README advertises and they do not
+  have.
+- **Consequences** — two `case` arms in `ship_guard.sh`, a comment on the substring and one on
+  the script names, a GUIDE sentence that stops naming `yarn publish` as a miss, and the README
+  sentence ADR-0069 promised: *a registry's publish command is on it*, script names are not. `smoke.sh`
+  gains ten cases: six new asks — **all six silent on the guard as it is on `main`** — the two
+  substring asks, and `npm run release` and `make deploy` pinned **silent**, so the boundary is a
+  line someone has to change on purpose. Kit 0.11.0, shared with ADR-0071.
+- **Known limits.** Still silent and still a substring list: `dotnet nuget push`, `mvn deploy`,
+  `gradle publish`, `helm push`, `podman push`, `hatch publish`, and every script name. The
+  guard's `--dry-run` exemption is generic, so `uv publish --dry-run` and
+  `poetry publish --dry-run` pass as dry runs — correct for both. A substring can over-match
+  (`gem push` inside a longer word would ask); that direction costs a prompt, never a miss.

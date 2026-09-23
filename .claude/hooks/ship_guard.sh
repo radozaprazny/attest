@@ -156,12 +156,23 @@ esac
 # never touch this machine at all (the web button, auto-merge, a colleague), so matching only
 # the CLI form would advertise a coverage this hook cannot have. That boundary belongs to
 # branch protection and required CI, which are server-side and catch every path (ADR-0035).
+#
+# NOT here either: a script name — `npm run release`, `make deploy`. A registry's publish command
+# means the same thing on every machine; `release` or `deploy` is whatever one project wrote into
+# its package.json or Makefile, and a prompt claiming it "sends data off the machine" would state
+# a reason this file cannot back. That is the "add your project's own" line above, not a gap
+# (ADR-0072).
+#
 # `|| case` rather than an `if` wrapping the whole block: the MCP arm above has already decided,
 # and re-indenting these arms to nest them would obscure the one list a reader comes here to read.
 [ -n "${KIND:-}" ] || case "$NORM" in
   *"git push"*|*"git send-email"*) ACT="sends data off the machine" ;;
   *"gh pr create"*|*"gh release create"*|*"gh gist create"*) ACT="sends data off the machine" ;;
+  # `npm publish` also catches `pnpm publish` and Yarn 2+'s `yarn npm publish` — as substrings,
+  # which smoke.sh pins so that tightening this pattern cannot drop them unseen (ADR-0072).
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*) ACT="sends data off the machine" ;;
+  *"yarn publish"*|*"bun publish"*|*"uv publish"*) ACT="sends data off the machine" ;;
+  *"poetry publish"*|*"gem push"*|*"gh release upload"*) ACT="sends data off the machine" ;;
   *"kaggle"*"submit"*) ACT="sends data off the machine" ;;
   *"scp "*|*"rsync"*) ACT="sends data off the machine" ;;
   *"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*) ACT="sends data off the machine" ;;

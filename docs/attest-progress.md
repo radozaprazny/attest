@@ -42,9 +42,9 @@ for that: `--exec-path` had gone onto the list on the strength of a measurement 
 wrong question, *did the command exit 0*, which it does by printing its path and stopping before
 the subcommand. Asking *did the subcommand run* removes it and nothing else. A proxy for the
 question is not the question, and a round-2 pass is what turned it up.
-**Coverage was left alone on purpose** (`npm run release`,
-`yarn publish`, `make deploy` still silent): a spelling and a missing command are different
-decisions, and the review that raised this said *fix detectability before coverage*.
+**Coverage was left alone on purpose** there — a spelling and a missing command are different
+decisions — and was decided later by **ADR-0072** (kit 0.11.0): a registry's publish command
+joined the list, a script name (`npm run release`, `make deploy`) stays the project's to add.
 
 **Phase C is in, and with it the proposal is spent — `/gate fix`, a bounded repair loop
 (ADR-0068).** The contract is in `.claude/skills/gate/SKILL.md`; what matters for the thread is
@@ -476,11 +476,10 @@ aesthetic:
 
   **P0 — still open:**
   5. ✅ **Normalise the matching** (F01, F02) — **closed by ADR-0069**, which owns the reasoning
-     and the known limits; *Current state* above carries the headline. Coverage was deliberately left
-     alone: `npm run release`, `yarn publish`, `make deploy` and `gh release upload` are still
-     silent, because they are not spellings of anything on the list but commands absent from it.
-     That is a separate decision with its own README sentence — *fix detectability before
-     coverage*, as the review itself put it.
+     and the known limits; *Current state* above carries the headline. Coverage, left alone
+     there on purpose, is **decided by ADR-0072**: `yarn publish` and `gh release upload` ask now,
+     with `bun`/`uv`/`poetry publish` and `gem push`; `npm run release` and `make deploy` stay
+     silent by design, pinned so in `smoke.sh`.
   6. ⬜ **`"matcher": "Bash|PowerShell"`** (F06) — the docs wording was checked verbatim; on Windows
      without Git Bash the hook does not run at all, which deserves a sentence in GUIDE 2.2.
   7. ⬜ **The non-git directory** (F14, F50) — the hook's own header and ADR-0028 promise it

@@ -146,7 +146,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 ### 2.2 `PreToolUse` on `Bash` and the publish MCP tools — the ship guard (`ship_guard.sh`)
 - **How:** before Claude runs a Bash command, the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
-  create`, `npm publish`, `twine upload`, `cargo publish`, `docker push`, a Kaggle submit,
+  create` and `upload`, a registry's publish (`npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`
+  `publish`, `twine upload`, `cargo publish`, `gem push`), `docker push`, a Kaggle submit,
   `scp`/`rsync`, `aws s3 cp`, `curl --upload-file` — plus the one that changes **who may read**
   what you already sent: `gh repo edit --visibility` and `gh repo create`. On a hit it looks
   under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha **and
@@ -154,8 +155,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   this HEAD answers with `permissionDecision: "ask"`, and the reason says which of the two it
   was — no record, or a record that does not attest a clean scan.
 - **The list is literal, and that is the coverage.** It is a `case` of fixed substrings, not a
-  category of command. `npm run release`, `make deploy`, `yarn publish` and a deploy script of
-  your own do **not** match, and a non-matching command leaves no trace line either — so an empty
+  category of command. A registry's own publish command is on it — `npm`, `pnpm`, `yarn`, `bun`,
+  `uv`, `poetry`, `twine`, `cargo`, `gem` (attest ADR-0072) — but a script name is not:
+  `npm run release`, `make deploy` and a deploy script of your own do **not** match, and a non-matching command leaves no trace line either — so an empty
   log is not proof the hook is alive, only that nothing it knows about ran. This is a net for
   *forgetting*, not for variants; widen it by adding your own project's commands to that `case`.
 - **What the list no longer reads is spelling** (attest ADR-0069). A substring list matches the

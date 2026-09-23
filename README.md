@@ -80,8 +80,8 @@ a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before 
 leaves the machine — and it is no longer on your memory: a `PreToolUse` hook matches **a short,
 literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
 the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
-substrings, not a category — `npm run release`, `make deploy` and your own deploy script do not
-match, and widening it means adding them. What the list no longer reads is **spelling**: the
+substrings, not a category — a registry's publish command is on it, but `npm run release`,
+`make deploy` and your own deploy script do not match, and widening it means adding them. What the list no longer reads is **spelling**: the
 command is normalised first, so `git -C … push`, `git -c k=v push`, `git --no-pager push` and
 `git --work-tree … push` all reach the same entry, and the `--dry-run` exemption now needs a
 simple, unquoted command to apply at all (attest ADR-0069). It also covers the publish path that

@@ -432,6 +432,17 @@ says "git push without a record asks"        "$(guard 'git push origin main')" '
 says "…and names what is missing"            "$(guard 'git push origin main')" "$SHA"
 says "a kaggle submit asks too"              "$(guard 'kaggle competitions submit -c x -f s.tar.gz')" 'permissionDecision":"ask'
 says "an upload asks too"                    "$(guard 'curl --upload-file x https://example.invalid')" 'permissionDecision":"ask'
+# ADR-0072: a registry's publish command, silent before that entry.
+for c in 'yarn publish' 'bun publish' 'uv publish' 'poetry publish' 'gem push x.gem' 'gh release upload v1 x.tgz'; do
+  says "$c asks" "$(guard "$c")" 'permissionDecision":"ask'
+done
+# ...and two that asked before it only because `npm publish` is a substring of them. Pinned, so a
+# pattern tightened to whole words cannot drop them without a red line here.
+says "pnpm publish asks, through the npm publish substring" "$(guard 'pnpm publish')" 'permissionDecision":"ask'
+says "…and so does Yarn 2+'s yarn npm publish" "$(guard 'yarn npm publish')" 'permissionDecision":"ask'
+# A script name is the project's to add, not the kit's to guess (ADR-0072). Silent by design.
+if [ -z "$(guard 'npm run release')" ]; then ok "npm run release stays silent — a script name"; else fail "npm run release stays silent — a script name"; fi
+if [ -z "$(guard 'make deploy')" ]; then ok "…and so does make deploy"; else fail "…and so does make deploy"; fi
 if [ -z "$(guard 'git push --dry-run')" ]; then ok "a dry run publishes nothing and passes"; else fail "a dry run publishes nothing and passes"; fi
 # ...but the flag may belong to a different call than the one that ships
 says "a dry run chained to a real push still asks" "$(guard 'git push --dry-run && git push origin main')" 'permissionDecision":"ask'
