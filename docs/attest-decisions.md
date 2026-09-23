@@ -2636,10 +2636,11 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   code putting a secret-shaped value on screen, against a non-goal — stood through round 3, and
   the light runs at 16:09 and 17:47 recorded four. A new loop at 21:22 found none, closed by
   means the records do not show. **At 14:22 the same day, on kit 0.8.0, the same class on the
-  same file was recorded as `reviewer`-owned.** Same class, same file: in one run inside `fix`'s
-  reach, in the next outside it. What decided the reach was which pass saw the finding, not what
-  closing it takes. ADR-0068 kept document findings out for two reasons — their judges vary, and
-  *what a declaration governs needs the person* — and both hold for a finding whose repair is a
+  same file was recorded as `reviewer`-owned.** Same class, same file: owned by the `reviewer` in
+  one run, by `/business` in the next — and under ADR-0068 only the first owner is one `fix` may
+  repair. What decides that reach is which pass sees the finding, not what closing it takes.
+  ADR-0068 kept document findings out for two reasons — their judges vary, and *what a
+  declaration governs needs the person* — and both hold for a finding whose repair is a
   document edit or a choice about intent. Neither holds for code that breaks a rule already
   written: the non-goal is declared, nobody is asked to change it, and a test can say whether the
   code still breaks it.
@@ -2751,7 +2752,12 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   entry's author and again by its review: `dotnet nuget push`, `mvn deploy`, `gradle publish`,
   `helm push`, `podman push`, `hatch publish`, `pdm publish`, `flit publish`, `deno publish`,
   `npx jsr publish`, and every script name. *"Common"* is this entry's judgment, not a
-  measurement; the README and GUIDE name the nine so nobody has to infer the rest. The
-  guard's `--dry-run` exemption is generic, so `uv publish --dry-run` and
-  `poetry publish --dry-run` pass as dry runs — correct for both. A substring can over-match
+  measurement; the README and GUIDE name the nine so nobody has to infer the rest. **Only the
+  verb right after the tool's name matches**: `pnpm -r publish`, `pnpm --filter pkg publish`,
+  `poetry -C dir publish`, `uv --directory d publish` and `bun --cwd d publish` are silent while
+  `pnpm publish -r` asks — measured by this branch's gate, and again by its author — because
+  ADR-0069's normaliser strips options after `git` alone; `npm -w pkg publish` is silent on
+  `main` too, so the class is older than this entry. The guard's `--dry-run` exemption is
+  generic, so any of the six followed by a whole-word `--dry-run` passes as a dry run; what each
+  tool does with that flag was not checked. A substring can over-match
   (`gem push` inside a longer word would ask); that direction costs a prompt, never a miss.

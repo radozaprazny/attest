@@ -358,6 +358,22 @@ resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *P
 
 ## Next
 
+- **From the full gate on the kit-0.11.0 branch (`gate-20260923-124731-66c277a`) — the minors,
+  unfixed on purpose.** Four others were claims in ADR-0071/0072, README and GUIDE, corrected
+  before the push while the log could still take an edit; these three are rule text:
+  - **`/gate`'s merge step does not carry the `repair:` mark** into the act-on list, and still
+    says *"each pass's recommended document update"* — a plain `/gate` verdict drops the mark
+    that `/business` step 4 tells the person to act on. `fix` is unaffected: it reads the pass
+    output directly.
+  - **"Red → repair" does not say which red.** A test red on an import error or a broken fixture
+    passes the check, and the finding closes as pinned without the violation ever being pinned.
+    One clause: the red is the test's own assertion failing on the violation.
+  - **Re-entry is unspecified.** A `repair: code` finding already taken, coming back to step 1
+    after red checks, would get a second test on a half-repaired tree; it should keep its test
+    and repair only.
+  - Nits: `smoke.sh` 0b2's header says *two files* (it pins four, and `doc-auditor`'s mark has
+    no pin); the mode table still calls `fix` *code-level*; *"no test runner → do not take it"*
+    does not say *hand it to the person*; the ladder's recommended-update item wraps raggedly.
 - **From an adopter's first gates on real code — its `.attest/` records for 2026-09-16, read up
   to the run at 21:22 CEST.**
   - ✅ **`/gate fix` could not close a code bug that a non-goal forbids — closed by ADR-0071**

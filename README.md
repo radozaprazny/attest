@@ -83,10 +83,11 @@ the **current** HEAD and reads it, and asks unless that record attests a clean s
 substrings, not a category — the common registries' publish commands are on it (`npm`, `pnpm`,
 `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`), every other registry's is not, and
 `npm run release`, `make deploy` and your own deploy script do not match either; widening it
-means adding them. What the list no longer reads is **spelling**: the
-command is normalised first, so `git -C … push`, `git -c k=v push`, `git --no-pager push` and
-`git --work-tree … push` all reach the same entry, and the `--dry-run` exemption now needs a
-simple, unquoted command to apply at all (attest ADR-0069). It also covers the publish path that
+means adding them. What the list no longer reads, for `git`, is **spelling** (`pnpm -r publish`
+is still silent, attest ADR-0072): the command is normalised first, so `git -C … push`,
+`git -c k=v push`, `git --no-pager push` and `git --work-tree … push` all reach the same entry,
+and the `--dry-run` exemption now needs a simple, unquoted command to apply at all (attest
+ADR-0069). It also covers the publish path that
 never opens a shell — a GitHub MCP server's `push_files`, `create_or_update_file`,
 `create_pull_request`, `create_repository` — where it always asks, because those calls send
 bytes chosen in the call and a record about your HEAD is evidence about a different thing (the

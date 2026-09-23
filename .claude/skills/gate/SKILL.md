@@ -311,9 +311,9 @@ Each repair round:
      person's, as every other document finding is.
 
    **Order inside a round: every test this step owes is written and run before any repair.** A
-   `reviewer` fix and a `/business` finding can sit on the same lines — they did in the loop
-   ADR-0071 came from — and a repair made first turns the test green before it ever ran red,
-   which hands the finding to the person for no reason but order.
+   `reviewer` fix and a `/business` finding can sit in the same code — in the loop ADR-0071
+   came from they sat in the same file — and a repair made first turns the test green before it
+   ever ran red, which hands the finding to the person for no reason but order.
 
    **Nothing left for `fix` to touch → stop here and say so**, with the verdict as it stands; an
    empty round is not a round worth spending, and it is a different outcome from hitting the cap.
