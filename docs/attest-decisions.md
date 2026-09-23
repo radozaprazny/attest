@@ -2650,14 +2650,14 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   `reviewer`.
 - **Decision** — (b), with five limits that are rules rather than habits:
   1. **Only `/business`, only a `blocker` for a stated non-goal, only when the pass says so.**
-     The finding carries **`repair: code`** when the violation can be removed without removing what the change is
-     for — masking a value a non-goal keeps off the screen — and **`repair: person`** when the
-     violation *is* what the change is for — a new sync feature opening the socket a *"no
-     network"* non-goal forbids. Choosing between a feature and a non-goal is intent, and stays
-     the person's. Unsure → `person`. A `/business` major (scope, archetype) is intent by
-     definition; `/decision`'s repair is a record by definition; `/compliance` is out because
-     what a code change achieves on regulated ground is a legal reading, not a test result — and
-     so, for the same reason, is the regulated ground `/business` reports in `/compliance`'s
+     The finding carries **`repair: code`** when the violation can be removed without removing
+     what the change is for — masking a value a non-goal keeps off the screen — and
+     **`repair: person`** when the violation *is* what the change is for — a new sync feature
+     opening the socket a *"no network"* non-goal forbids. Choosing between a feature and a non-goal is
+     intent, and stays the person's. Unsure → `person`. A `/business` major (scope, archetype) is
+     intent by definition; `/decision`'s repair is a record by definition; `/compliance` is out
+     because what a code change achieves on regulated ground is a legal reading, not a test result
+     — and so, for the same reason, is the regulated ground `/business` reports in `/compliance`'s
      absence (ADR-0030): always `person`, since no non-goal states it.
   2. **The test comes first, and must fail.** **No test runner in the project → the finding is
      not taken at all** — without the command there is no judge, and what is left is the loop
@@ -2692,8 +2692,9 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   `/gate`'s `fix` section changes its finish line, splits step 1 by owner, adds the `closed ·`
   line to the record template, tells stage 0's re-run on the fix hunks not to re-judge a finding
   a test closes, and adds a fourth thing `fix` never does — *close a finding by weakening what
-  judges it*; GUIDE's two sentences about `fix` follow. `smoke.sh` pins the field in the ladder and in
-  `/business`, and the record line in `/gate`, because a field one side writes and the other
+  judges it*; GUIDE's two sentences about `fix` follow, and so does `doc-auditor`'s list of what a
+  finding carries. `smoke.sh` pins the field in the ladder and in `/business`, and the record line
+  in `/gate`, because a field one side writes and the other
   never reads is exactly how the two drift. **Kit 0.11.0**, adopter-visible: a gate that used to
   hand these findings back may now edit code for them.
 - **Known limits.** The line between `code` and `person` is the pass's judgment, and the loop
@@ -2707,7 +2708,7 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   predicted, not measured. The evidence is one adopter, one class of finding and one day, and
   no loop has yet run under this entry.
 
-## ADR-0072 — the ship list names a registry's publish command; a script name stays the project's to add · 2026-09-23 · Accepted
+## ADR-0072 — the ship list names the common registries' publish commands; a script name stays the project's to add · 2026-09-23 · Accepted
 
   Widens: ADR-0028 (the ship list) — six commands that publish were silent.
   Extends: ADR-0069 — decides the coverage question that entry set aside on purpose, *"a decision
@@ -2741,12 +2742,16 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   have.
 - **Consequences** — two `case` arms in `ship_guard.sh`, a comment on the substring and one on
   the script names, a GUIDE sentence that stops naming `yarn publish` as a miss, and the README
-  sentence ADR-0069 promised: *a registry's publish command is on it*, script names are not. `smoke.sh`
-  gains ten cases: six new asks — **all six silent on the guard as it is on `main`** — the two
-  substring asks, and `npm run release` and `make deploy` pinned **silent**, so the boundary is a
-  line someone has to change on purpose. Kit 0.11.0, shared with ADR-0071.
-- **Known limits.** Still silent and still a substring list: `dotnet nuget push`, `mvn deploy`,
-  `gradle publish`, `helm push`, `podman push`, `hatch publish`, and every script name. The
+  sentence ADR-0069 promised — the common registries' publish commands are on the list and named,
+  every other registry's and every script name are not. `smoke.sh` gains ten cases: six new
+  asks — **all six silent on the guard as it is on `main`** — the two substring asks, and
+  `npm run release` and `make deploy` pinned **silent**, so the boundary is a line someone has
+  to change on purpose. Kit 0.11.0, shared with ADR-0071.
+- **Known limits.** Still silent and still a substring list — measured on the branch by this
+  entry's author and again by its review: `dotnet nuget push`, `mvn deploy`, `gradle publish`,
+  `helm push`, `podman push`, `hatch publish`, `pdm publish`, `flit publish`, `deno publish`,
+  `npx jsr publish`, and every script name. *"Common"* is this entry's judgment, not a
+  measurement; the README and GUIDE name the nine so nobody has to infer the rest. The
   guard's `--dry-run` exemption is generic, so `uv publish --dry-run` and
   `poetry publish --dry-run` pass as dry runs — correct for both. A substring can over-match
   (`gem push` inside a longer word would ask); that direction costs a prompt, never a miss.

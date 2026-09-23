@@ -310,6 +310,11 @@ Each repair round:
      a regulated-ground finding `/business` reports in `/compliance`'s absence → it is the
      person's, as every other document finding is.
 
+   **Order inside a round: every test this step owes is written and run before any repair.** A
+   `reviewer` fix and a `/business` finding can sit on the same lines — they did in the loop
+   ADR-0071 came from — and a repair made first turns the test green before it ever ran red,
+   which hands the finding to the person for no reason but order.
+
    **Nothing left for `fix` to touch → stop here and say so**, with the verdict as it stands; an
    empty round is not a round worth spending, and it is a different outcome from hitting the cap.
 2. **Run the project's own checks.** Take them from `CLAUDE.md` (*Tests*, *Formatting and lint*);
@@ -350,10 +355,10 @@ closed by its test leaves the `findings:` counts, and its blocker line under the
 
 **Four things `fix` never does**, and each is a rule rather than a habit:
 
-- **It never edits a control document.** A violated non-goal, an unrecorded decision, regulated
-  ground: these come back in the final verdict under *for you to decide*, with the owning
-  skill's write mode named as the next step. What a command can verify may loop; what a
-  declaration governs needs the person (ADR-0017, ADR-0051).
+- **It never edits a control document.** A violated non-goal it may not take, an unrecorded
+  decision, regulated ground: these come back in the final verdict under *for you to decide*,
+  with the owning skill's write mode named as the next step. What a command can verify may
+  loop; what a declaration governs needs the person (ADR-0017, ADR-0051).
 - **It never closes a finding by weakening what judges it.** No non-goal removed or narrowed,
   no feature deleted to make a `repair: code` finding go away, no test skipped, disabled or
   loosened — the one test `fix` may delete is its own, when it never went red. Each of those

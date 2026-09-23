@@ -146,8 +146,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 ### 2.2 `PreToolUse` on `Bash` and the publish MCP tools — the ship guard (`ship_guard.sh`)
 - **How:** before Claude runs a Bash command, the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
-  create` and `upload`, a registry's publish (`npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`
-  `publish`, `twine upload`, `cargo publish`, `gem push`), `docker push`, a Kaggle submit,
+  create` and `upload`, the common registries' publish (`npm publish` and its `pnpm`, `yarn`,
+  `bun`, `uv` and `poetry` twins, `twine upload`, `cargo publish`, `gem push`), `docker push`,
+  a Kaggle submit,
   `scp`/`rsync`, `aws s3 cp`, `curl --upload-file` — plus the one that changes **who may read**
   what you already sent: `gh repo edit --visibility` and `gh repo create`. On a hit it looks
   under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha **and
@@ -155,9 +156,11 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   this HEAD answers with `permissionDecision: "ask"`, and the reason says which of the two it
   was — no record, or a record that does not attest a clean scan.
 - **The list is literal, and that is the coverage.** It is a `case` of fixed substrings, not a
-  category of command. A registry's own publish command is on it — `npm`, `pnpm`, `yarn`, `bun`,
-  `uv`, `poetry`, `twine`, `cargo`, `gem` (attest ADR-0072) — but a script name is not:
-  `npm run release`, `make deploy` and a deploy script of your own do **not** match, and a non-matching command leaves no trace line either — so an empty
+  category of command. The common registries' publish commands are on it — `npm`, `pnpm`,
+  `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem` (attest ADR-0072) — and every other
+  registry is not: `mvn deploy`, `dotnet nuget push`, `helm push` are silent. Nor is a script
+  name: `npm run release`, `make deploy` and a deploy script of your own do **not** match, and
+  a non-matching command leaves no trace line either — so an empty
   log is not proof the hook is alive, only that nothing it knows about ran. This is a net for
   *forgetting*, not for variants; widen it by adding your own project's commands to that `case`.
 - **What the list no longer reads is spelling** (attest ADR-0069). A substring list matches the
@@ -200,11 +203,12 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   docs, read 2026-09-23: wherever its PowerShell tool is enabled, Claude *"routes shell commands
   through it"*, and *"a hook that matches only `Bash` never fires there"* — and this kit's matcher
   is `Bash`. The tool is enabled automatically without Git for Windows, and **on by default with
-  it** for claude.ai and Console accounts. So on a default Windows setup a `git push` proceeds with
-  no prompt and no trace line. Matching `Bash|PowerShell` would reach those calls where Git Bash
-  is installed, since hooks then still run in Git Bash; without it they run in PowerShell, where
-  the hook's `sh` does not exist — a non-blocking error, and the command proceeds either way.
-  None of this was run on Windows; it is the documented behaviour.
+  it** for claude.ai and Console accounts, where *"the Bash tool remains available for POSIX
+  scripts"* — so on a default Windows setup a `git push` **can** proceed with no prompt and no
+  trace line, depending on which tool Claude picks. Matching `Bash|PowerShell` would reach those
+  calls where Git Bash is installed, since hooks then still run in Git Bash; without it they run
+  in PowerShell, where the hook's `sh` does not exist — a non-blocking error, and the command
+  proceeds either way. None of this was run on Windows; it is the documented behaviour.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
@@ -489,7 +493,7 @@ one output shape and one severity ladder so they read as a family:
   checks (from `CLAUDE.md`, or your CI workflow if `CLAUDE.md` is still the template),
   re-reviews what it touched, and stops at its finish line — nothing left that it may take —
   or after **three rounds**, which is two repairs, with *split the change*. It never
-  edits a control document and never takes a minor. **One document finding is in its reach**
+  edits a control document and never takes a minor. **One kind of document finding is in its reach**
   (ADR-0071): a `/business` blocker the pass marked `repair: code` — code breaking a non-goal
   where the fix keeps what the change is for — which it closes only with a test it wrote first
   and saw fail. Every other violated non-goal, and every unrecorded decision, comes back to you

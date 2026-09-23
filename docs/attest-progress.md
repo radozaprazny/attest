@@ -10,7 +10,7 @@
 **Kit 0.11.0 on branch `feat/fix-code-repair-and-ship-list`, not merged, not tagged — ADR-0071
 and ADR-0072.** `/gate fix` may now repair a `/business` blocker the pass marks `repair: code`,
 closed only by a test it writes first and sees fail — the gap the adopter's 2026-09-16 loop
-exposed. The ship list gains a registry's publish command (`yarn`/`bun`/`uv`/`poetry publish`,
+exposed. The ship list gains six publish commands (`yarn`/`bun`/`uv`/`poetry publish`,
 `gem push`, `gh release upload`); a script name stays the project's to add. Suite **351 → 367**:
 five pins on the `fix` contract plus one for test-first, and ten guard cases, six of them silent
 on `main`'s guard. The `reviewer` pass on ADR-0071's first draft returned **3 majors**, all
@@ -58,8 +58,9 @@ wrong question, *did the command exit 0*, which it does by printing its path and
 the subcommand. Asking *did the subcommand run* removes it and nothing else. A proxy for the
 question is not the question, and a round-2 pass is what turned it up.
 **Coverage was left alone on purpose** there — a spelling and a missing command are different
-decisions — and was decided later by **ADR-0072** (kit 0.11.0): a registry's publish command
-joined the list, a script name (`npm run release`, `make deploy`) stays the project's to add.
+decisions — and was decided later by **ADR-0072** (kit 0.11.0): six more registry publish
+commands joined the list, a script name (`npm run release`, `make deploy`) stays the project's
+to add.
 
 **Phase C is in, and with it the proposal is spent — `/gate fix`, a bounded repair loop
 (ADR-0068).** The contract is in `.claude/skills/gate/SKILL.md`; what matters for the thread is
@@ -349,26 +350,11 @@ hooks answer correctly when driven by hand: `ship_guard.sh` returns `ask` on `gi
 the current HEAD and stays silent on `ls`; `session_declaration.sh` emits the declaration block
 once a carrier is set.
 
-Repo is **private** on GitHub (`radozaprazny/attest`), template button on. Going public is
-a separate, deliberate step, and as of 2026-09-01 the case for it is measured rather than
-aesthetic:
-
-- **Branch protection is unavailable** on a private repo on GitHub Free — both
-  `branches/main/protection` and `rulesets` answer **403 · "Upgrade to GitHub Pro or make this
-  repository public"**. ADR-0035 delegates the merge boundary to branch protection, so that
-  boundary currently **exists nowhere**; going public is the only way to obtain it at no cost.
-- **`/audit-history full` ran clean** — 51 commits, 9 refs, 441 objects, all 44 paths that ever
-  existed: 0 findings on every rung (`.attest/ship-20260901-143933-9621526.md`). Two things are
-  recorded there as intended rather than as findings: the maintainer's address sits in 45 commit
-  authorships and would become permanently harvestable, and the name is in the `LICENSE`, the
-  clone URLs and the ADR-0012 repo-name guards. (Not spelled out here on purpose — the point
-  survives without adding an occurrence in file content, which is a different exposure class
-  from authorship metadata. The record itself *did* spell the address out, contradicting this
-  line; it was redacted on 2026-09-04 under ADR-0040, which sanctions exactly that one edit to
-  an append-only record and requires it to leave a mark.)
-- **54 `ADR-NNNN` citations ship into every adopter's repo** and today resolve to a 404. The
-  convention is explained (`audit-ladder.md:14`, `GUIDE.md:203`) but both pointers name this
-  private repo. Publishing makes them resolvable without writing a line.
+Repo is **public** since 2026-09-09 (`gh repo view` → `PUBLIC`, re-read 2026-09-23), template
+button on. The case made for the flip on 2026-09-01 is spent rather than open: branch protection,
+unavailable on a private Free repo, has been on since 2026-09-13; the ADR citations adopters get
+resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *Public since
+2026-09-09*.
 
 ## Next
 

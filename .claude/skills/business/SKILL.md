@@ -261,7 +261,8 @@ You own what the code **does**;
    revisited, and the trigger is an event that arrives later (attest ADR-0030).
 
 **Audit writes nothing.** If I agree with a finding, I re-run the skill in update mode
-(Mode 2) to change the document.
+(Mode 2) to change the document — unless it is a `repair: code` blocker, where the document is
+right and the code changes instead, by hand or by `/gate fix`.
 
 ## The compliance call — make it here, once, after the archetype
 
