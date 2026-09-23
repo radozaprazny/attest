@@ -473,12 +473,16 @@ one output shape and one severity ladder so they read as a family:
   2026-09-07 blocker was `*.sh text eol=lf` in `.gitattributes`, which no list flags. Never read
   a light ✅ as the branch being cleared — that is what `full` is for.
 - **`/gate fix`** (also `/gate full fix`) adds a **bounded repair loop** to either mode (attest
-  ADR-0068): it fixes the `reviewer`'s own blockers and majors in **code**, runs your project's
+  ADR-0068): it fixes in **code** the `reviewer`'s own blockers and majors, and the one kind
+  of document finding described below, runs your project's
   checks (from `CLAUDE.md`, or your CI workflow if `CLAUDE.md` is still the template),
-  re-reviews what it touched, and stops at its finish line — no reviewer-owned blocker or major
-  left — or after **three rounds**, which is two repairs, with *split the change*. It never
-  edits a control document and never takes a minor: a violated non-goal or an unrecorded
-  decision comes back to you under *for you to decide*. Each round appends its own record. This
+  re-reviews what it touched, and stops at its finish line — nothing left that it may take —
+  or after **three rounds**, which is two repairs, with *split the change*. It never
+  edits a control document and never takes a minor. **One document finding is in its reach**
+  (ADR-0071): a `/business` blocker the pass marked `repair: code` — code breaking a non-goal
+  where the fix keeps what the change is for — which it closes only with a test it wrote first
+  and saw fail. Every other violated non-goal, and every unrecorded decision, comes back to you
+  under *for you to decide*. Each round appends its own record. This
   is the answer to *"run it until it's green"*; `/loop` is not (PART 5.1).
 - **What for:** the whole per-change gate in one invocation. Touches no document, and no code
   outside the named `fix` mode; its one write is a dated **run record** under `.attest/`, one per round — SHA, kit version,
@@ -539,7 +543,8 @@ one output shape and one severity ladder so they read as a family:
   approval prompts.
 - **Never `/loop` the gate.** For *"until the gate is green"* the kit has `/gate fix`
   (PART 3.6, attest ADR-0068): it loops the one layer where a command is the judge, caps
-  itself at three rounds, records each one, and hands every document finding back to you. A
+  itself at three rounds, records each one, and hands back to you every document finding it
+  may not take. A
   `/loop` around a judgment pass has no checkable stop condition — it ends when the judge
   tires, which is the failure ADR-0061 was written to close.
 

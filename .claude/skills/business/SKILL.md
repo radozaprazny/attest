@@ -237,8 +237,21 @@ You own what the code **does**;
    - **major** — real work outside the declared scope, or the archetype no
      longer fits;
    - **minor** — a stale "Later:" item, or wording that has drifted.
-   End with a recommended `BUSINESS.md` update (which section, roughly what) — but **do not
-   make it**. If nothing drifted, say so in one line. **The audit writes nothing.**
+
+   **Mark every blocker `repair: code` or `repair: person`.** `code` when the violation can go
+   without what the change is for going with it — a value a non-goal keeps off the screen, masked;
+   `person` when the violation *is* what the change is for — a sync feature opening the socket a
+   *"no network"* non-goal forbids, where choosing between the feature and the non-goal is
+   intent. Unsure → `person`. **A blocker you report on regulated ground in `/compliance`'s
+   absence is always `person`**: no non-goal states it, and what a code change achieves there
+   is a legal reading, not a test result. The mark is what closing it takes, not who owns it —
+   the finding stays yours either way; `code` only lets `/gate fix` repair it under a test it
+   writes first (attest ADR-0071).
+
+   End with a recommended update — for a `code` blocker the code change, because the document
+   is right and the code is what drifted; for everything else the `BUSINESS.md` change (which
+   section, roughly what) — but **do not make it**. If nothing drifted, say so in one line.
+   **The audit writes nothing.**
 5. **One extra verdict line, only when it applies.** If `/compliance` is **not installed** and
    this diff (or the archetype no longer fitting) plainly triggers regulated scope, add:
    *"the compliance call may need re-making: &lt;the trigger&gt;; re-run `install.sh --compliance`

@@ -360,16 +360,12 @@ aesthetic:
 
 - **From an adopter's first gates on real code — its `.attest/` records for 2026-09-16, read up
   to the run at 21:22 CEST.**
-  - **`/gate fix` could not close a code bug that a non-goal forbids — observed, not predicted.**
-    In the loop that ran 15:13–15:30 CEST on kit 0.9.0, `fix` repaired the one `reviewer`-owned
-    blocker. The blockers left were owned by `/business` — code putting secret-shaped values on
-    screen, against a non-goal — and they were still open when that loop stopped, and in the light
-    runs at 16:09 and 17:47. A new loop at 21:22 found none, closed by means the records do not
-    show. The ladder gives *code that does what a non-goal forbids* to `/business`, and ADR-0068
-    lets `fix` repair only `reviewer`-owned findings, so a repair that is pure code, with tests as
-    its judge, went to the person. ADR-0068 treats *owned by a document pass* as if it meant
-    *needs a document edit*. Worth an entry: either `fix` may take a document pass's finding whose
-    repair touches only code, or the contract gives such a hunk a code owner.
+  - ✅ **`/gate fix` could not close a code bug that a non-goal forbids — closed by ADR-0071**
+    (kit 0.11.0), which carries the evidence and the reasoning. `fix` may now take a `/business`
+    blocker the pass marks `repair: code`, and only a test it writes first and sees fail closes
+    it; the other direction — giving such a hunk a code owner — was weighed there and refused.
+    **Still untested in anger:** no loop has run under it yet; the next adopter gate with a
+    non-goal finding is the first real test.
   - **`/business` missed those findings in the one run on kit 0.8.0, and owned them in every 0.9.0
     run while they stood.** A single miss, across a kit upgrade and a diff that kept changing,
     says nothing about the skill yet.

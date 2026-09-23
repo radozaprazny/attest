@@ -2620,3 +2620,89 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   running until its limit, holding no descriptor the hook reads. The network trace was taken in
   the commit mode the guard uses and not in the others, and none of this was run on macOS, for
   which the tool ships a binary and the hook is unchanged POSIX `sh`.
+
+## ADR-0071 — `/gate fix` may repair a `/business` blocker whose repair is code alone, and a test it writes first is the judge · 2026-09-23 · Accepted
+
+  Widens: ADR-0068 — *"fix only reviewer-owned blockers and majors"* read *owned by a document
+  pass* as if it meant *needs a document edit*. One class of document finding is now in reach,
+  under a judge of the kind that entry itself accepts.
+  Relates to: ADR-0004 (behaviour a non-goal forbids is `/business`'s — unchanged: this entry
+  moves who may **repair** such a hunk, never who **owns** it), ADR-0017 (the edit stays in the
+  main context), ADR-0049 (the record line it adds names a path, never a value).
+
+- **Context** — an adopter's `.attest/` records for 2026-09-16, read on 2026-09-23; the project
+  stays unnamed, as its owner decided. A `/gate fix` loop on kit 0.9.0 ran three rounds, 15:13 ·
+  15:24 · 15:30 CEST. It repaired the one `reviewer`-owned blocker; two `/business` blockers —
+  code putting a secret-shaped value on screen, against a non-goal — stood through round 3, and
+  the light runs at 16:09 and 17:47 recorded four. A new loop at 21:22 found none, closed by
+  means the records do not show. **At 14:22 the same day, on kit 0.8.0, the same class on the
+  same file was recorded as `reviewer`-owned.** Same class, same file: in one run inside `fix`'s
+  reach, in the next outside it. What decided the reach was which pass saw the finding, not what
+  closing it takes. ADR-0068 kept document findings out for two reasons — their judges vary, and
+  *what a declaration governs needs the person* — and both hold for a finding whose repair is a
+  document edit or a choice about intent. Neither holds for code that breaks a rule already
+  written: the non-goal is declared, nobody is asked to change it, and a test can say whether the
+  code still breaks it.
+- **Options** — (a) `fix` may take a `/business` blocker whose repair is code alone, and a re-run
+  of `/business` narrowed to that finding judges the repair; (b) the same reach, but the judge is
+  a test `fix` writes **first** — red on the tree as found, green after the repair; (c) give such
+  a hunk a code owner: the ladder moves *code that does what a non-goal forbids* to the
+  `reviewer`.
+- **Decision** — (b), with five limits that are rules rather than habits:
+  1. **Only `/business`, only a `blocker` for a stated non-goal, only when the pass says so.**
+     The finding carries **`repair: code`** when the violation can be removed without removing what the change is
+     for — masking a value a non-goal keeps off the screen — and **`repair: person`** when the
+     violation *is* what the change is for — a new sync feature opening the socket a *"no
+     network"* non-goal forbids. Choosing between a feature and a non-goal is intent, and stays
+     the person's. Unsure → `person`. A `/business` major (scope, archetype) is intent by
+     definition; `/decision`'s repair is a record by definition; `/compliance` is out because
+     what a code change achieves on regulated ground is a legal reading, not a test result — and
+     so, for the same reason, is the regulated ground `/business` reports in `/compliance`'s
+     absence (ADR-0030): always `person`, since no non-goal states it.
+  2. **The test comes first, and must fail.** **No test runner in the project → the finding is
+     not taken at all** — without the command there is no judge, and what is left is the loop
+     ADR-0068 refused. Otherwise `fix` writes a test that states the non-goal at that code and
+     runs it on the tree as found. Red → repair, then the project's checks, the new test among
+     them. Green before any repair → the test does not pin the violation: `fix` **deletes the
+     test it wrote** — a test that was never red is the very thing this entry refuses to commit
+     — edits nothing else, and the finding goes to the person.
+  3. **What `fix` may not do to close it:** edit `BUSINESS.md` or any control document
+     (unchanged), remove or weaken the non-goal, delete the feature, or skip, disable or loosen
+     a test.
+  4. **Closed means red before, green after.** The round's record drops the finding from
+     `findings:` and keeps one line in its place, `closed · business · <class> · <path> · pinned
+     by <test file>` — a path, no value, no narrative (ADR-0049). The `reviewer`'s re-review covers
+     the fix hunks, the new test among them, and is still never handed the `/business` finding:
+     not its ground (ADR-0068).
+  5. **The finish line widens to match** — *no blocker or major stands that `fix` may take* —
+     and a finding handed to the person, by its mark or by step 2, is out of reach for the rest
+     of the loop: letting it hold a round open would end on *split the change*, the wrong
+     diagnosis ADR-0068 warns against.
+- **Why** — (c) moves the finding and keeps the conflation. The `reviewer` would have to read
+  `BUSINESS.md` on every commit, when it derives a project's conventions from `CLAUDE.md` and
+  nothing else by design; the one ownership edge a real dogfood hit (ADR-0004) would be redrawn
+  to suit a repair mechanism; and a violation whose repair is *not* code — the feature case —
+  would land on a pass that cannot decide it. (a) keeps a judgment pass inside the loop, which is
+  ADR-0068's refused option (b) made narrower, and narrower does not make it a command: that
+  entry's own evidence is four runs over one tree returning 4 · 2 · 3 · 5 majors. (b) puts the
+  loop where ADR-0068 says a loop belongs — where a command is the judge — and makes the repair
+  earn that command: a test that has to fail first cannot have been written to pass.
+- **Consequences** — the ladder's *Output shape* gains one field on one kind of finding, a
+  `/business` blocker's `repair:`; `/business` audit step 4 says when to set which value;
+  `/gate`'s `fix` section changes its finish line, splits step 1 by owner, adds the `closed ·`
+  line to the record template, tells stage 0's re-run on the fix hunks not to re-judge a finding
+  a test closes, and adds a fourth thing `fix` never does — *close a finding by weakening what
+  judges it*; GUIDE's two sentences about `fix` follow. `smoke.sh` pins the field in the ladder and in
+  `/business`, and the record line in `/gate`, because a field one side writes and the other
+  never reads is exactly how the two drift. **Kit 0.11.0**, adopter-visible: a gate that used to
+  hand these findings back may now edit code for them.
+- **Known limits.** The line between `code` and `person` is the pass's judgment, and the loop
+  does not ask again — a pass that marks a feature `code` gets that feature reshaped without the
+  person being asked; the diff and the record show it and it reverts, but the default is
+  `person` for that reason. A test pins the instance the finding named, not the non-goal
+  everywhere: the next `/business` run is what reads the rest, and until then the test is what
+  stands. A test pinning a secret-shaped value needs a fixture shaped like one, and the push scan
+  (ADR-0070) or `/audit-history` may read it as a secret; the skill asks for a visibly fake
+  value, and a fingerprint in `.betterleaksignore` is the remedy if the scanner still fires —
+  predicted, not measured. The evidence is one adopter, one class of finding and one day, and
+  no loop has yet run under this entry.

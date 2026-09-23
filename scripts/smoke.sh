@@ -110,6 +110,20 @@ check "…and is told not to re-litigate an untouched hunk" \
   grep -q 'Do not re-litigate' "$KIT/.claude/agents/reviewer.md"
 check "…and counts to the same cap the skill states" \
   grep -q 'round <n>/3' "$KIT/.claude/agents/reviewer.md"
+# ADR-0071: one document finding is in fix's reach. The mark is written by /business under the
+# ladder's output shape and read by /gate — three files, so each side is pinned where it lives.
+check "the ladder's output shape carries the repair mark on a /business blocker" \
+  grep -q './business. blocker only.*.repair: code.' "$KIT/.claude/skills/_shared/audit-ladder.md"
+check "…and /business is told to set it on every blocker" \
+  grep -q 'Mark every blocker .repair: code. or .repair: person.' "$KIT/.claude/skills/business/SKILL.md"
+check "…and /gate fix takes only a blocker so marked" \
+  grep -q 'a ./business. blocker marked .repair: code.' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and writes the test before the repair" \
+  grep -q 'write the test first' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and records who judged it closed" \
+  grep -q 'closed · business ·' "$KIT/.claude/skills/gate/SKILL.md"
+check "…and never closes a finding by weakening its judge" \
+  grep -q 'never closes a finding by weakening what judges it' "$KIT/.claude/skills/gate/SKILL.md"
 check "the skill no longer promises the gate changes no code" \
   grep -q 'changes no code except in the named' "$KIT/.claude/skills/gate/SKILL.md"
 check "…and the ladder carries the same exception" \
