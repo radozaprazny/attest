@@ -284,10 +284,15 @@ say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagent
 # categorical warning would be false (ADR-0020). So ask the file which hooks it names.
 #
 # By NAME is not enough on its own any more (attest ADR-0058). The ship guard is registered
-# twice — once for `Bash`, once for the publish tools of a GitHub MCP server — so a stanza
+# twice — once for the shell tools, once for the publish tools of a GitHub MCP server — so a stanza
 # written before that second registration names `ship_guard.sh`, passes a filename check, and
 # leaves the non-shell publish path ungated while this installer reports it as wired. That is
 # the false assurance ADR-0035 refuses, so the MCP matcher is required alongside the filenames.
+# `PowerShell` is required for the same reason (attest ADR-0073): a stanza whose shell matcher is
+# `Bash` alone names every file and still never fires where Claude Code routes shell commands
+# through its PowerShell tool — on Windows, by default. It is looked for in a `"matcher"` value,
+# not anywhere: a `PowerShell(...)` permission rule in the same file would otherwise pass it,
+# and a Windows user is exactly who writes one. `PowerShell|Bash` passes too.
 KIT_HOOKS=()
 for h in "$KIT"/.claude/hooks/*; do
   [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
@@ -302,6 +307,8 @@ if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json
     for hook in "${KIT_HOOKS[@]:-}"; do
       grep -qF "$hook" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_STATE="unwired"
     done
+    grep -qE '"matcher"[[:space:]]*:[[:space:]]*"[^"]*PowerShell' "$TARGET/.claude/settings.json" \
+      2>/dev/null || SETTINGS_STATE="unwired"
   fi
 fi
 group_reset
@@ -412,9 +419,11 @@ fi
 if [ "$SETTINGS_STATE" = "unwired" ]; then
   cat <<'EOF'
 
-  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook, or the
-    ship guard's second registration, which is the only thing gating a push made through an
-    MCP server rather than a shell. Merge this in:
+  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook; the ship
+    guard's second registration, which is the only thing gating a push made through an MCP
+    server rather than a shell; or `PowerShell` in its shell matcher, without which the guard
+    never sees a command Claude Code runs through its PowerShell tool, as it does on Windows by
+    default. Merge this in:
 
 EOF
   sed 's/^/      /' "$KIT/.claude/settings.json"

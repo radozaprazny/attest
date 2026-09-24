@@ -2761,3 +2761,73 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   generic, so any of the six followed by a whole-word `--dry-run` passes as a dry run; what each
   tool does with that flag was not checked. A substring can over-match
   (`gem push` inside a longer word would ask); that direction costs a prompt, never a miss.
+
+## ADR-0073 — the ship guard is registered for the PowerShell tool too, and a missing HEAD is named for what it is · 2026-09-24 · Accepted
+
+  Widens: ADR-0028 (the ship guard) — to the shell tool Claude Code uses on Windows.
+  Extends: ADR-0058 (`install.sh` requires a matcher, not only the filenames) — `PowerShell`
+  joins the MCP matcher as a string the wiring check requires.
+  Widens: ADR-0050 (outside a git checkout the guard asks) — to a repository with no commits
+  yet, which is inside one; it still asks in both, and now says which of the two it is.
+  Narrows: ADR-0028 — *"a non-git directory lets everything proceed"*: with no HEAD the guard
+  asks (ADR-0050, and this entry).
+
+- **Context** — two items the external review of 2026-09-03/04 left open. **P0 item 6 (F06)**
+  was triaged as one GUIDE sentence about Windows without Git for Windows. Claude Code's docs,
+  read on 2026-09-23, make it wider: the PowerShell tool is *"enabled automatically"* without
+  Git Bash and *"on by default for claude.ai and Console accounts"* with it; *"wherever the
+  PowerShell tool is enabled, Claude treats PowerShell as the primary shell and routes shell
+  commands through it"*; and *"a hook that matches only `Bash` never fires there"*. The kit's
+  shell matcher was `Bash`. The hook itself was never the problem — handed a payload named
+  `PowerShell`, whose `tool_input` has the Bash tool's fields with *"the command string in
+  `command`"* per the same docs, it asks on `git push`; only the matcher kept it from being
+  called. **P0 item 7 (F14,
+  F50)** was the non-git directory. ADR-0050 corrected the header; what remained, measured on
+  2026-09-24 against the guard as released in v0.11.0: outside a checkout the prompt told the
+  person to write a record *"for this HEAD"*, which nobody can; and in a repository with no
+  commits yet a bare `git rev-parse HEAD` prints the word `HEAD` before failing, `|| true` kept
+  it, and the guard believed a HEAD existed — it asked about a record *"for HEAD ()"* and, with
+  `betterleaks` installed, ran a scan over nothing that failed and added *"did not finish"*. The
+  review's wording for that case, *"told it is not a git checkout"*, is what v0.4.0 through
+  v0.7.0 said; from v0.8.0, when ADR-0050 added the full-sha read, it has said *"for HEAD ()"* —
+  measured on each tag. The fault had moved, not gone.
+- **Options** — for the matcher: (a) `Bash|PowerShell`, required by `install.sh`'s wiring
+  check; (b) keep `Bash` and write the sentence, as triaged; (c) (a), plus a way for the hook to
+  run where Git Bash is absent — which means a second implementation of every rule in
+  PowerShell, since a POSIX `sh` hook cannot run without a POSIX shell. For the missing HEAD
+  there is no real alternative to reading HEAD correctly; the choice is only what to say.
+- **Decision** — (a). HEAD is read with `rev-parse --verify -q`, which prints nothing when there
+  is none, and the prompt names the place: *"no commits yet"* with *"Commit first and run
+  /audit-history for that commit"*, or *"git found no repository here, or refused to read one"* —
+  not *"not a git checkout"*, because git says the same when `safe.directory` makes it refuse a
+  repository owned by another user, and its wording is translated, so the two cannot be told apart
+  from the hook. Both still ask, as ADR-0050 decided.
+- **Why** — (b) leaves a default Windows setup with a gate the README advertises and the tool
+  never calls, which is the believed-but-false gate ADR-0035 refuses. The matcher entry is inert
+  where the PowerShell tool is off — on Linux, macOS and WSL it is opt-in, per the same docs. (c)
+  answers a configuration nobody here has measured, at the price of two copies of the guard that
+  would have to agree forever; it is written down as the limit instead. Requiring `PowerShell` in
+  `install.sh`'s check means an adopter with an older stanza is told it is not fully wired — true
+  for PowerShell commands, and on Linux a warning about a tool they may never enable. One extra
+  warning is weighed against reporting *"wired"* to a Windows user whose pushes the guard never
+  sees (ADR-0035).
+- **Consequences** — `.claude/settings.json`'s shell matcher is `Bash|PowerShell`; `install.sh`
+  requires `PowerShell` inside a `"matcher"` value — not anywhere in the file, where a
+  `PowerShell(...)` permission rule would pass it — and its unwired warning says what that half is
+  for; the guard reads HEAD with `--verify -q`, gains `NOHEAD_NEXT` (initialised with the rest of
+  its state, ADR-0070) and two messages; its header and GUIDE 2.2 — title, *How*, an upgrade note,
+  the Windows bullet — follow. `smoke.sh` gains seventeen cases, **eleven of them failing against
+  `main`**: the matcher pin, four on the empty repository and two outside any checkout, and four
+  on the wiring check. The other six are controls, among them the guard already asking on a
+  payload named `PowerShell` and in both no-HEAD cases. **Kit 0.12.0**: an adopter's re-install
+  now flags a stanza written before it.
+- **Known limits.** Nothing here was run on Windows; the claims about Claude Code's tools are the
+  docs', read on 2026-09-23. **Without Git for Windows the guard does not run at all** — hooks
+  then run in PowerShell, `sh` is not found, and a failed hook is a non-blocking error, so the
+  command proceeds. The list reads POSIX spelling, measured on 2026-09-24: `Publish-Module` and
+  `Publish-PSResource` are silent through either tool, and so is a ship record written with
+  `Set-Content` or `Out-File`, which the record arm does not recognise as a record write; so is a
+  redirect to a path with backslashes, `.attest\ship-….md`, which is how Windows writes one.
+  `git.exe push` is silent too. The installer reads `PowerShell` in any `"matcher"` value, so a
+  `"matcher"` belonging to some other hook would pass it; `mcp__github__` is still a substring
+  anywhere in the file.
