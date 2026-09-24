@@ -288,11 +288,15 @@ say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagent
 # written before that second registration names `ship_guard.sh`, passes a filename check, and
 # leaves the non-shell publish path ungated while this installer reports it as wired. That is
 # the false assurance ADR-0035 refuses, so the MCP matcher is required alongside the filenames.
+# `PowerShell` is required for the same reason (attest ADR-0073): a stanza whose shell matcher is
+# `Bash` alone names every file and still never fires where Claude Code routes shell commands
+# through its PowerShell tool — on Windows, by default. The check is a substring, so a stanza
+# spelling it `PowerShell|Bash` passes too.
 KIT_HOOKS=()
 for h in "$KIT"/.claude/hooks/*; do
   [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
 done
-KIT_HOOKS+=("mcp__github__")
+KIT_HOOKS+=("mcp__github__" "PowerShell")
 SETTINGS_STATE="absent"
 if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
   if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
@@ -412,9 +416,11 @@ fi
 if [ "$SETTINGS_STATE" = "unwired" ]; then
   cat <<'EOF'
 
-  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook, or the
-    ship guard's second registration, which is the only thing gating a push made through an
-    MCP server rather than a shell. Merge this in:
+  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook; the ship
+    guard's second registration, which is the only thing gating a push made through an MCP
+    server rather than a shell; or `PowerShell` in its shell matcher, without which the guard
+    never sees a command Claude Code runs through its PowerShell tool, as it does on Windows by
+    default. Merge this in:
 
 EOF
   sed 's/^/      /' "$KIT/.claude/settings.json"

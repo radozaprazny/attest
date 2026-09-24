@@ -1,6 +1,7 @@
 #!/bin/sh
-# PreToolUse hook on Bash and on the publish tools of an MCP server: make the ship boundary
-# real (attest ADR-0028, widened past the shell by ADR-0058).
+# PreToolUse hook on the shell tools (Bash, and PowerShell — attest ADR-0073) and on the publish
+# tools of an MCP server: make the ship boundary real (attest ADR-0028, widened past the shell by
+# ADR-0058).
 #
 # /audit-history is the kit's ship gate — the check that no secret, no personal data and no
 # client name leaves the machine. Until now it was purely advisory: you had to remember it,
@@ -14,10 +15,11 @@
 # of the commit being shipped, and two of its lines are read — so the check is "was THIS state
 # audited AND did it come back clean", not "did you ever run it" and not "does a file exist"
 # (ADR-0028, narrowed by ADR-0037). Fail-open where it can be: no payload and no matching command
-# => the command proceeds untouched. Outside a git checkout it ASKS instead — there is no HEAD to
-# match a record against, so "audited" and "unaudited" are the same observation, and this file's
-# rule is that an extra prompt beats a miss. The header used to claim fail-open there too; the code
-# never did (attest ADR-0050).
+# => the command proceeds untouched. Outside a git checkout, and in a repository with no commits
+# yet, it ASKS instead — there is no HEAD to match a record against, so "audited" and "unaudited"
+# are the same observation, and this file's rule is that an extra prompt beats a miss. The header
+# used to claim fail-open there too; the code never did (attest ADR-0050). The prompt names which
+# of the two it is (attest ADR-0073).
 
 set -u
 
@@ -27,7 +29,7 @@ set -u
 # and one of them was a silent miss: with `KIND` set to anything, a `git push` with no record went
 # through with no prompt, because a non-empty KIND skips the ship list. Measured on the guard as
 # released in v0.9.0 before this line existed.
-KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-
+KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; NOHEAD_NEXT=
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
@@ -127,8 +129,9 @@ NORM="$(printf '%s' "$CMD" | awk '
 # which is the "believed-but-false gate" ADR-0035 refuses everywhere else.
 #
 # For this arm the coverage lives in `.claude/settings.json`, not here, and that is deliberate:
-# for Bash the matcher is the word `Bash` and the list of ship commands has to live in this file,
-# but an MCP tool only ever reaches a hook the matcher NAMES. The matcher is therefore the list.
+# for a shell the matcher names the tool, `Bash|PowerShell`, and the list of ship commands has to
+# live in this file, but an MCP tool only ever reaches a hook the matcher NAMES. The matcher is
+# therefore the list.
 # Wiring a tool to this hook is the statement that it publishes, so anything `mcp__*` that gets
 # here asks — wire the publish tools, not the whole server. Widen coverage in that file.
 #
@@ -238,13 +241,17 @@ fi
 if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
 SAFE="$(printf '%s' "$SUBJ" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
 
-SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
+# `--verify -q`, never a bare `rev-parse HEAD`: in a repository with no commits yet the bare form
+# prints the literal word `HEAD` on stdout before failing, `|| true` keeps it, and the guard then
+# believed a HEAD existed — it scanned, failed, and asked about a record "for HEAD ()". Measured
+# on the guard as released in v0.11.0 (attest ADR-0073).
+SHA="$(git -C "$ROOT" rev-parse --short --verify -q HEAD 2>/dev/null || true)"
 # The FULL sha is what a record is matched against (attest ADR-0050). `--short` is not a stable
 # length: `core.abbrev` is a config value, and git widens the default as a repo grows — so two
 # machines, or one machine before and after a `git config`, disagree about how many characters
 # a record's `- HEAD:` line should carry. `$SHA` stays for what humans read: the trace and the
 # prompt.
-FULL="$(git -C "$ROOT" rev-parse HEAD 2>/dev/null || true)"
+FULL="$(git -C "$ROOT" rev-parse --verify -q HEAD 2>/dev/null || true)"
 
 # The permission mode this call is being decided under, straight out of the payload. ADR-0034
 # gave the log a line for every decision because "the hook did not fire" and "the hook fired and
@@ -493,7 +500,18 @@ if [ -n "$FULL" ]; then
     WHY="no /audit-history run record for HEAD ($SHA) under .attest/"
   fi
 else
-  WHY="this is not a git checkout, so no ship record could be matched"
+  # No HEAD to name, which is two different places that used to get one message (attest
+  # ADR-0073, closing P0 item 7): a repository with no commits yet was told it was "not a git
+  # checkout", and both were told to write a record "for this HEAD" — advice nobody could follow.
+  # Each now hears what it is and the one step that can change the answer. It still ASKS in both,
+  # as ADR-0050 decided: with no HEAD, "audited" and "unaudited" are the same observation.
+  if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    WHY="this repository has no commits yet, so there is no HEAD a ship record could name"
+    NOHEAD_NEXT="Commit first and run /audit-history for that commit, or approve to proceed without a record."
+  else
+    WHY="this is not a git checkout, so there is no HEAD a ship record could name"
+    NOHEAD_NEXT="No ship record can clear a command run here, because there is no commit for one to attest; approve only if this is what you mean to send."
+  fi
 fi
 
 # What the scanner adds, and what the prompt then tells the person to do. The default advice —
@@ -506,6 +524,7 @@ fi
 # or `error` beside it. The first draft let `leak` win outright, which erased the difference
 # ADR-0038 made `blocked` a word to keep; with the column, neither fact hides the other.
 NEXT="Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
+if [ -n "$NOHEAD_NEXT" ]; then NEXT="$NOHEAD_NEXT"; fi
 case "$SCAN" in
   leak)
     [ "$CLEAN_RECORD" = 1 ] && DEC=leak

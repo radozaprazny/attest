@@ -143,8 +143,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   until the next `## `, so `### Ďalší krok` is read as a subsection of whatever precedes it and
   has to be promoted to `## `.
 
-### 2.2 `PreToolUse` on `Bash` and the publish MCP tools — the ship guard (`ship_guard.sh`)
-- **How:** before Claude runs a Bash command, the hook matches it against a short list of
+### 2.2 `PreToolUse` on `Bash|PowerShell` and the publish MCP tools — the ship guard (`ship_guard.sh`)
+- **How:** before Claude runs a shell command — through its Bash tool, or its PowerShell tool
+  (attest ADR-0073) — the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
   create` and `upload`, the common registries' publish (`npm`, `pnpm`, `yarn`, `bun`, `uv` and
   `poetry publish`, `twine upload`, `cargo publish`, `gem push`), `docker push`, a Kaggle
@@ -184,10 +185,10 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   kit registers the same hook a second time for `mcp__github__push_files`,
   `create_or_update_file`, `create_pull_request` and `create_repository`.
   - **For this arm the list lives in `.claude/settings.json`, not in the hook** — and that is
-    the honest place for it. For Bash the matcher is the word `Bash`, so the list of ship
-    commands has to be inside the script; an MCP tool only ever reaches a hook the matcher
-    **names**, so the matcher *is* the list. Wiring a tool to this hook is the statement that it
-    publishes: anything `mcp__*` that gets there asks. Wire the publish tools, not the server.
+    the honest place for it. For a shell the matcher names the tool, `Bash|PowerShell`, so the
+    list of ship commands has to be inside the script; an MCP tool only ever reaches a hook the
+    matcher **names**, so the matcher *is* the list. Wiring a tool to this hook is the statement
+    that it publishes: anything `mcp__*` that gets there asks. Wire the publish tools, not the server.
   - **It asks every time and never consults a record.** Every other arm passes on a clean record
     for HEAD. This one cannot: a record attests the **tree at a commit**, and these calls send
     bytes chosen **in the call**, which need not be committed and need not match HEAD. Passing
@@ -199,16 +200,19 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   - **Upgrading from a pre-0.9 stanza:** `install.sh` now requires the MCP matcher as well as
     the three hook filenames before it calls your `settings.json` wired — a file that names
     `ship_guard.sh` under `Bash` alone is reported, with the kit's stanza to merge in.
-- **On Windows the guard may never fire: the shell there is often not `Bash`.** Claude Code's
-  docs, read 2026-09-23: wherever its PowerShell tool is enabled, Claude *"routes shell commands
-  through it"*, and *"a hook that matches only `Bash` never fires there"* — and this kit's matcher
-  is `Bash`. The tool is enabled automatically without Git for Windows, and **on by default with
-  it** for claude.ai and Console accounts, where *"the Bash tool remains available for POSIX
-  scripts"* — so on a default Windows setup a `git push` **can** proceed with no prompt and no
-  trace line, depending on which tool Claude picks. Matching `Bash|PowerShell` would reach those
-  calls where Git Bash is installed, since hooks then still run in Git Bash; without it they run
-  in PowerShell, where the hook's `sh` does not exist — a non-blocking error, and the command
-  proceeds either way. None of this was run on Windows; it is the documented behaviour.
+  - **Upgrading from a pre-0.12 stanza:** the shell matcher must also name `PowerShell`; one
+    that says `Bash` alone is reported the same way (attest ADR-0073).
+- **On Windows the guard needs Git for Windows.** Claude Code's docs, read 2026-09-23: wherever
+  its PowerShell tool is enabled, Claude *"routes shell commands through it"*, and *"a hook that
+  matches only `Bash` never fires there"*. The tool is enabled automatically without Git for
+  Windows, and **on by default with it** for claude.ai and Console accounts — so until kit 0.12.0,
+  whose matcher is `Bash|PowerShell`, a default Windows setup could push with no prompt and no
+  trace line. With Git Bash installed, hooks still run in it, so the guard now sees those
+  commands. **Without it the guard is absent, not asking:** hooks then run in PowerShell, where
+  the hook's `sh` does not exist, and a hook that fails that way is a non-blocking error — the
+  command proceeds. The list reads POSIX spelling; a PowerShell-only way of publishing that
+  names none of its entries is not on it. None of this was run on Windows; it is the documented
+  behaviour.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by

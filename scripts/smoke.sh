@@ -691,6 +691,32 @@ for t in push_files create_or_update_file create_pull_request create_repository;
   says "settings.json wires mcp__github__$t to the ship guard" \
     "$(cat "$KIT/.claude/settings.json")" "$t"
 done
+# ADR-0073: where Claude Code's PowerShell tool is on — Windows, by default — a `Bash`-only
+# matcher never hands the guard a shell command at all. The payload has the Bash tool's shape.
+says "settings.json matches the PowerShell tool as well as Bash" \
+  "$(cat "$KIT/.claude/settings.json")" '"matcher": "Bash|PowerShell"'
+says "a git push through the PowerShell tool asks" \
+  "$(echo '{"tool_name":"PowerShell","tool_input":{"command":"git push origin main"}}' |
+     CLAUDE_PROJECT_DIR="$S" ATTEST_LEAK_SCAN=off sh "$GUARD")" 'permissionDecision":"ask'
+
+# --- no HEAD to name: an empty repository, and no repository at all (ADR-0073) ----------
+# A bare `rev-parse HEAD` prints the word HEAD before failing in an empty repository, so the
+# guard used to think a HEAD existed: it scanned, and asked about a record "for HEAD ()".
+E0="$WORK/empty-repo"; mkdir -p "$E0"; git -C "$E0" init -q
+e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
+  CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
+says     "a push from a repository with no commits asks"  "$e0_out" 'permissionDecision":"ask'
+says     "…says it has no commits yet"                    "$e0_out" 'no commits yet'
+says_not "…never names an empty HEAD"                     "$e0_out" 'HEAD ()'
+says_not "…and does not tell it to audit a HEAD it lacks" "$e0_out" 'for this HEAD'
+says     "…and runs no scan over commits that do not exist" \
+  "$(awk '{print $5}' "$E0/.attest/tmp/ship-guard.log" 2>/dev/null)" '^-$'
+N0="$WORK/not-a-repo"; mkdir -p "$N0"
+n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
+  CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
+says     "a push from outside any git checkout asks"      "$n0_out" 'permissionDecision":"ask'
+says     "…says it is not a git checkout"                 "$n0_out" 'not a git checkout'
+says_not "…and gives no advice that cannot be followed"   "$n0_out" 'for this HEAD'
 
 # --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
 rm -f "$S/.attest/tmp/ship-guard.log" "$S"/.attest/ship-*.md
@@ -1110,6 +1136,16 @@ done
 bashonly_out=$(run_install "$T4c")
 says "a Bash-only ship guard is not reported as fully wired" "$bashonly_out" 'NOT wired'
 says_not "…and is not reported as wired either" "$bashonly_out" 'registers every'
+# ...and a stanza from before ADR-0073, whose shell matcher is `Bash` alone, is not wired either:
+# every file and the MCP matcher are there, and the guard still never sees a PowerShell command.
+T4d="$WORK/settings-no-powershell"; mkdir -p "$T4d/.claude"
+sed 's/"Bash|PowerShell"/"Bash"/' "$KIT/.claude/settings.json" > "$T4d/.claude/settings.json"
+says "the fixture really keeps the MCP matcher, so only PowerShell is missing" \
+  "$(cat "$T4d/.claude/settings.json")" 'mcp__github__'
+nops_out=$(run_install "$T4d")
+says     "a shell matcher without PowerShell is reported as not wired" "$nops_out" 'NOT wired'
+says     "…and the warning names PowerShell"                           "$nops_out" 'PowerShell'
+says_not "…and is not reported as wired"                               "$nops_out" 'registers every'
 
 # --- 8. compliance is opt-in, and adding it later is just a re-run ---------------------
 echo "install.sh — compliance opt-in:"

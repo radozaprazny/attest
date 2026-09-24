@@ -7,8 +7,17 @@
 
 ## Current state
 
-**Kit 0.11.0 on branch `feat/fix-code-repair-and-ship-list`, not merged, not tagged — ADR-0071
-and ADR-0072.** `/gate fix` may now repair a `/business` blocker the pass marks `repair: code`,
+**Kit 0.12.0 on branch `fix/guard-powershell-and-non-git`, not merged, not tagged — ADR-0073,
+closing P0 items 6 and 7.** The ship guard's shell matcher is `Bash|PowerShell`, so it is called
+where Claude Code routes shell commands through its PowerShell tool — Windows, by default — and
+`install.sh` flags a stanza without it. A repository with no commits was believed to have a HEAD
+(a bare `rev-parse HEAD` prints the word), so the guard scanned nothing and asked about a record
+*"for HEAD ()"*; it now reads HEAD with `--verify -q`, and both no-HEAD cases get advice that can
+be followed. Suite **367 → 382**: fourteen cases, eight failing against `main`, plus one ship
+record. Without Git for Windows the guard still does not run at all — the named limit.
+
+**`v0.11.0` is tagged at `79cb7f1` (tag object `ad95602`), 2026-09-24 — ADR-0071 and ADR-0072,
+merged as PR #26.** `/gate fix` may now repair a `/business` blocker the pass marks `repair: code`,
 closed only by a test it writes first and sees fail — the gap the adopter's 2026-09-16 loop
 exposed. The ship list gains six publish commands (`yarn`/`bun`/`uv`/`poetry publish`,
 `gem push`, `gh release upload`); a script name stays the project's to add. Suite **351 → 367**:
@@ -334,12 +343,12 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-23 on the kit-0.11.0 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-24 on the kit-0.12.0 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 367 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 382 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
@@ -494,18 +503,14 @@ resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *P
      there on purpose, is **decided by ADR-0072**: `yarn publish` and `gh release upload` ask now,
      with `bun`/`uv`/`poetry publish` and `gem push`; `npm run release` and `make deploy` stay
      silent by design, pinned so in `smoke.sh`.
-  6. ◐ **`"matcher": "Bash|PowerShell"`** (F06) — **the GUIDE 2.2 sentence is in (2026-09-23),
-     and re-reading the docs that day found the gap wider than F06 said.** The PowerShell tool is
-     not only the no-Git-Bash fallback: with Git Bash installed it is **on by default** for
-     claude.ai and Console accounts, and wherever it is on, Claude routes shell commands through
-     it — so on a default Windows setup the `Bash`-only matcher never fires and a push is silent.
-     Widening the matcher closes that where Git Bash exists (hooks still run there); without Git
-     Bash the hook's `sh` is missing and nothing in the matcher helps. **Open:** the matcher
-     change is kit behaviour and wants its own entry; nothing was run on Windows.
-  7. ⬜ **The non-git directory** (F14, F50) — the hook's own header and ADR-0028 promise it
-     "proceeds untouched"; it actually prompts with advice that cannot be satisfied, and a repo
-     with no commits yet is told it is "not a git checkout".
-  8. ⬜ **Decide what `/gate` is for** (F65, below) — a light mode for small changes, or stop
+  6. ✅ **`"matcher": "Bash|PowerShell"`** (F06) — **closed by ADR-0073** (kit 0.12.0), wider
+     than F06 said: the docs put the PowerShell tool on by default on Windows even with Git Bash.
+     Without Git Bash the guard still cannot run; the entry names that limit.
+  7. ✅ **The non-git directory** (F14, F50) — **closed by ADR-0073**. The fault had moved since
+     the review: an empty repository was taken to have a HEAD, and both no-HEAD cases were told
+     to write a record *"for this HEAD"*.
+  8. ✅ **Decide what `/gate` is for** — closed; see *What `/gate` is for (was F65)* below. As
+     triaged: a light mode for small changes, or stop
      promising a commit-time gate. Sharpened by the 09-07 run: the full gate is what *found* two
      blockers nothing else could, so the answer is not "run it less" — it is a cheaper mode that
      is still worth running on a one-file change.
