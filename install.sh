@@ -284,19 +284,20 @@ say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagent
 # categorical warning would be false (ADR-0020). So ask the file which hooks it names.
 #
 # By NAME is not enough on its own any more (attest ADR-0058). The ship guard is registered
-# twice — once for `Bash`, once for the publish tools of a GitHub MCP server — so a stanza
+# twice — once for the shell tools, once for the publish tools of a GitHub MCP server — so a stanza
 # written before that second registration names `ship_guard.sh`, passes a filename check, and
 # leaves the non-shell publish path ungated while this installer reports it as wired. That is
 # the false assurance ADR-0035 refuses, so the MCP matcher is required alongside the filenames.
 # `PowerShell` is required for the same reason (attest ADR-0073): a stanza whose shell matcher is
 # `Bash` alone names every file and still never fires where Claude Code routes shell commands
-# through its PowerShell tool — on Windows, by default. The check is a substring, so a stanza
-# spelling it `PowerShell|Bash` passes too.
+# through its PowerShell tool — on Windows, by default. It is looked for in a `"matcher"` value,
+# not anywhere: a `PowerShell(...)` permission rule in the same file would otherwise pass it,
+# and a Windows user is exactly who writes one. `PowerShell|Bash` passes too.
 KIT_HOOKS=()
 for h in "$KIT"/.claude/hooks/*; do
   [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
 done
-KIT_HOOKS+=("mcp__github__" "PowerShell")
+KIT_HOOKS+=("mcp__github__")
 SETTINGS_STATE="absent"
 if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
   if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
@@ -306,6 +307,8 @@ if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json
     for hook in "${KIT_HOOKS[@]:-}"; do
       grep -qF "$hook" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_STATE="unwired"
     done
+    grep -qE '"matcher"[[:space:]]*:[[:space:]]*"[^"]*PowerShell' "$TARGET/.claude/settings.json" \
+      2>/dev/null || SETTINGS_STATE="unwired"
   fi
 fi
 group_reset

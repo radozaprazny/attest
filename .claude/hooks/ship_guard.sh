@@ -46,8 +46,9 @@ CMD="$(printf '%s' "$PAYLOAD" |
 [ -n "$CMD" ] || CMD="$PAYLOAD"
 
 # WHICH TOOL this call is, which is the question the `case` below cannot ask (attest ADR-0058).
-# The kit registers this hook twice: once for `Bash`, once for the publish tools of a GitHub MCP
-# server — those ship bytes without ever opening a shell, so no command string exists to match.
+# The kit registers this hook twice: once for the shell tools, once for the publish tools of a
+# GitHub MCP server — those ship bytes without ever opening a shell, so no command string exists
+# to match.
 #
 # Split on commas and take the FIRST match rather than letting `.*` run greedy to the last one:
 # a `push_files` payload carries file CONTENT, and a repo whose own files quote the string
@@ -509,8 +510,11 @@ else
     WHY="this repository has no commits yet, so there is no HEAD a ship record could name"
     NOHEAD_NEXT="Commit first and run /audit-history for that commit, or approve to proceed without a record."
   else
-    WHY="this is not a git checkout, so there is no HEAD a ship record could name"
-    NOHEAD_NEXT="No ship record can clear a command run here, because there is no commit for one to attest; approve only if this is what you mean to send."
+    # Not "not a git checkout": git says the same when it refuses to read a repository owned by
+    # another user (safe.directory), which is common on Windows, and its wording is translated,
+    # so the refusal cannot be told apart reliably from here. Say both.
+    WHY="git found no repository here, or refused to read one, so there is no HEAD a ship record could name"
+    NOHEAD_NEXT="If this is a repository git refuses to read (safe.directory), make it readable and run /audit-history; otherwise no ship record can clear a command run here, so approve only if this is what you mean to send."
   fi
 fi
 

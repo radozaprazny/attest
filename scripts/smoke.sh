@@ -715,7 +715,7 @@ N0="$WORK/not-a-repo"; mkdir -p "$N0"
 n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
   CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
 says     "a push from outside any git checkout asks"      "$n0_out" 'permissionDecision":"ask'
-says     "…says it is not a git checkout"                 "$n0_out" 'not a git checkout'
+says     "…says git found no repository there"            "$n0_out" 'found no repository here, or refused to read one'
 says_not "…and gives no advice that cannot be followed"   "$n0_out" 'for this HEAD'
 
 # --- every decision leaves exactly one line in the trace (ADR-0034 + ADR-0038) ---------
@@ -1144,8 +1144,20 @@ says "the fixture really keeps the MCP matcher, so only PowerShell is missing" \
   "$(cat "$T4d/.claude/settings.json")" 'mcp__github__'
 nops_out=$(run_install "$T4d")
 says     "a shell matcher without PowerShell is reported as not wired" "$nops_out" 'NOT wired'
-says     "…and the warning names PowerShell"                           "$nops_out" 'PowerShell'
+says     "…and the warning says what the PowerShell half is for"       "$nops_out" 'in its shell matcher'
 says_not "…and is not reported as wired"                               "$nops_out" 'registers every'
+# The word alone is not a matcher: a `PowerShell(...)` permission rule in the same file must not
+# stand in for one, and a Windows user is exactly who writes that rule.
+T4e="$WORK/settings-powershell-permission-only"; mkdir -p "$T4e/.claude"
+sed -e 's/"Bash|PowerShell"/"Bash"/' \
+    -e '1a\
+  "permissions": { "allow": ["PowerShell(git status)"] },' \
+  "$KIT/.claude/settings.json" > "$T4e/.claude/settings.json"
+says "the fixture really names PowerShell, only outside a matcher" \
+  "$(cat "$T4e/.claude/settings.json")" 'PowerShell(git status)'
+psperm_out=$(run_install "$T4e")
+says     "a PowerShell permission rule does not count as the matcher"  "$psperm_out" 'NOT wired'
+says_not "…and is not reported as wired"                               "$psperm_out" 'registers every'
 
 # --- 8. compliance is opt-in, and adding it later is just a re-run ---------------------
 echo "install.sh — compliance opt-in:"

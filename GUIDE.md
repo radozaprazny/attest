@@ -210,9 +210,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   trace line. With Git Bash installed, hooks still run in it, so the guard now sees those
   commands. **Without it the guard is absent, not asking:** hooks then run in PowerShell, where
   the hook's `sh` does not exist, and a hook that fails that way is a non-blocking error — the
-  command proceeds. The list reads POSIX spelling; a PowerShell-only way of publishing that
-  names none of its entries is not on it. None of this was run on Windows; it is the documented
-  behaviour.
+  command proceeds. The list reads POSIX spelling: `git.exe push`, `Publish-Module` and a ship
+  record written to a backslash path are silent (attest ADR-0073). None of this was run on
+  Windows; it is the documented behaviour.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
