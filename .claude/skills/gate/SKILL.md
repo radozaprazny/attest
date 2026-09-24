@@ -8,7 +8,8 @@ description: >-
   their findings under the shared audit ladder and ownership contract into ONE verdict and
   appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
   control document, and changes no code except in the named `fix` mode, which repairs
-  reviewer-owned blockers and majors and nothing else. Does NOT include
+  reviewer-owned blockers and majors, and a /business blocker marked `repair: code` under a
+  test it writes first — nothing else. Does NOT include
   /audit-history (that is the separate ship gate, run before a push/release). Generic —
   usable in any repo. Run it before a commit; each sub-audit fires only where relevant.
 disable-model-invocation: true
@@ -220,6 +221,7 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
    - verdict: <✅ ready to commit | ⚠️ commit after changes>
    - findings: <n> blocker · <n> major · <n> minor · <n> nit
      - <severity> · <owning pass> · <class of thing> · <path>   (one line per blocker and major)
+     - closed · business · <class of thing> · <path> · pinned by <test file>   (only in `fix` mode)
      - <severity> ×<n> · <owning passes>                        (minors and nits, by count)
    - detail: the session output; a durable copy under `.attest/tmp/` (ignored) if you want one
    ```
@@ -273,7 +275,7 @@ run record above is its one artifact, one per round. If a finding warrants a doc
 skill's write mode, run by me afterwards — recording stays a separate, human-approved step.
 `fix` below is the one named exception, and it is narrow: it edits **code**, never a document.
 
-## `fix` — a bounded loop, only where a command is the judge (attest ADR-0068)
+## `fix` — a bounded loop, only where a command is the judge (attest ADR-0068, ADR-0071)
 
 `/gate fix` and `/gate full fix` add a repair loop to the mode they suffix.
 
@@ -283,18 +285,38 @@ Every round after it is one repair cycle: *fix → checks → stage 0 on the hun
 The cap is **three rounds**, which is **two repairs**: find · fix-and-verify · fix-and-verify.
 
 **The finish line this loop watches is its own, and narrower than the verdict line.** It is:
-**no `reviewer`-owned blocker or major stands.** A document finding never holds a round open —
+**no blocker or major stands that `fix` may take** — the `reviewer`'s, and a `/business` blocker
+marked `repair: code` until step 1 hands it to the person (attest ADR-0071). Every other document
+finding never holds a round open —
 `fix` is forbidden to touch its ground, so letting one keep the loop alive would burn every
 round and end on *split the change* for a change that is not too large, only out of scope. Those
 findings go to the final verdict under *for you to decide*, exactly as they would without `fix`.
 
 Each repair round:
 
-1. **Fix only what the `reviewer` owns, and only at `blocker` or `major`.** The edit is yours,
+1. **Fix only what `fix` may take, and only at `blocker` or `major`.** The edit is yours,
    made in the main context, visible in the session — not a subagent's, because a subagent that
-   edits is a subagent whose read-only contract stopped being true (ADR-0017). **Nothing left
-   for `fix` to touch → stop here and say so**, with the verdict as it stands; an empty round is
-   not a round worth spending, and it is a different outcome from hitting the cap.
+   edits is a subagent whose read-only contract stopped being true (ADR-0017). Two kinds, and
+   nothing else:
+   - **what the `reviewer` owns** — repair it;
+   - **a `/business` blocker marked `repair: code`** — the pass judged that a stated non-goal is
+     broken and that the violation can go without what the change is for going with it. **No
+     test runner in the project → do not take it at all**; without the command there is no
+     judge. Otherwise **write the test first**: one that states the non-goal at that code, run on
+     the tree as found — with a fixture that is visibly fake where the value it guards is
+     secret-shaped. **Red → repair.** Green → it does not pin the violation: **delete the test
+     you wrote**, edit nothing else, and hand the finding to the person. A finding handed over
+     either way is out of `fix`'s reach for the rest of the loop. Unmarked, `repair: person`, or
+     a regulated-ground finding `/business` reports in `/compliance`'s absence → it is the
+     person's, as every other document finding is.
+
+   **Order inside a round: every test this step owes is written and run before any repair.** A
+   `reviewer` fix and a `/business` finding can sit in the same code — in the loop ADR-0071
+   came from they sat in the same file — and a repair made first turns the test green before it
+   ever ran red, which hands the finding to the person for no reason but order.
+
+   **Nothing left for `fix` to touch → stop here and say so**, with the verdict as it stands; an
+   empty round is not a round worth spending, and it is a different outcome from hitting the cap.
 2. **Run the project's own checks.** Take them from `CLAUDE.md` (*Tests*, *Formatting and lint*);
    if it is still the shipped template, take them from the project's CI workflow if it has one,
    and **say where you got them**. Red → back to 1, **same round, at most twice**; still red →
@@ -307,13 +329,17 @@ Each repair round:
    in the loop that gives the same answer twice for the same input.
 3. **Re-run stage 0 on the fix hunks alone.** If a document trigger hits on them — the fix added
    a dependency, say — that pass runs once, on those hunks. This is the whole of the "graph": a
-   fix re-opens the ground it touched and nothing else.
+   fix re-opens the ground it touched and nothing else. A test written under step 1 states the
+   non-goal, so it will often trip `/business`'s trigger: that run reports what the fix hunks
+   **newly** do, and never re-judges a finding step 1 took — its test does that.
 4. **Re-review.** Launch the `reviewer` in re-review mode with **its own** previous findings —
    never a document pass's, which are not its ground to judge and would make it break either the
    ownership contract or its own rule against dropping a finding — plus the fix
    hunks, the touched files **and the round number** (it prints that number, so it has to be
    given it). It says, per finding, *addressed / not addressed / regressed*, looks for what the
-   fix broke, and runs the checks again.
+   fix broke, and runs the checks again. **A `/business` finding taken in step 1 is closed by its
+   test and nothing else** — red before the repair, green after, with the checks green — never
+   by this re-review, which reads the test as one more fix hunk.
 5. **Finish line reached → stop.** Otherwise the next round, up to the third. Still red after
    the third → **stop and say *split the change***: a fourth round is not a repair, it is
    evidence that the change is too large to gate in one piece.
@@ -322,15 +348,21 @@ Each repair round:
 series is legible afterwards and ADR-0016's one-file-per-run shape is untouched. In a repair
 round the `passes:` line says **`reviewer re-review (fix hunks)`**, never a bare `reviewer ran`:
 a later round looks at less than the first one did, and a record that hides that would let
-`0 major` in round 3 read as the same statement as `0 major` in round 1. The `record_guard.sh`
-prompt is unaffected.
+`0 major` in round 3 read as the same statement as `0 major` in round 1. A `/business` finding
+closed by its test leaves the `findings:` counts, and its blocker line under them becomes
+**`closed · business · <class> · <path> · pinned by <test file>`** — a path, never a value
+(ADR-0049) — so the record says who judged it closed. The `record_guard.sh` prompt is unaffected.
 
-**Three things `fix` never does**, and each is a rule rather than a habit:
+**Four things `fix` never does**, and each is a rule rather than a habit:
 
-- **It never edits a control document.** A violated non-goal, an unrecorded decision, regulated
-  ground: these come back in the final verdict under *for you to decide*, with the owning
-  skill's write mode named as the next step. What a command can verify may loop; what a
-  declaration governs needs the person (ADR-0017, ADR-0051).
+- **It never edits a control document.** A violated non-goal it may not take, an unrecorded
+  decision, regulated ground: these come back in the final verdict under *for you to decide*,
+  with the owning skill's write mode named as the next step. What a command can verify may
+  loop; what a declaration governs needs the person (ADR-0017, ADR-0051).
+- **It never closes a finding by weakening what judges it.** No non-goal removed or narrowed,
+  no feature deleted to make a `repair: code` finding go away, no test skipped, disabled or
+  loosened — the one test `fix` may delete is its own, when it never went red. Each of those
+  turns the judge off instead of satisfying it (ADR-0071).
 - **It never takes a `minor` or a `nit`.** Advisory stays advisory, the diff stays minimal, and
   a fix that adds text to close an advisory finding is new ground for the next round — which is
   the mechanism ADR-0062 exists to slow down. Ask for one by name if you want it.

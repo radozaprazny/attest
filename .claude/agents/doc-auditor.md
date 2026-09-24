@@ -42,6 +42,7 @@ run tests; you must not, so you do not have it).
   `.claude/skills/_shared/audit-ladder.md` — read it, use its output shape, flag only
   your own ground, and name the owning skill for anything else you notice.
 - **Return only findings**: the one-line verdict, each finding with evidence
-  (`file:line` / commit / hunk) and a ladder severity, and the recommended document
-  update — **without making it**. Your final message is consumed by the gate's merge
+  (`file:line` / commit / hunk) and a ladder severity — plus, on a `/business` blocker, the
+  `repair: code` or `repair: person` mark the ladder's output shape requires — and the
+  recommended update — **without making it**. Your final message is consumed by the gate's merge
   step, not by a human: no preamble, no repetition of the instructions.

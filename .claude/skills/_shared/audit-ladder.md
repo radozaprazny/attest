@@ -15,7 +15,7 @@ them and is never absent when an audit runs.
 > Those citations are provenance for a rule, never a file to look up in *your* repo; your own
 > log is `DECISIONS.md` and its numbering is unrelated.
 
-Kit version: 0.10.0 (the kit's one version marker — it lives in this file because the ladder
+Kit version: 0.11.0 (the kit's one version marker — it lives in this file because the ladder
 installs with every audit consumer, so the version travels with the kit and can never desync
 from the contract; attest ADR-0018. `install.sh` prints it; a `/gate` run record cites it.
 Bump it when cutting a release.)
@@ -173,8 +173,15 @@ Every audit returns the same shape:
 2. **Findings**, ordered by severity, each with:
    - a one-line description,
    - **evidence** — `file:line`, a commit, or a diff hunk; never a vague gesture,
-   - a **severity** from the ladder above.
-3. **A recommended update** — which document, roughly what — but **do not make it**. Recording
+   - a **severity** from the ladder above,
+   - and on a **`/business` blocker only**, **`repair: code`** or **`repair: person`** — `code`
+     when a stated non-goal is broken and the violation can be removed without removing what the
+     change is for; `person` when the violation *is* what the change is for, when the finding is
+     regulated ground reported in `/compliance`'s absence, and when unsure. It says what closing
+     the finding takes, never who owns it: `code` is what lets `/gate fix` take it, under a test
+     it writes first (attest ADR-0071).
+3. **A recommended update** — which document, roughly what; for a `repair: code` blocker, the code
+   change — but **do not make it**. Recording
    is a separate, human-approved step (each skill's write mode).
 
 **A recommended fix subtracts before it adds.** Where a finding can be closed either by removing
