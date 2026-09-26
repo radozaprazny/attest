@@ -425,6 +425,14 @@ record_is_clean() {
 # forgery: `.betterleaksignore` (where a false positive's fingerprint belongs), a
 # `.betterleaks.toml` or `.gitleaks.toml`, an inline `betterleaks:allow` comment, and the
 # `env` block of a committed `.claude/settings.json` setting ATTEST_LEAK_SCAN=off for everyone.
+#
+# "Not yet on any remote" means every commit HEAD, a local branch or a tag has and no
+# remote-tracking ref has yet — not HEAD's alone (attest ADR-0074): `git push origin
+# other-branch`, `--all`, `--tags`, `push.default=matching` or a `remote.*.push` refspec each ship
+# commits HEAD does not have, and a HEAD-only range traced them `clean`. The command string
+# cannot say what ships, so the range does not try: a secret on a local branch this push leaves
+# behind asks too. HEAD stays in for a detached HEAD, which `--branches` does not reach.
+LEAK_RANGE="HEAD --branches --tags --not --remotes"
 if [ -n "$FULL" ]; then
   case "$NORM" in
     *"git push"*)
@@ -443,7 +451,7 @@ if [ -n "$FULL" ]; then
         # output open; the group's stderr too, so the shell's own "Terminated" notice stays
         # out of what Claude Code reads.
         {
-          (cd "$ROOT" && exec betterleaks git . --log-opts="HEAD --not --remotes" \
+          (cd "$ROOT" && exec betterleaks git . --log-opts="$LEAK_RANGE" \
              --redact=100 --no-banner --exit-code 42) </dev/null >/dev/null 2>&1 &
           _bl=$!
           (sleep "$_limit"; kill "$_bl") </dev/null >/dev/null 2>&1 &
@@ -532,14 +540,14 @@ if [ -n "$NOHEAD_NEXT" ]; then NEXT="$NOHEAD_NEXT"; fi
 case "$SCAN" in
   leak)
     [ "$CLEAN_RECORD" = 1 ] && DEC=leak
-    WHY="$WHY, but betterleaks found at least one secret in the commits not yet on any remote. The values are not repeated here; list them redacted, with the fingerprint each one needs to be ignored, using: betterleaks git . --log-opts='HEAD --not --remotes' --redact=100 --report-format json --report-path -"
+    WHY="$WHY, but betterleaks found at least one secret in the commits not yet on any remote. The values are not repeated here; list them redacted, with the fingerprint each one needs to be ignored, using: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100 --report-format json --report-path -"
     NEXT="Do not approve until that scan is clean: a secret pushed in one commit stays readable in history after a later commit deletes it. Remove it from the unpushed commits, or add the Fingerprint of a false positive to .betterleaksignore."
     ;;
   error)
     WHY="$WHY, but betterleaks is installed and did not finish (it failed, or passed its $_limit-second limit), so the commits not yet on any remote were not scanned"
     if [ "$CLEAN_RECORD" = 1 ]; then
       DEC=scanerr
-      NEXT="Run the scan by hand to see why: betterleaks git . --log-opts='HEAD --not --remotes' --redact=100. Approving proceeds on the record alone; a longer ATTEST_LEAK_SCAN_SECONDS, up to 540, gives a long history time to finish, and ATTEST_LEAK_SCAN=off stops the guard calling the scanner."
+      NEXT="Run the scan by hand to see why: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100. Approving proceeds on the record alone; a longer ATTEST_LEAK_SCAN_SECONDS, up to 540, gives a long history time to finish, and ATTEST_LEAK_SCAN=off stops the guard calling the scanner."
     fi
     ;;
 esac

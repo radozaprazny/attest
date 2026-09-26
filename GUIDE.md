@@ -259,9 +259,15 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   a model's reading, and keys are the one class a maintained rule-pack reads better. So when
   [`betterleaks`](https://github.com/betterleaks/betterleaks) is on the PATH Claude Code runs
   with, a `git push` — in any spelling the list normalises, and no other ship command — is also
-  scanned over **the commits HEAD has that no remote-tracking ref has yet**. That is usually what
-  the push sends, and not always: with two remotes, a commit already on one of them is out of
-  range for a push to the other.
+  scanned over **every commit that HEAD, a local branch or a tag has and no remote-tracking ref
+  has yet** (attest ADR-0074). That is more than one push usually sends, on purpose: the command
+  does not say what ships — `git push origin other-branch`, `--all`, `--tags`, or a bare
+  `git push` under `push.default=matching` each send commits HEAD does not have — so a secret on
+  a local branch you are not pushing asks too. Remote-tracking refs are branches only, so a
+  commit upstream reaches only by a tag — a release tag whose branch was deleted — is in range in
+  every clone that fetched it; if it holds something secret-shaped, every push asks until its
+  fingerprint is in `.betterleaksignore`. It is still not everything: with two remotes, a commit
+  already on one of them is out of range for a push to the other.
   - **It can only add a question.** A finding asks even when the record is clean; a clean scan
     never clears a push the record would not. Not installed, or `ATTEST_LEAK_SCAN=off` in the
     session's environment, and every decision is the one the guard made before.

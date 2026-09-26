@@ -816,7 +816,7 @@ clean_record
 # argument, from the repository root.
 if [ -z "$(lguard 0 'git push origin main')" ]; then ok "a clean scan leaves a clean record's pass alone"; else fail "a clean scan leaves a clean record's pass alone"; fi
 says "…and the trace says it scanned clean"          "$(col 2) $(col 5)" '^pass clean$'
-for _arg in git . '--log-opts=HEAD --not --remotes' --redact=100 --no-banner --exit-code 42; do
+for _arg in git . '--log-opts=HEAD --branches --tags --not --remotes' --redact=100 --no-banner --exit-code 42; do
   check "…with the argument $_arg, whole" grep -qx -- "$_arg" "$L/argv"
 done
 # Its own --timeout reports "no leaks found" after a partial scan and exits 0 at random.
@@ -829,6 +829,7 @@ _out="$(lguard 42 'git push origin main')"
 says     "a leak turns a clean record's pass into a question" "$_out" 'permissionDecision":"ask'
 says     "…and names the scanner as the reason"               "$_out" 'betterleaks found at least one secret'
 says     "…pointing at a listing that is redacted"            "$_out" ' --redact=100 --report-format json --report-path -'
+says     "…over the range it scanned"                         "$_out" "log-opts='HEAD --branches --tags --not --remotes'"
 says_not "…without advising a record the push already has"    "$_out" 'let it write a clean record'
 says_not "…and without repeating the secret"                  "$_out" "$STUB_SECRET"
 says     "…the trace says leak, twice over"                   "$(col 2) $(col 5)" '^leak leak$'
@@ -903,6 +904,60 @@ says "…and the trace says no scan was in question"            "$(col 2) $(col 
 if [ -z "$(lguard 42 'git push --dry-run')" ] && [ ! -e "$L/argv" ]; then ok "a dry run is never scanned"; else fail "a dry run is never scanned"; fi
 lguard 42 'git -C . push origin main' >/dev/null
 if [ -e "$L/argv" ]; then ok "a normalised spelling of git push is scanned like the plain one"; else fail "a normalised spelling of git push is scanned like the plain one"; fi
+
+# The range is every local branch and tag not yet on a remote, not HEAD alone (ADR-0074).
+# v0.12.0 scanned `HEAD --not --remotes`, so a secret on another local branch was out of range:
+# `git push origin feature` passed on main's clean record and the trace said `clean`. This stub
+# does with the range what the scanner does — `git log -p` over it — and looks for a marker, so the
+# range itself is tested wherever smoke runs, betterleaks installed or not.
+R="$WORK/leakrange"; mkdir -p "$R/bin"
+git init -q --bare "$R/remote.git"
+git init -q "$R/repo"
+git -C "$R/repo" symbolic-ref HEAD refs/heads/main
+git -C "$R/repo" config user.email smoke@example.invalid
+git -C "$R/repo" config user.name smoke
+: > "$R/repo/f"; git -C "$R/repo" add f; git -C "$R/repo" commit -qm init
+git -C "$R/repo" remote add origin "$R/remote.git"
+git -C "$R/repo" push -q origin main 2>/dev/null
+cat > "$R/bin/betterleaks" <<'EOF'
+#!/bin/sh
+for _a; do case "$_a" in --log-opts=*) _r="${_a#--log-opts=}" ;; esac; done
+git log -p $_r | grep -q SMOKE-RANGE-MARKER && exit 42
+exit 0
+EOF
+chmod +x "$R/bin/betterleaks"
+rangeguard() {
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" |
+    env PATH="$R/bin:$PATH" ATTEST_LEAK_SCAN=on CLAUDE_PROJECT_DIR="$R/repo" sh "$GUARD"
+}
+rangecol() { tail -n 1 "$R/repo/.attest/tmp/ship-guard.log" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+rangerecord() {
+  _s="$(git -C "$R/repo" rev-parse --short HEAD)"; mkdir -p "$R/repo/.attest"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$_s" > "$R/repo/.attest/ship-20260925-000000-$_s.md"
+}
+git -C "$R/repo" checkout -qb feature
+echo SMOKE-RANGE-MARKER > "$R/repo/cfg"; git -C "$R/repo" add cfg; git -C "$R/repo" commit -qm marker
+git -C "$R/repo" checkout -q main
+rangerecord
+_out="$(rangeguard 'git push origin feature')"
+says "a secret on a branch HEAD does not have is in range, so pushing that branch asks" "$_out" 'permissionDecision":"ask'
+says "…traced leak, where v0.12.0 traced clean"                                      "$(rangecol 2) $(rangecol 5)" '^leak leak$'
+# Pinned, not a false alarm to fix: the guard cannot tell from the command what a push sends —
+# a `remote.origin.push` of `refs/heads/*:refs/heads/*` sends this branch with a bare `git push`
+# — so it does not try.
+says "…and so does a plain push from HEAD, which may send that branch too"           "$(rangeguard 'git push')" 'permissionDecision":"ask'
+git -C "$R/repo" push -q origin feature 2>/dev/null
+if [ -z "$(rangeguard 'git push')" ]; then ok "once that branch is on a remote, its commits are out of range"; else fail "once that branch is on a remote, its commits are out of range"; fi
+says "…traced clean"                                                                 "$(rangecol 2) $(rangecol 5)" '^pass clean$'
+git -C "$R/repo" checkout -q --detach main
+echo SMOKE-RANGE-MARKER > "$R/repo/det"; git -C "$R/repo" add det; git -C "$R/repo" commit -qm detached
+rangerecord
+rangeguard 'git push origin HEAD:main' >/dev/null
+says "a secret on a detached HEAD is in range too, which --branches alone misses"   "$(rangecol 2) $(rangecol 5)" '^leak leak$'
+git -C "$R/repo" update-ref refs/tags/v-smoke HEAD
+git -C "$R/repo" checkout -q main
+rangeguard 'git push --tags' >/dev/null
+says "…and so is one only a tag reaches"                                             "$(rangecol 2) $(rangecol 5)" '^leak leak$'
 
 # The control: with no scanner installed, nothing about the decision changed — and the trace says why.
 if PATH="/usr/bin:/bin" command -v betterleaks >/dev/null 2>&1; then

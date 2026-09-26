@@ -7,8 +7,21 @@
 
 ## Current state
 
-**Kit 0.12.0 on branch `fix/guard-powershell-and-non-git`, not merged, not tagged — ADR-0073,
-closing P0 items 6 and 7.** The ship guard's shell matcher is `Bash|PowerShell`, so it is called
+**Kit 0.12.1 on branch `fix/guard-scan-unpushed-refs`, not merged, not tagged — ADR-0074,
+closing the secret half of issue #44.** The leak scan read `HEAD --not --remotes`, so a secret on
+another local branch shipped with `git push origin feature` — or, once that branch exists on the
+remote, with a bare `git push` under `push.default=matching` — while the trace said `clean`. It
+now reads `HEAD --branches --tags --not --remotes`: every commit HEAD, a local branch or a tag has
+and no remote-tracking ref has yet, a detached HEAD included, which #44's proposed range missed.
+The cost is named: a secret on any unpushed branch makes every push ask, and so does one on a
+commit upstream reaches only by a tag. Suite **386 → 394**: eight new cases; six of the suite's
+cases fail against `main`'s guard. The record half — an unaudited commit on another branch
+shipping on HEAD's record — is #30's; the roadmap to v1.0.0 is epic #28, and open work now lives
+in its issues.
+
+**Kit 0.12.0 — ADR-0073, closing P0 items 6 and 7 — merged as PR #27 and tagged `v0.12.0` at
+`b96c39a` (tag object `5234998`), 2026-09-24.** The ship guard's shell matcher is
+`Bash|PowerShell`, so it is called
 where Claude Code routes shell commands through its PowerShell tool — Windows, by default — and
 `install.sh` flags a stanza without it. A repository with no commits was believed to have a HEAD
 (a bare `rev-parse HEAD` prints the word), so the guard scanned nothing and asked about a record
@@ -345,12 +358,12 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-24 on the kit-0.12.0 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-26 on the kit-0.12.1 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 385 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 394 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
