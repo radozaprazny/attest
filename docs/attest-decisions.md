@@ -2831,3 +2831,48 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   `git.exe push` is silent too. The installer reads `PowerShell` in any `"matcher"` value, so a
   `"matcher"` belonging to some other hook would pass it; `mcp__github__` is still a substring
   anywhere in the file.
+
+## ADR-0074 — the leak scan covers every local branch and tag not yet on a remote, not HEAD alone · 2026-09-26 · Accepted
+
+  Widens: ADR-0070 (the leak scan) — from `HEAD --not --remotes` to
+  `HEAD --branches --tags --not --remotes`.
+
+- **Context** — issue #44, measured on `main` @ b96c39a (v0.12.0) on 2026-09-25. With a clean
+  record for `main` and a fake token in an unpushed commit on `feature`, `git push origin
+  feature` passed silently and the trace read `pass clean`, while `betterleaks` over `feature`'s
+  unpushed commits exited 42. The range was HEAD's, and a push can send more than HEAD: another
+  refspec, `--all`, `--tags` — and, with `feature` already on the remote one commit behind, a
+  bare `git push` under `push.default=matching`, a `remote.origin.push` refspec or
+  `remote.origin.mirror`, each measured sending `feature` while the guard traced `pass clean`.
+  #44 proposed `--branches --tags --not --remotes`; measured with betterleaks 1.8.1, that range
+  misses a commit only a detached HEAD reaches (exit 0, where today's range exits 42).
+- **Options** — (a) `HEAD --branches --tags --not --remotes`; (b) #44's range, without `HEAD`;
+  (c) parse the command and scan what it ships; (d) run `git push --dry-run --porcelain` from the
+  hook to learn the shipped set.
+- **Decision** — (a), in one variable, `LEAK_RANGE`, that the scan and both listing commands in
+  the prompt read, so the advice lists the range that was scanned.
+- **Why** — (b) drops the detached HEAD, measured. (c) is the step #44's own follow-ups showed
+  the command string cannot carry: push config, `-c push.default=…`, a `GIT_CONFIG_*` prefix and a
+  git alias each change what ships without changing the words. (d) would be exact, but it
+  contacts the remote from inside a hook — credential prompts, the 30-second limit — and
+  re-executes arguments taken from a model-written string.
+- **Consequences** — a secret on any unpushed local branch or tag makes every `git push` ask, not
+  only the push that sends it; smoke pins that for a bare `git push` that would leave the branch
+  behind. The way out is the one the prompt already names: take it out of the unpushed commits,
+  or put a false positive's fingerprint in `.betterleaksignore`. **Remote-tracking refs are
+  branches only**, so a commit that upstream reaches only by a tag — a release tag on a commit
+  whose branch was deleted, an action's dist tag — is in range in every clone that fetched the
+  tag (measured on a fresh clone: 0 commits in the old range, 1 in the new). Anything
+  secret-shaped there asks on every push, with advice to remove from "unpushed commits" what is
+  already public; its fingerprint in `.betterleaksignore` is the way out. `refs/stash` and notes
+  are out of range, as they are out of a default push. Suite **386 → 394**: eight new cases. Six
+  of the suite's cases fail against `main`'s guard; three fail against range (b) — the detached
+  HEAD and the two pins on the range string. Kit 0.12.1.
+- **Known limits.** This closes the secret half of #44, not the record half: an unaudited commit
+  on another branch that holds no secret still ships on HEAD's clean record (issue #30 takes the
+  shape and config rule). A git alias for push (`git config alias.p push`, then `git p origin
+  feature`) never engages the guard: measured on b96c39a, the trace gets no line, so neither the
+  record check nor the scan runs. `git -C ../other push` and `cd ../other && git push` are scanned
+  in this repository, not the one that pushes. A push can also name what no range here holds — a
+  stash, a note, a commit by its sha. Two remotes still hide a commit already on one of them from
+  a push to the other.

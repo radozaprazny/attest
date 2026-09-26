@@ -102,7 +102,7 @@ or in file *content*, is the real exposure.
    finding, and **anything else did not finish** — a degraded layer, never a clean one. `42`
    rather than the tool's default of `1`, because `1` is also what it exits with when it cannot
    open the repository. Which call reaches which part of the scope was measured, not assumed:
-   - commits not yet on any remote — `betterleaks git . --log-opts="HEAD --not --remotes"`;
+   - HEAD's commits not yet on any remote — `betterleaks git . --log-opts="HEAD --not --remotes"`;
      in `full` mode, `--log-opts=--all`;
    - unstaged changes — `betterleaks git . --pre-commit`; staged ones — add `--staged`;
    - untracked files — **one** `betterleaks dir <path> <path> …` call over every path that
@@ -132,6 +132,10 @@ or in file *content*, is the real exposure.
    That file clears the scan the moment it exists, but commit it, so a `full` audit and every
    clone see it too. A commit moves HEAD, so make it **before** this record is written, or the
    record names a sha that is not the one being pushed.
+
+   The guard's own scan is wider than this one: every local branch and tag not yet on a remote,
+   not HEAD's commits alone (attest ADR-0074). So after a clean audit here it can still ask
+   `leak`, over a commit this record does not cover; the listing in its prompt names the range.
 
 ## Verdict
 
