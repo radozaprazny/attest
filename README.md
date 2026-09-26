@@ -167,12 +167,7 @@ system is.
 
 ## Quick start
 
-**A new project** — use the green **"Use this template"** button, or clone:
-
-    git clone https://github.com/radozaprazny/attest.git my-project
-    cd my-project && rm -rf .git && git init
-
-**An existing project** — install into it without touching what is already there:
+Install into your project, new or existing, without touching what is already there:
 
     git clone https://github.com/radozaprazny/attest.git /tmp/attest
     /tmp/attest/install.sh ~/my-project
@@ -183,47 +178,7 @@ system is.
 actually have to merge. A re-run that changed nothing says so in one line. Add `--compliance`
 if you are in regulated scope (or let `/business` tell you).
 
-On this path there is nothing to clean up — the installer copies no `README`, no `LICENSE` and
-nothing of attest's own. Go straight to **[First 5 minutes → Everyone](#everyone)**, steps 1–3.
-
 ## First 5 minutes
-
-**Which steps are yours depends on how you adopted the kit.** Steps **A–B** exist only on the
-template/clone path, and there the cleanup workflow normally does them for you. Steps **1–3**
-are for everyone. If you came through `install.sh`, skip to *Everyone*.
-
-### Template or clone only — and usually automatic
-
-**A generated repo cleans itself:** the `template-cleanup` workflow runs on your first push (or
-via *Actions → run workflow*), removes attest's identity files **by name** (its
-`docs/attest-*.md`, its smoke test, `install.sh`, its own `ci.yml`) and rewrites this README and
-its `LICENSE` down to stubs for you to fill, then deletes itself — **verify it ran.** It is safe
-to run late: it never removes a directory wholesale, so your own `docs/` and `scripts/` survive,
-and every file it rewrites or removes under a name you might also use — `README`, `LICENSE`,
-`ci.yml`, `scripts/smoke.sh` — is checked for attest's own content first. It also sweeps attest's
-own audit records out of `.attest/`: those name attest's commits, which do not exist in your repo,
-and that resolution is the test — so a record **you** wrote is kept, and where git cannot answer
-about the whole history (no repo yet, no commits yet, or a **shallow** checkout) nothing is
-touched at all. And it drops the blanket `*.sh` pin from `.gitattributes`, surgically: that one
-line goes, every other line stays, including any you added. The cleanup pushes an **ordinary commit**, never a history rewrite, so
-anything it removes is one `git revert` away.
-
-**If it ran, A and B are already done — skip them.** Do them by hand only when Actions are
-disabled, or when you checked and the run never happened.
-
-- **A. Replace `README.md`** — this one is attest's front page, not your project's.
-- **B. Replace `LICENSE`** — as shipped it grants your code away under **someone else's name**.
-  Then delete **`docs/attest-*.md`**, **`scripts/`**, **`install.sh`**,
-  **`.github/workflows/template-cleanup.yml`** and **`.github/workflows/ci.yml`** —
-  attest's own history, tests, installer, cleanup and CI.
-- **C. Drop one line from `.gitattributes`** — the blanket `*.sh text eol=lf`. attest needs it
-  for its **own** shell; in your repo it would normalise every `.sh` you ever write, under a
-  rule you did not choose. Keep `.claude/hooks/*` and `.attest/*.md` — those are the kit's own
-  paths, and the first is what keeps the guard runnable on Windows (attest ADR-0043). **Do this
-  even if you skip A and B:** deleting `scripts/` deletes the cleanup that would have done it
-  for you.
-
-### Everyone
 
 1. **Fill `CLAUDE.md`** — it is loaded **every turn** and ships as `<Your Project>` with
    placeholder conventions. No skill owns it; `/init` is the quickest way.
@@ -231,15 +186,11 @@ disabled, or when you checked and the run never happened.
    on a fresh session. Until you do, `/business` does not exist.
 3. **Declare:** `/business` (intent + archetype) · `/decision` as you choose — one entry when a
    choice lands, so an empty `DECISIONS.md` on day one is the correct state. `/business`
-   ends by telling you whether this project is in regulated scope — and what you do with that
-   answer depends on how you got here, because the two paths start from opposite defaults:
-   - **template or clone** — you already have `COMPLIANCE.md` and `/compliance`. *In scope*
-     means fill them; *out of scope* means **delete both** and record the one-sentence reason.
-     (You cannot re-run the installer: step **B** told you to delete it.)
-   - **`install.sh`** — you have neither, on purpose. *In scope* means re-run the installer
-     with `--compliance`; *out of scope* means you are already done, but **record the
-     one-sentence reason** anyway — an absent file declares nothing, and a later audit needs
-     to know the question was asked.
+   ends by telling you whether this project is in regulated scope. You have neither
+   `COMPLIANCE.md` nor `/compliance`, on purpose. *In scope* means re-run the installer with
+   `--compliance`; *out of scope* means you are already done, but **record the one-sentence
+   reason** anyway — an absent file declares nothing, and a later audit needs to know the
+   question was asked.
 
    Then **gate:** `/gate` before each commit · `/audit-history` before you push, `full` before
    a public release — the ship guard will ask for it if you forget.

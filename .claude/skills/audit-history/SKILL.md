@@ -61,8 +61,8 @@ place by what a rule-pack cannot do — it is **EU-first and integrated**:
   the current tree, so feed it the commit list to reach old blobs:
   `git grep <pattern> $(git rev-list --all)`. Slower; run it **before a public release / first
   open-sourcing**, where a secret buried in an old commit is exactly the risk. (`full` only
-  becomes meaningful once the project has accumulated its own history — a fresh `git init` from
-  the template has none yet.)
+  becomes meaningful once the project has accumulated its own history — a fresh `git init` has
+  none yet.)
 
 ## The leak taxonomy (EU-first, severity-tiered)
 
