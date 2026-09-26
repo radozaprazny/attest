@@ -7,8 +7,15 @@
 
 ## Current state
 
-**Kit 0.12.1 on branch `fix/guard-scan-unpushed-refs`, not merged, not tagged — ADR-0074,
-closing the secret half of issue #44.** The leak scan read `HEAD --not --remotes`, so a secret on
+**Kit 0.13.0 on branch `chore/remove-template-path`, not merged, not tagged — ADR-0075,
+closing issue #29.** `install.sh` is the only way in: the template cleanup script, its workflow
+(the repository's only write token), smoke section 10 and the README and GUIDE branches are
+gone, along with every template-path sentence in the kit. Suite **395 → 365**, the section's 30
+cases. The repository's *Template repository* setting and `template` topic are still on — the
+maintainer turns them off.
+
+**Kit 0.12.1 — ADR-0074, closing issue #44 — merged as PR #45 and tagged `v0.12.1` at `af946fe`
+(tag object `97afb7d`), 2026-09-26.** The leak scan read `HEAD --not --remotes`, so a secret on
 another local branch shipped with `git push origin feature` — or, once that branch exists on the
 remote, with a bare `git push` under `push.default=matching` — while the trace said `clean`. It
 now reads `HEAD --branches --tags --not --remotes`: every commit HEAD, a local branch or a tag has
@@ -358,15 +365,15 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-26 on the kit-0.12.1 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-26 on the kit-0.13.0 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 394 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 365 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
-git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
+git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 3 — ADR-0075's three Status flips, the one sanctioned edit
 ```
 
 There is no linter step for another language because the kit no longer contains one. Both new
