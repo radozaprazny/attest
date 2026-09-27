@@ -21,7 +21,8 @@
 # used to claim fail-open there too; the code never did (attest ADR-0050). The prompt names which
 # of the two it is (attest ADR-0073).
 
-set -u
+set -uf
+export LC_ALL=C
 
 # This hook's own state starts empty, whatever the session's environment holds (attest ADR-0070).
 # Every one of these used to be read with `${VAR:-}` before anything set it, so a value inherited
@@ -216,7 +217,7 @@ esac
 # path is what separates writing a record from reading one into something else (`cat
 # .attest/ship-a.md >/tmp/x`).
 if [ -z "${ACT:-}" ]; then
-  _parts="$(printf '%s' "$NORM" | sed 's/\\n/;/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
+  _parts="$(printf '%s' "$NORM" | sed 's/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
   _oifs="$IFS"; IFS='
 '
   for _part in $_parts; do
@@ -240,7 +241,10 @@ fi
 # quoting the payload would put file content — possibly the very secret being shipped — into a
 # prompt and into a log on disk. The tool name is the whole subject (attest ADR-0058).
 if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
-SAFE="$(printf '%s' "$SUBJ" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
+SUBJ="$(printf '%s' "$SUBJ" | sed -E 's#://[^/@[:space:]]*@#://***@#g
+  s/([A-Za-z0-9_]*([Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss])[A-Za-z0-9_]*)=[^[:space:]]*/\1=***/g')"
+san() { printf '%s' "$1" | tr -c 'A-Za-z0-9 ._/:=@*+-' ' ' | cut -c1-"${2:-60}"; }
+SAFE="$(san "$SUBJ" 120)"
 
 # `--verify -q`, never a bare `rev-parse HEAD`: in a repository with no commits yet the bare form
 # prints the literal word `HEAD` on stdout before failing, `|| true` keeps it, and the guard then
@@ -275,14 +279,9 @@ MODE="$(printf '%s' "$PAYLOAD" |
 # decision word so that neither fact hides the other — the decision still says what the RECORD
 # did (`pass` · `ask` · `blocked`), and a `pass` now says whether a scanner looked at all, which is
 # the question a scanner missing from a GUI session's PATH would otherwise leave unanswerable.
-trace() { # trace <decision>
-  {
-    mkdir -p "$ROOT/.attest/tmp" &&
-      printf '%s %s %s %s %s %s\n' \
-        "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$1" "${SHA:--}" "${MODE:--}" "$SCAN" "$SAFE" \
-        >> "$ROOT/.attest/tmp/ship-guard.log"
-  } 2>/dev/null || true
-}
+trace() { { mkdir -p "$ROOT/.attest/tmp" && printf '%s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  "$1" "${SHA:--}" "${MODE:--}" "$SCAN" "$SAFE" >> "$ROOT/.attest/tmp/ship-guard.log"; } 2>/dev/null || true; }
+ask() { printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"; }
 
 # The MCP arm answers here, before the dry-run and record arms below. Those read `$CMD` and
 # `$NORM`, and for an MCP call both are built from the raw payload — so `--dry-run` appearing
@@ -291,8 +290,7 @@ trace() { # trace <decision>
 # of (attest ADR-0069).
 if [ "${KIND:-}" = mcp ]; then
   trace mcp
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-    "attest ship gate: this tool call $ACT ($SAFE). No ship record can clear it: a record attests the tree at a commit, and this call sends bytes chosen in the call, which need not be committed or match HEAD (${SHA:-none}) at all. Run /audit-history over what you are about to send, or push through git so the record covers it."
+  ask "attest ship gate: this tool call $ACT ($SAFE). No ship record can clear it: a record attests the tree at a commit, and this call sends bytes chosen in the call, which need not be committed or match HEAD (${SHA:-none}) at all. Run /audit-history over what you are about to send, or push through git so the record covers it."
   exit 0
 fi
 
@@ -346,8 +344,7 @@ esac
 # nonsense here.
 if [ "${KIND:-}" = record ]; then
   trace record
-  printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-    "attest ship gate: this command $ACT ($SAFE). Approve only if /audit-history actually ran and this is its verdict — nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
+  ask "attest ship gate: this command $ACT ($SAFE). Approve only if /audit-history actually ran and this is its verdict — nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
   exit 0
 fi
 
@@ -464,6 +461,69 @@ if [ -n "$FULL" ]; then
   esac
 fi
 
+SHAPE=; SHAPEDEC=nothead; _plain=0
+if [ -n "$FULL" ]; then
+  case "$NORM" in *"git push"*)
+    case "$CMD" in *GIT_CONFIG*|*GIT_DIR=*|*GIT_WORK_TREE=*)
+      SHAPE="it sets git's config or repository inside the command" ;; esac
+    _opts="$(printf '%s' "$CMD" | awk '{ gsub(/\\\042/, ""); gsub(/[\042\047]/, "")
+      for (i = 1; i < NF; i++) if ($i ~ /git$/) { o = ""
+        for (j = i + 1; j <= NF && substr($j, 1, 1) == "-"; j++) {
+          if ($j ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env))$/) { o = o $j " " $(j+1) "\n"; j++ }
+          else if ($j ~ /^--(git-dir|work-tree|namespace|config-env)=/) o = o $j "\n"
+        }
+        if ($j == "push") printf "%s", o }
+    }')"
+    _shape="$(printf '%s' "$NORM" | sed 's/\\n/;/g' | tr ';|&' '\n' | awk '
+      { for (k = 1; k < NF; k++) if ($k ~ /git$/ && $(k+1) ~ /^(commit|merge|rebase|cherry-pick|am|pull|reset|revert|checkout|switch)$/) moved = 1
+        if ($1 == "cd" || $1 == "pushd") cd = 1
+        for (i = 1; i < NF; i++) if ($i ~ /git$/ && $(i+1) == "push") {
+          if (moved) print "compound"; if (cd) print "cd"; n = 0
+          for (j = i + 2; j <= NF; j++) {
+            if ($j ~ /^--(all|branches|mirror|tags|recurse-submodules=(on-demand|only))$/) print "flag " $j
+            else if ($j ~ /^(-o|--push-option|--receive-pack|--exec|--repo)$/) j++
+            else if ($j !~ /^-/ && ++n > 1) print "src " $j
+          }
+          if (n < 2) print "plain"
+        } }')"
+    ROOT_P="$(cd "$ROOT" 2>/dev/null && pwd -P)"
+    while read -r _k _v; do
+      [ -z "$SHAPE" ] || break
+      case "$_k" in
+        -C) case "$_v" in /*) [ "$(cd "$_v" 2>/dev/null && pwd -P)" = "$ROOT_P" ] && continue ;; esac
+            SHAPE="it runs git in another directory, $(san "$_v")" ;;
+        -*) SHAPE="it runs git with $(san "$_k"), which can change what a push sends" ;;
+        compound) SHAPE="the commit it pushes does not exist yet: this command commits, pulls or resets, and pushes in one go"
+          SHAPEDEC=compound ;;
+        cd) SHAPE="it changes directory before it pushes, so it may push another repository" ;;
+        flag) SHAPE="it pushes with $(san "$_v"), which sends more than HEAD" ;;
+        src) _s="${_v#+}"; _s="${_s%%:*}"
+          case "$_s" in
+            HEAD|@) ;;
+            '') SHAPE="its refspec $(san "$_v") names no commit to send" ;;
+            *) [ "$(git -C "$ROOT" rev-parse --verify -q "$_s^{commit}" 2>/dev/null)" = "$FULL" ] ||
+                 SHAPE="it pushes $(san "$_s"), which is not HEAD" ;;
+          esac ;;
+        plain) _plain=1 ;;
+      esac
+    done <<EOF
+$_opts
+$_shape
+EOF
+    if [ -z "$SHAPE" ] && [ "$_plain" = 1 ]; then
+      while read -r _k _v; do
+        case "$_k=$_v" in
+          =|push.default=simple|push.default=current|push.default=upstream|remote.*.mirror=false) ;;
+          push.recursesubmodules=check|push.recursesubmodules=no|push.recursesubmodules=false) ;;
+          *) SHAPE="git's config sets $(san "$_k $_v"), so a plain push can send more than HEAD"; break ;;
+        esac
+      done <<EOF
+$(git -C "$ROOT" config --get-regexp '^(push\.default|push\.recursesubmodules|remote\..*\.(push|mirror))$' 2>/dev/null)
+EOF
+    fi ;;
+  esac
+fi
+
 if [ -n "$FULL" ]; then
   # EVERY record for this sha has to be clean, not merely one of them. The glob expands
   # lexicographically, so "the first clean one wins" meant the OLDEST won — and the workflow the
@@ -482,6 +542,7 @@ if [ -n "$FULL" ]; then
   # sha for people; it is no longer load-bearing for the machine.
   FOUND=0
   BAD=0
+  set +f
   for rec in "$ROOT"/.attest/ship-*.md; do
     [ -e "$rec" ] || continue
     _r="$(record_head_sha "$rec")"
@@ -493,10 +554,12 @@ if [ -n "$FULL" ]; then
   done
   if [ "$FOUND" = 1 ] && [ "$BAD" = 0 ]; then
     # The one pass in this file — and the scanner is the only thing that can take it away.
-    case "$SCAN" in
-      leak|error) ;;
-      *) trace pass; exit 0 ;;
-    esac
+    if [ -z "$SHAPE" ]; then
+      case "$SCAN" in
+        leak|error) ;;
+        *) trace pass; exit 0 ;;
+      esac
+    fi
     CLEAN_RECORD=1
     WHY="a clean /audit-history record for HEAD ($SHA) exists"
   elif [ "$FOUND" = 1 ]; then
@@ -537,15 +600,24 @@ fi
 # ADR-0038 made `blocked` a word to keep; with the column, neither fact hides the other.
 NEXT="Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
 if [ -n "$NOHEAD_NEXT" ]; then NEXT="$NOHEAD_NEXT"; fi
+if [ -n "$SHAPE" ]; then
+  [ "$CLEAN_RECORD" = 1 ] && DEC=$SHAPEDEC
+  WHY="$WHY, but $SHAPE"
+  if [ "$SHAPEDEC" = compound ]; then
+    NEXT="Run the commit as its own command and push in the next one, so the guard judges the commit that actually ships."
+  else
+    NEXT="Push HEAD alone (git push, or git push origin HEAD), or check out what this sends, run /audit-history there and push from it."
+  fi
+fi
 case "$SCAN" in
   leak)
-    [ "$CLEAN_RECORD" = 1 ] && DEC=leak
+    [ "$CLEAN_RECORD" = 1 ] && [ -z "$SHAPE" ] && DEC=leak
     WHY="$WHY, but betterleaks found at least one secret in the commits not yet on any remote. The values are not repeated here; list them redacted, with the fingerprint each one needs to be ignored, using: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100 --report-format json --report-path -"
     NEXT="Do not approve until that scan is clean: a secret pushed in one commit stays readable in history after a later commit deletes it. Remove it from the unpushed commits, or add the Fingerprint of a false positive to .betterleaksignore."
     ;;
   error)
     WHY="$WHY, but betterleaks is installed and did not finish (it failed, or passed its $_limit-second limit), so the commits not yet on any remote were not scanned"
-    if [ "$CLEAN_RECORD" = 1 ]; then
+    if [ "$CLEAN_RECORD" = 1 ] && [ -z "$SHAPE" ]; then
       DEC=scanerr
       NEXT="Run the scan by hand to see why: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100. Approving proceeds on the record alone; a longer ATTEST_LEAK_SCAN_SECONDS, up to 540, gives a long history time to finish, and ATTEST_LEAK_SCAN=off stops the guard calling the scanner."
     fi
@@ -554,7 +626,6 @@ esac
 
 trace "${DEC:-ask}"
 
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-  "attest ship gate: this command $ACT ($SAFE) and $WHY. $NEXT"
+ask "attest ship gate: this command $ACT ($SAFE) and $WHY. $NEXT"
 
 exit 0

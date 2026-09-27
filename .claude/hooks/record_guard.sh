@@ -19,6 +19,7 @@
 # gets deleted. Fail-open everywhere: no payload, no path, no match => the write proceeds.
 
 set -u
+export LC_ALL=C
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
