@@ -144,8 +144,7 @@ line at all (`_shared/audit-ladder.md`, *What flips the verdict line*):
 > installed — run `/compliance` to fill it, or remove **both** `COMPLIANCE.md` and
 > `.claude/skills/compliance/` and record in one sentence why the project is out of scope."*
 
-Removing **both** is what the rest of the kit says (README, GUIDE PART 9, the template-cleanup
-stub README) and it is the only remedy that leaves a consistent state: with the skill gone, the
+Removing **both** is the only remedy that leaves a consistent state: with the skill gone, the
 ladder re-assigns this ground to another audit; with the skill present and the file gone,
 nobody owns it. Never advise deleting the file alone.
 

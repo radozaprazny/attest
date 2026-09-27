@@ -668,10 +668,7 @@ scoped to paths the kit itself owns and no wider, because `text` normalises on `
 blanket `*.sh` would rewrite your own scripts (attest ADR-0039); the second exists because the
 ship guard parses two lines out of a record byte-exactly, so a CRLF record fails closed with a
 reason that blames its age instead of its line endings (attest ADR-0037, ADR-0044). If you have
-already ruled on either pattern, it is left alone. The template path reaches the same place by
-subtraction: the kit's own `.gitattributes` carries a blanket `*.sh` pin it needs for its own
-shell, and `template-cleanup.sh` drops exactly that line from a generated repo (attest
-ADR-0043).
+already ruled on either pattern, it is left alone.
 
 **What it prints** is grouped by capability, not by path (attest ADR-0031): one line per
 group — documents, commands, checks, guards, manual — with `✓` for *landed*, `·` for
@@ -747,11 +744,8 @@ single straight line.
 **SETUP — once, at the start**
 - `/business` — declare intent + the archetype (`BUSINESS.md`). **It ends by making the
   compliance call**: either *"in scope, here is the trigger"* or *"out of scope, record that
-  sentence"* (attest ADR-0030). What you then do depends on how you adopted the kit — with
-  `install.sh`, re-run it with `--compliance` to add the pair; from the **template button**,
-  they are already in the repo, so being out of scope means **deleting** `COMPLIANCE.md` and
-  `.claude/skills/compliance/` instead. The two paths differ on purpose: a generated repo has
-  no installer to re-run.
+  sentence"* (attest ADR-0030). In scope, re-run `install.sh` with `--compliance` to add the
+  pair; out of scope, the sentence is the whole record.
 - `/compliance` — **only if in regulated scope**, and only once it is installed — establish
   the posture (`COMPLIANCE.md`). It reads the archetype `/business` recorded.
 - From here on the hooks work without you: the **declaration hook** puts your non-goals

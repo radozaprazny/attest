@@ -278,7 +278,7 @@ was created. That restraint is the same rule /decision applies.
   future change to a skill's audit section automatically (it reads, it does not copy); a
   `/gate` run costs four subagent contexts, accepted as the price of one-command adoption.
 
-## ADR-0012 — Template cleanup runs in CI, double-guarded · 2026-07-22 · Accepted
+## ADR-0012 — Template cleanup runs in CI, double-guarded · 2026-07-22 · Superseded by ADR-0075
 
 - **Context** — the "Use this template" button copies the whole tree, so every generated
   repo starts with attest's README, LICENSE, docs/, scripts/ and install.sh, and the README
@@ -498,7 +498,7 @@ was created. That restraint is the same rule /decision applies.
   the example now also demonstrates the two habits attest's own CI follows (pin the tool
   version, pin actions by SHA), since an unpinned example teaches an unpinned gate.
 
-## ADR-0022 — the template cleanup removes attest's files by name, from a script that CI lints and smoke tests · 2026-08-11 · Accepted
+## ADR-0022 — the template cleanup removes attest's files by name, from a script that CI lints and smoke tests · 2026-08-11 · Superseded by ADR-0075
 
 - **Context** — the cleanup ran `rm -rf docs scripts` and `cat > LICENSE` unconditionally,
   behind a sentinel that only checked attest's README heading and `install.sh`. Repo-creation
@@ -1109,7 +1109,7 @@ Supersedes: ADR-0021
   every other domain, and writing one would have put the maintainer's own domain into a shipped
   file to do it.
 
-## ADR-0041 — attest's own audit records do not travel into a repo generated from the template · 2026-09-04 · Accepted
+## ADR-0041 — attest's own audit records do not travel into a repo generated from the template · 2026-09-04 · Superseded by ADR-0075
 
   Narrows: ADR-0016 (`.attest/` is append-only, "one file per run, never edited").
 
@@ -2876,3 +2876,35 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   in this repository, not the one that pushes. A push can also name what no range here holds — a
   stash, a note, a commit by its sha. Two remotes still hide a commit already on one of them from
   a push to the other.
+
+## ADR-0075 — `install.sh` is the only way in: the template path, its cleanup and its record sweep are deleted · 2026-09-26 · Accepted
+
+  Supersedes: ADR-0012 (the template cleanup runs in CI), ADR-0022 (the cleanup script),
+  ADR-0041 (the cleanup sweeps attest's records out of a generated repo).
+  Supersedes in part: ADR-0043 — its template half; the pins `install.sh` appends, scoped to
+  the kit's own paths, stand.
+
+- **Context** — issue #29, wave 1 of epic #28. attest had two ways in, starting from opposite
+  compliance defaults: the template button shipped `COMPLIANCE.md` and `/compliance` and asked a
+  project out of scope to delete both; `install.sh` ships neither and asks a project in scope to
+  re-run it with `--compliance`. The template path existed mostly to undo itself: a 211-line
+  cleanup script, an 84-line workflow holding the repository's only write token, smoke section 10
+  (30 cases) and a README branch. #29 also reports a low-severity bug, not re-measured here: a
+  late cleanup run deleted an adopter's own ship record when a squash or rebase merge had removed
+  the commit that record names.
+- **Options** — (a) delete the path; (b) keep it, and keep it working through every rewrite #28
+  plans; (c) keep the button and drop the cleanup.
+- **Decision** — (a). Both files, smoke section 10, the README and GUIDE branches and every
+  template-path sentence in the kit go. The repository's *Template repository* setting and its
+  `template` topic are turned off separately, by the maintainer.
+- **Why** — every shape #28 considers removes this path, so (b) pays for it in each PR until
+  then. (c) ships another author's README and LICENSE into a new project, the failure the
+  cleanup was written to prevent.
+- **Consequences** — `install.sh` is the only way in, a new project included. No workflow holds
+  `contents: write` any more. Smoke 395 → 365, the 30 cases of section 10. README 2,775 → 2,242
+  words (`wc -w`). `/gate`'s append-only carve-outs drop from three to two, and the ladder's
+  sanctioned record mutations from two to one. A repository already generated from the template
+  keeps what it has; nothing here reaches it. Kit 0.13.0.
+- **Known limits.** The document templates stay at the root, and ADR-0006 with them, until #31
+  moves them. `docs/attest-*.md` still describe the template path: that is history, and #31
+  archives it — this log's own header included.

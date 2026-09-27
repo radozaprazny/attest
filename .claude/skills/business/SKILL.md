@@ -254,11 +254,10 @@ You own what the code **does**;
    **The audit writes nothing.**
 5. **One extra verdict line, only when it applies.** If `/compliance` is **not installed** and
    this diff (or the archetype no longer fitting) plainly triggers regulated scope, add:
-   *"the compliance call may need re-making: &lt;the trigger&gt;; re-run `install.sh --compliance`
-   — or, in a repo generated from the template, `COMPLIANCE.md` and
-   `.claude/skills/compliance/` are already there and only need filling."* A pointer, not a
-   finding: it never moves the verdict line. Without it the call made at bootstrap is never
-   revisited, and the trigger is an event that arrives later (attest ADR-0030).
+   *"the compliance call may need re-making: &lt;the trigger&gt;; re-run `install.sh --compliance`."*
+   A pointer, not a finding: it never moves the verdict line. Without it the call made at
+   bootstrap is never revisited, and the trigger is an event that arrives later (attest
+   ADR-0030).
 
 **Audit writes nothing.** If I agree with a finding, I re-run the skill in update mode
 (Mode 2) to change the document — unless it is a `repair: code` blocker, where the document is
@@ -278,10 +277,9 @@ data or a model-driven decision is anywhere in scope.
 
 **If the skill is present and the project is plainly in scope**, check whether `COMPLIANCE.md`
 actually says anything: if its sections are still `<placeholder>`, say so and point at
-`/compliance` — a present-but-empty posture file is the state ADR-0030 calls worse than none,
-and the template path produces it by default. If it is filled, say nothing; it is where it
-belongs. **If it is present and the project is plainly out of scope** (a repo generated from
-the template button gets it whether or not it needs it), say so and recommend deleting
+`/compliance` — a present-but-empty posture file is the state ADR-0030 calls worse than none.
+If it is filled, say nothing; it is where it belongs. **If it is present and the project is
+plainly out of scope**, say so and recommend deleting
 `COMPLIANCE.md` and `.claude/skills/compliance/`, plus recording the one-sentence reason as
 below. **If it is absent**, say **one** of two things, in one or two lines:
 
