@@ -80,7 +80,7 @@ else
   fail "every relation word in the log is one the rules name (found: $(echo "$used_bad" | tr '\n' ' '))"
 fi
 
-for home in "DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decisions.md"; do
+for home in "templates/DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decisions.md"; do
   missing=""
   for rel in "Supersedes" "Supersedes in part" "Narrows" "Widens" "Extends" "Relates to"; do
     grep -q "$rel" "$KIT/$home" || missing="$missing $rel"
@@ -192,7 +192,7 @@ says "without the skill, compliance is not-installed" "$out" 'compliance not-ins
 mv "$S0/repo/.claude/skills/compliance-off" "$S0/repo/.claude/skills/compliance"
 
 # BUSINESS.md still the shipped skeleton: nothing declared, and no subagent to say so.
-cp "$KIT/BUSINESS.md" "$S0/repo/BUSINESS.md"
+cp "$KIT/templates/BUSINESS.md" "$S0/repo/BUSINESS.md"
 out=$(stage0)
 says "a template BUSINESS.md declares nothing, without a pass" "$out" 'business skip · nothing declared'
 
@@ -281,7 +281,7 @@ rm -rf "$S0/repo/newfeature"; : > "$S0/M/status.txt"
 # and must say so, because silence reads as "declared" to every later audit. The shipped
 # template carries prose with no placeholder in it, which is what made the first version of
 # this check pass the template as filled.
-cp "$KIT/COMPLIANCE.md" "$S0/repo/COMPLIANCE.md"
+cp "$KIT/templates/COMPLIANCE.md" "$S0/repo/COMPLIANCE.md"
 cat > "$S0/M/diff.patch" <<'EOF'
 diff --git a/a.py b/a.py
 --- a/a.py
@@ -322,7 +322,7 @@ D0="$WORK/decl-empty"; mkdir -p "$D0"
 out=$(CLAUDE_PROJECT_DIR="$D0" sh "$DECL")
 if [ -z "$out" ]; then ok "silent in a project with no documents"; else fail "silent in a project with no documents"; fi
 # The shipped skeletons are <placeholder> text: a fresh install must add no session noise.
-D1="$WORK/decl-template"; mkdir -p "$D1"; cp "$KIT/BUSINESS.md" "$KIT/PROGRESS.md" "$D1/"
+D1="$WORK/decl-template"; mkdir -p "$D1"; cp "$KIT/templates/BUSINESS.md" "$KIT/templates/PROGRESS.md" "$D1/"
 out=$(CLAUDE_PROJECT_DIR="$D1" sh "$DECL")
 if [ -z "$out" ]; then ok "silent while the documents are still the shipped templates"; else fail "silent while the documents are still the shipped templates"; fi
 # ...and speaks as soon as a non-goal is real
@@ -1401,7 +1401,7 @@ check "the kit ships .gitattributes pinning shell to LF" \
 check "…covering the hooks directory too" \
   sh -c "grep -q 'claude/hooks' '$KIT/.gitattributes'"
 CR="$WORK/crlfkit"; mkdir -p "$CR"
-cp -r "$KIT/.claude" "$CR/"; cp "$KIT"/*.md "$KIT/install.sh" "$CR/"
+cp -r "$KIT/.claude" "$KIT/templates" "$CR/"; cp "$KIT"/*.md "$KIT/install.sh" "$CR/"
 # awk, not `sed 's/$/\r/'`: that is a GNU-ism — BSD/macOS sed inserts a literal `r`, the
 # fixture then holds no CR at all, and the whole block would pass without testing anything.
 for f in "$CR"/.claude/hooks/*.sh; do
@@ -1478,7 +1478,7 @@ check "nothing at all lands under .github/" test ! -e "$T1/.github"
 check "attest's own README does not land"   test ! -e "$T1/README.md"
 check "attest's own LICENSE does not land"  test ! -e "$T1/LICENSE"
 # The skill set is enumerated from the kit, not hardcoded: a skill added upstream must install.
-mkdir -p "$WORK/kit-extra"; cp -r "$KIT/.claude" "$KIT"/*.md "$KIT/install.sh" "$WORK/kit-extra/"
+mkdir -p "$WORK/kit-extra"; cp -r "$KIT/.claude" "$KIT/templates" "$KIT"/*.md "$KIT/install.sh" "$WORK/kit-extra/"
 mkdir -p "$WORK/kit-extra/.claude/skills/newthing"; echo '# new' > "$WORK/kit-extra/.claude/skills/newthing/SKILL.md"
 T1b="$WORK/fresh-extra"; mkdir -p "$T1b"
 extra_out=$("$WORK/kit-extra/install.sh" "$T1b" 2>&1 || true)
@@ -1514,7 +1514,7 @@ fi
 echo "install.sh — self-install guard:"
 ANC="$WORK/anc"; mkdir -p "$ANC"
 cp -r "$KIT/.claude" "$ANC/kit-copy" 2>/dev/null || true
-mkdir -p "$ANC/kit-copy"; cp "$KIT/install.sh" "$KIT"/*.md "$ANC/kit-copy/"
+mkdir -p "$ANC/kit-copy"; cp -r "$KIT/install.sh" "$KIT/templates" "$KIT"/*.md "$ANC/kit-copy/"
 for bad in "$ANC/kit-copy" "$ANC/kit-copy/docs" "$ANC"; do
   mkdir -p "$bad"
   label="the kit itself"
@@ -1544,7 +1544,7 @@ check "kit's ignore line landed whole"    grep -qx '.claude/settings.local.json'
 # --- 6. junk in the kit tree never installs --------------------------------------------
 echo "install.sh — junk filter:"
 K2="$WORK/kitcopy"; mkdir -p "$K2"
-cp -r "$KIT/.claude" "$K2/"; cp "$KIT"/*.md "$K2/" 2>/dev/null || true
+cp -r "$KIT/.claude" "$KIT/templates" "$K2/"; cp "$KIT"/*.md "$K2/" 2>/dev/null || true
 cp "$KIT/install.sh" "$K2/"
 mkdir -p "$K2/.claude/hooks/__pycache__"
 touch "$K2/.claude/hooks/__pycache__/x.pyc" "$K2/.claude/hooks/.DS_Store" \

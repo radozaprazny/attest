@@ -2,8 +2,9 @@
 # install.sh — install the attest kit into a project.
 #
 # Never clobbers. Every file is copy-if-absent; anything already present is left exactly as
-# it is and reported for you to merge by hand. Nothing here is attest's identity: README.md
-# and LICENSE describe *attest* and are deliberately not installed.
+# it is and reported for you to merge by hand. Nothing here is attest's identity: README.md,
+# LICENSE and the root documents describe *attest* and are deliberately not installed; the
+# documents it installs are the templates in templates/.
 #
 # The report is grouped by CAPABILITY, not by path (attest ADR-0031): what you can now do,
 # what stayed yours, what did not land and why. The per-file detail prints only when there is
@@ -77,16 +78,16 @@ trap on_abort ERR
 
 note_needs_you() { NEEDS_YOU+=("$1 — $2"); }
 
-# copy_if_absent <relative-path> [reason-noun] — sets LAST
+# copy_if_absent <relative-path> [reason-noun] [path-in-kit] — sets LAST
 copy_if_absent() {
-  local rel="$1" what="${2:-file}"
+  local rel="$1" what="${2:-file}" src="$KIT/${3:-$1}"
   LAST="none"
   # A file this kit checkout does not have is not an error to abort on — an older kit, or a
   # partial copy, simply has nothing to install here.
-  [ -e "$KIT/$rel" ] || return 0
+  [ -e "$src" ] || return 0
   # -L too: a dangling symlink is not -e, but cp must not write through it either
   if [ -e "$TARGET/$rel" ] || [ -L "$TARGET/$rel" ]; then
-    if cmp -s "$KIT/$rel" "$TARGET/$rel" 2>/dev/null; then
+    if cmp -s "$src" "$TARGET/$rel" 2>/dev/null; then
       LAST="same"
     elif [ "$what" = "version" ]; then
       # Kit-owned trees (skills/hooks/agents): a silently stale copy is how installs
@@ -103,10 +104,10 @@ copy_if_absent() {
       # copy-if-absent is the kit's load-bearing promise and a whitespace difference is not a
       # reason to start writing into files a user already has (attest ADR-0044).
       if { tr -d '\r' < "$TARGET/$rel" 2>/dev/null || :; } |
-           cmp -s - <(tr -d '\r' < "$KIT/$rel" 2>/dev/null || :) 2>/dev/null; then
+           cmp -s - <(tr -d '\r' < "$src" 2>/dev/null || :) 2>/dev/null; then
         note_needs_you "$rel" "identical to the kit's except for LINE ENDINGS (CRLF) — under dash a CRLF hook exits 2, and a PreToolUse hook that exits 2 blocks every Bash call; repair with: tr -d '\\r' < $rel > $rel.lf && mv $rel.lf $rel"
       else
-        note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $KIT/$rel to upgrade"
+        note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $src to upgrade"
       fi
     else
       # A DOCUMENT of yours that the kit also ships is the DESIGNED outcome, not a problem:
@@ -120,7 +121,7 @@ copy_if_absent() {
     fi
   else
     mkdir -p "$(dirname "$TARGET/$rel")"
-    cp "$KIT/$rel" "$TARGET/$rel"
+    cp "$src" "$TARGET/$rel"
     # The kit's own checkout may hold CRLF — .gitattributes fixes that for anyone who clones
     # the kit, but not for a copy that predates it, a zip download, or a checkout made before
     # the attribute existed. A hook with CRLF is fatal under dash (it exits 2, and a PreToolUse
@@ -141,7 +142,7 @@ copy_if_absent() {
         # instead of swallowing it (attest ADR-0039).
         if ! { tr -d '\r' < "$TARGET/$rel" > "$TARGET/$rel.lf$$" 2>/dev/null &&
                cat "$TARGET/$rel.lf$$" > "$TARGET/$rel" 2>/dev/null; }; then
-          cp "$KIT/$rel" "$TARGET/$rel" 2>/dev/null || true
+          cp "$src" "$TARGET/$rel" 2>/dev/null || true
           note_needs_you "$rel" "the CRLF strip failed; the kit's file was restored as-is — check its line endings before relying on the hook"
           G_ACT=$((G_ACT + 1))
         fi
@@ -239,17 +240,18 @@ echo
 
 # --- documents ------------------------------------------------------------------------
 # COMPLIANCE.md is NOT here: it is opt-in, decided after /business knows the archetype
-# (ADR-0030). An empty posture file reads as "declared" to every later audit.
+# (ADR-0030). An empty posture file reads as "declared" to every later audit. The templates
+# sit in templates/, because the kit's root holds attest's own documents.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 group_reset
 for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md; do
-  copy_if_absent "$doc" "document"
+  copy_if_absent "$doc" "document" "templates/$doc"
   [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
 done
 DOC_LIST="CLAUDE · PROGRESS · BUSINESS · DECISIONS"
 if [ "$WANT_COMPLIANCE" = 1 ]; then
-  copy_if_absent "COMPLIANCE.md" "document"
+  copy_if_absent "COMPLIANCE.md" "document" "templates/COMPLIANCE.md"
   [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
   DOC_LIST="$DOC_LIST · COMPLIANCE"
 fi
