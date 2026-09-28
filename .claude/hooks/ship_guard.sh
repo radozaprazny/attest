@@ -8,13 +8,14 @@
 #   leak scan          betterleaks, when installed, over every unpushed branch and tag
 #   push shape         a record speaks for HEAD, so the push has to ship HEAD alone
 #   record lookup      every record naming HEAD must read `findings: 0 blocker`
+#   carrier            a push or PR whose HEAD only adds records passes as the commit they name
 #   prompt             otherwise ask, saying what is missing; every decision is traced
 # No payload or no match: the command proceeds. No HEAD: it asks.
 
 set -uf
 export LC_ALL=C
 # The hook's own state starts empty, whatever the session's environment holds.
-KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; NOHEAD_NEXT=
+KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; NOHEAD_NEXT=; AUDITED=; CARRY=
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
@@ -48,30 +49,27 @@ case "$TOOL" in
     ACT="sends data off the machine without going through a shell" ;;
 esac
 [ -n "${KIND:-}" ] || case "$NORM" in
-  *"git push"*|*"git send-email"*) ACT="sends data off the machine" ;;
-  *"gh pr create"*|*"gh release create"*|*"gh gist create"*) ACT="sends data off the machine" ;;
-  *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*) ACT="sends data off the machine" ;;
-  *"yarn publish"*|*"bun publish"*|*"uv publish"*) ACT="sends data off the machine" ;;
-  *"poetry publish"*|*"gem push"*|*"gh release upload"*) ACT="sends data off the machine" ;;
-  *"kaggle"*"submit"*) ACT="sends data off the machine" ;;
-  *"scp "*|*"rsync"*) ACT="sends data off the machine" ;;
-  *"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*) ACT="sends data off the machine" ;;
-  *"--upload-file"*|*"curl"*" -T "*) ACT="sends data off the machine" ;;
+  *"git push"*|*"git send-email"*|*"gh pr create"*|*"gh release create"*|*"gh gist create"*|\
+  *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"yarn publish"*|*"bun publish"*|\
+  *"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|*"scp "*|\
+  *"rsync"*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|*"--upload-file"*|*"curl"*" -T "*)
+    ACT="sends data off the machine" ;;
   *"gh repo edit"*"--visibility"*|*"gh repo create"*)
     ACT="changes who can read this repository, its whole history included" ;;
-  *) ;;
 esac
 
-if [ -z "${ACT:-}" ]; then
-  _parts="$(printf '%s' "$NORM" | sed 's/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
-  _oifs="$IFS"; IFS='
+# A record written in a push's own command would skip its prompt, so every shell command is read.
+NL='
 '
+if [ "${KIND:-}" != mcp ]; then
+  _parts="$(printf '%s' "$NORM" | sed 's/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
+  _oifs="$IFS"; IFS="$NL"
   for _part in $_parts; do
     case "$_part" in
       *">"*".attest/ship-"*|*"tee"*".attest/ship-"*|*"cp "*".attest/ship-"*|\
       *"mv "*".attest/ship-"*|*"sed -i"*".attest/ship-"*|*"sed --in-place"*".attest/ship-"*|\
       *"perl -pi"*".attest/ship-"*|*"truncate"*".attest/ship-"*)
-        KIND=record; ACT="writes a ship record — the file this gate reads as evidence"; break ;;
+        KIND=record; ACT="writes a ship record — the file this gate reads as evidence${ACT:+ — and $ACT}"; break ;;
     esac
   done
   IFS="$_oifs"
@@ -96,34 +94,53 @@ trace() { { mkdir -p "$ROOT/.attest/tmp" && printf '%s %s %s %s %s %s\n' "$(date
 ask() { printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"; }
 
 if [ "${KIND:-}" = mcp ]; then
-  trace mcp
-  ask "attest ship gate: this tool call $ACT ($SAFE). No ship record can clear it: a record attests the tree at a commit, and this call sends bytes chosen in the call, which need not be committed or match HEAD (${SHA:-none}) at all. Run /audit-history over what you are about to send, or push through git so the record covers it."
+  trace mcp; ask "attest ship gate: this tool call $ACT ($SAFE). No ship record can clear it: a record attests the tree at a commit, and this call sends bytes chosen in the call, which need not be committed or match HEAD (${SHA:-none}) at all. Run /audit-history over what you are about to send, or push through git so the record covers it."
+  exit 0
+fi
+if [ "${KIND:-}" = record ]; then
+  trace record; ask "attest ship gate: this command $ACT ($SAFE). Approve only if /audit-history actually ran and this is its verdict — nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
   exit 0
 fi
 
 # Only a plain dry run passes: anything compound can hide a real push behind it.
-NL='
-'
 # shellcheck disable=SC2016
 case "$CMD" in
   *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
-  *) case " $NORM " in
-       *" --dry-run "*) trace dryrun; exit 0 ;;
-     esac ;;
+  *) case " $NORM " in *" --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
-
-if [ "${KIND:-}" = record ]; then
-  trace record
-  ask "attest ship gate: this command $ACT ($SAFE). Approve only if /audit-history actually ran and this is its verdict — nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
-  exit 0
-fi
 record_head_sha() {
   sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
-    sed -n 's/^- HEAD:[[:space:]]*\([0-9a-fA-F][0-9a-fA-F]*\).*/\1/p' | tr 'A-F' 'a-f'
+    sed -n 's/^- HEAD:[[:space:]]*\([0-9a-fA-F]\{7,\}\).*/\1/p' | tr 'A-F' 'a-f'
 }
-record_is_clean() {
-  sed -n '/^- findings:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
-    grep -Eq '^- findings:[^0-9]*0 blocker'
+# The records naming commit $1: none (empty), `clean`, or `blocked` once any reports a blocker.
+records_for() {
+  set +f; _f=
+  for rec in "$ROOT"/.attest/ship-*.md; do
+    _r="$(record_head_sha "$rec")"
+    case "$1" in "${_r:--}"*) ;; *) continue ;; esac
+    if sed -n '/^- findings:/{p;q;}' "$rec" | tr -d '\r' | grep -Eq '^- findings:[^0-9]*0 blocker'
+    then _f="${_f:-clean}"; else _f=blocked; fi
+  done 2>/dev/null
+  echo "$_f"
+}
+# HEAD carries records for S when no commit in S..HEAD is a merge and each adds regular files
+# .attest/ship-*.md and nothing else, one of the 10 newest records names S, and no record for S or
+# a commit above it reports a blocker. Such an S lies on HEAD's line, which the walk follows.
+carrier() {
+  export GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null; set +f; set -- "$ROOT"/.attest/ship-*.md; [ $# -le 10 ] || shift $(($# - 10))
+  _ss="$(git -C "$ROOT" log --no-show-signature --no-relative --ignore-submodules=none --no-abbrev --raw \
+    --format='commit %H %P' HEAD -- 2>/dev/null | awk -F '\t' -v p="$(git -C "$ROOT" rev-parse --show-prefix 2>/dev/null)" '
+    /^commit / { split($0, c, " "); if (h && !k) exit; if (h) print c[2]; if (c[4] != "") exit; h = 1; k = 0; next }
+    NF { if ($1 !~ "^:000000 100644 0+ [0-9a-f]+ A$" || substr($2, 1, length(p)) != p ||
+      substr($2, length(p) + 1) !~ "^[.]attest/ship-[^/]*[.]md$") exit; k++ }')"
+  for _s in $_ss; do
+    _st="$(records_for "$_s")"; [ "$_st" != blocked ] || return 1; [ "$_st" = clean ] || continue
+    for rec in "$@"; do
+      _r="$(record_head_sha "$rec")"
+      case "$_s" in "${_r:--}"*) git -C "$ROOT" rev-parse --short "$_s"; return 0 ;; esac
+    done
+  done
+  return 1
 }
 
 # The scan can only add a question. The tool's own --timeout calls a partial scan clean, so a
@@ -133,10 +150,8 @@ LEAK_RANGE="HEAD --branches --tags --not --remotes"
 if [ -n "$FULL" ]; then
   case "$NORM" in
     *"git push"*)
-      if [ "${ATTEST_LEAK_SCAN:-on}" = off ]; then
-        SCAN=off
-      elif ! command -v betterleaks >/dev/null 2>&1; then
-        SCAN=absent
+      if [ "${ATTEST_LEAK_SCAN:-on}" = off ]; then SCAN=off
+      elif ! command -v betterleaks >/dev/null 2>&1; then SCAN=absent
       else
         _limit="${ATTEST_LEAK_SCAN_SECONDS:-30}"
         case "$_limit" in ''|*[!0-9]*) _limit=30 ;; esac
@@ -157,14 +172,16 @@ fi
 
 # Allow-list: redirections dropped, each part up to the last push on a short list, the push a
 # plain `git push` with known options and refspecs that resolve to HEAD, in this repository.
+# A PR with no push may carry records only as the whole command; its shape decides nothing else.
 SHAPE=; SHAPEDEC=nothead; _plain=0
 if [ -n "$FULL" ]; then
-  case "$NORM" in *"git push"*)
+  case "$NORM" in *"git push"*|*"gh pr create"*)
     TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)"
     CWD="$(printf '%s' "$PAYLOAD" | sed -nE 's/.*"cwd"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
     CWD="${CWD:-$ROOT}"
     [ "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ] ||
       SHAPE="the shell is in another repository, $(san "$CWD")"
+    case "$CMD" in *'<('*|*'>('*) SHAPE="it holds a process substitution, which runs a command the guard cannot read" ;; esac
     _shape="$(printf '%s' "$CMD" | sed -E 's/\\n/;/g; s/\\//g; s/[0-9]*>&[0-9-]*//g; s/&>>?[[:space:]]*[^[:space:];|&]+//g
       s/[0-9]*>>?\|?[[:space:]]*[^[:space:];|&]+//g; s/[0-9]*<+[[:space:]]*[^[:space:];|&]+//g' | tr ';|&' '\n' | awk '
       function scan(k) { G = 0; V = 0; for (k = 1; k <= NF; k++) if ($k ~ /(^|\/)git$/) { G = k; break }
@@ -173,7 +190,7 @@ if [ -n "$FULL" ]; then
           if (k <= NF) V = k } }
       { gsub(/[\042\047]/, ""); if (NF) p[++n] = $0 }
       END { for (i = 1; i <= n; i++) { $0 = p[i]; scan(); if (V && $V == "push") last = i }
-        if (!last) print "nopush"
+        $0 = p[1]; if (!last) print (n == 1 && $1 == "gh" && $2 == "pr" && $3 == "create" && !/[$`]/ ? "pr" : "nopush")
         for (i = 1; i <= last; i++) { $0 = p[i]; scan(); bad = ""
           for (k = 1; k <= NF; k++) if ($k !~ /^[A-Za-z0-9._\/:@^~+=,%-]+$/) { bad = $k; break }
           if (bad != "") print "unsafe " bad
@@ -201,7 +218,7 @@ if [ -n "$FULL" ]; then
         opt) SHAPE="it pushes with $(san "$_v"), which the guard does not read as HEAD alone" ;;
         wrapped) SHAPE="it runs the push through $(san "$_v"), which can change what it sends" ;;
         unsafe) SHAPE="it holds $(san "$_v"), which the guard cannot read (a variable, a subshell, a glob)" ;;
-        nopush) SHAPE="the guard could not read which push this is" ;;
+        nopush) SHAPE="the guard could not read which push or pull request this is" ;;
         src) _s="${_v#+}"; _s="${_s%%:*}"
           case "$_s" in
             HEAD|@) ;;
@@ -209,7 +226,7 @@ if [ -n "$FULL" ]; then
             *) [ "$(git -C "$ROOT" rev-parse --verify -q "$_s^{commit}" 2>/dev/null)" = "$FULL" ] ||
                  SHAPE="it pushes $(san "$_s"), which is not HEAD" ;;
           esac ;;
-        plain) _plain=1 ;;
+        plain|pr) _plain=$_k ;;
       esac
     done <<EOF
 $_shape
@@ -219,57 +236,42 @@ EOF
       case "$_k=$_v" in
         =|push.recursesubmodules=check|push.recursesubmodules=no|push.recursesubmodules=false|submodule.recurse=false) ;;
         push.default=simple|push.default=current|push.default=upstream|remote.*.mirror=false) ;;
-        push.default=*|remote.*) [ "$_plain" = 1 ] &&
+        push.default=*|remote.*) [ "$_plain" = plain ] &&
           SHAPE="git's config sets $(san "$_k $_v"), so a plain push can send more than HEAD" ;;
-        *) SHAPE="git's config sets $(san "$_k $_v"), so a push can send submodules too" ;;
+        *) [ "$_plain" = pr ] || SHAPE="git's config sets $(san "$_k $_v"), so a push can send submodules too" ;;
       esac
     done <<EOF
 $(git -C "$ROOT" config --get-regexp '^(push\.default|push\.recursesubmodules|submodule\.recurse|remote\..*\.(push|mirror))$' 2>/dev/null)
 EOF
-    ;;
+    case "$NORM" in *"git push"*) CARRY=1 ;; *) [ -n "$SHAPE" ] || CARRY=1; SHAPE= ;; esac ;;
   esac
 fi
 
 if [ -n "$FULL" ]; then
-  # Every record naming HEAD must be clean (a later blocker still holds); the glob needs set +f.
-  FOUND=0
-  BAD=0
-  set +f
-  for rec in "$ROOT"/.attest/ship-*.md; do
-    [ -e "$rec" ] || continue
-    _r="$(record_head_sha "$rec")"
-    case "$_r" in [0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f][0-9a-f]*) ;; *) continue ;; esac
-    case "$FULL" in "$_r"*) ;; *) continue ;; esac
-    FOUND=1
-    record_is_clean "$rec" || BAD=1
-  done
-  if [ "$FOUND" = 1 ] && [ "$BAD" = 0 ]; then
-    if [ -z "$SHAPE" ]; then
-      case "$SCAN" in
-        leak|error) ;;
-        *) trace pass; exit 0 ;;
-      esac
-    fi
+  # Every record naming HEAD must be clean (a later blocker still holds). A carrier is looked for
+  # only once the push is read as shipping HEAD alone.
+  RECORDS="$(records_for "$FULL")"
+  if [ -z "$RECORDS" ] && [ -z "$SHAPE" ] && [ "$CARRY" = 1 ]; then AUDITED="$(carrier)" && RECORDS=clean; fi
+  if [ "$RECORDS" = clean ]; then
+    if [ -z "$SHAPE" ] && [ "$SCAN" != leak ] && [ "$SCAN" != error ]; then trace "pass${AUDITED:+-carrier}"; exit 0; fi
     CLEAN_RECORD=1
     WHY="a clean /audit-history record for HEAD ($SHA) exists"
-  elif [ "$FOUND" = 1 ]; then
+    [ -z "$AUDITED" ] || WHY="HEAD ($SHA) only adds ship records to $AUDITED, which has a clean /audit-history record"
+  elif [ "$RECORDS" = blocked ]; then
     DEC=blocked
     WHY="a /audit-history record for HEAD ($SHA) exists but not every record for this commit attests a clean scan — one of them reports a blocker, or predates the record format and carries no readable 'HEAD:' and 'findings: 0 blocker' header lines"
   else
     WHY="no /audit-history run record for HEAD ($SHA) under .attest/"
   fi
+elif git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+  WHY="this repository has no commits yet, so there is no HEAD a ship record could name"
+  NOHEAD_NEXT="Commit first and run /audit-history for that commit, or approve to proceed without a record."
 else
-  if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-    WHY="this repository has no commits yet, so there is no HEAD a ship record could name"
-    NOHEAD_NEXT="Commit first and run /audit-history for that commit, or approve to proceed without a record."
-  else
-    WHY="git found no repository here, or refused to read one, so there is no HEAD a ship record could name"
-    NOHEAD_NEXT="If this is a repository git refuses to read (safe.directory), make it readable and run /audit-history; otherwise no ship record can clear a command run here, so approve only if this is what you mean to send."
-  fi
+  WHY="git found no repository here, or refused to read one, so there is no HEAD a ship record could name"
+  NOHEAD_NEXT="If this is a repository git refuses to read (safe.directory), make it readable and run /audit-history; otherwise no ship record can clear a command run here, so approve only if this is what you mean to send."
 fi
 
-NEXT="Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
-if [ -n "$NOHEAD_NEXT" ]; then NEXT="$NOHEAD_NEXT"; fi
+NEXT="${NOHEAD_NEXT:-Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, then commit that record on its own and push; or approve to proceed on the evidence as it stands.}"
 if [ -n "$SHAPE" ]; then
   WHY="$WHY, but $SHAPE"
   [ "$CLEAN_RECORD" = 1 ] && DEC=$SHAPEDEC
@@ -285,15 +287,13 @@ case "$SCAN" in
   leak)
     [ "$CLEAN_RECORD" = 1 ] && [ -z "$SHAPE" ] && DEC=leak
     WHY="$WHY, but betterleaks found at least one secret in the commits not yet on any remote. The values are not repeated here; list them redacted, with the fingerprint each one needs to be ignored, using: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100 --report-format json --report-path -"
-    NEXT="Do not approve until that scan is clean: a secret pushed in one commit stays readable in history after a later commit deletes it. Remove it from the unpushed commits, or add the Fingerprint of a false positive to .betterleaksignore."
-    ;;
+    NEXT="Do not approve until that scan is clean: a secret pushed in one commit stays readable in history after a later commit deletes it. Remove it from the unpushed commits, or add the Fingerprint of a false positive to .betterleaksignore." ;;
   error)
     WHY="$WHY, but betterleaks is installed and did not finish (it failed, or passed its $_limit-second limit), so the commits not yet on any remote were not scanned"
     if [ "$CLEAN_RECORD" = 1 ] && [ -z "$SHAPE" ]; then
       DEC=scanerr
       NEXT="Run the scan by hand to see why: betterleaks git . --log-opts='$LEAK_RANGE' --redact=100. Approving proceeds on the record alone; a longer ATTEST_LEAK_SCAN_SECONDS, up to 540, gives a long history time to finish, and ATTEST_LEAK_SCAN=off stops the guard calling the scanner."
-    fi
-    ;;
+    fi ;;
 esac
 trace "${DEC:-ask}"
 ask "attest ship gate: this command $ACT ($SAFE) and $WHY. $NEXT"
