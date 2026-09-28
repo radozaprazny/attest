@@ -79,7 +79,8 @@ nothing else. Its document audits run in a subagent that **cannot** write or run
 a fact in the repo, not a memory. `/audit-history` is the **ship** gate, before anything
 leaves the machine — and it is no longer on your memory: a `PreToolUse` hook matches **a short,
 literal list** of commands that publish, submit or upload, finds the `.attest/` run record for
-the **current** HEAD and reads it, and asks unless that record attests a clean scan. The list is
+the **current** HEAD and reads it, and asks unless that record attests a clean scan — or, for the
+commit that only adds that record, the record for the commit below it (attest ADR-0077). The list is
 substrings, not a category — the common registries' publish commands are on it (`npm`, `pnpm`,
 `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`), every other registry's is not, and
 `npm run release`, `make deploy` and your own deploy script do not match either; widening it

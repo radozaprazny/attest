@@ -1032,7 +1032,8 @@ for c in 'git push origin feature' 'git push origin feature:main' 'git push --al
          'git push --mirr origin' 'git push --al' 'git push --tag' 'git push --delete origin main' \
          'git push -d origin main' 'echo feature | xargs git push origin' 'git push --recurse-submodules on-demand' \
          '(cd ../other && git push)' '{ cd ../other; git push; }' 'env -C ../other git push' \
-         "git -C $P/repo/L/.. push origin main" 'git push --follow-tags' 'git push origin $BRANCH'; do
+         "git -C $P/repo/L/.. push origin main" 'git push --follow-tags' 'git push origin $BRANCH' \
+         'git push origin main <(./deploy.sh)' 'git push origin main >(./deploy.sh)'; do
   says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
   says "…traced nothead" "$(pcol 2)" '^nothead$'
 done
@@ -1087,6 +1088,168 @@ says_not "…and in the trace" "$(cat "$P/repo/.attest/tmp/ship-guard.log")" 'SM
 _out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/.attest/ship-b.md","content":"\377\376 x"}}' "$P/repo" |
   env LC_ALL=C.UTF-8 CLAUDE_PROJECT_DIR="$P/repo" sh "$RGUARD")"
 says "record_guard asks on a record write holding an invalid byte" "$_out" 'permissionDecision":"ask'
+
+# --- 3a2. a commit that only adds records carries them (ADR-0077) ----------------------
+# Committing a record moves HEAD, so the push that carried it asked with no evidence behind the
+# answer. HEAD now passes as the commit X a clean record names, traced `pass-carrier`, when X..HEAD
+# only adds records; every other shape below still asks.
+echo "hooks — ship guard: the record's own commit:"
+# cfix <name> [commit] — `init` on a remote, then X (src/a.py) and a clean record for X, untracked;
+# with `commit`, the record is committed on its own: the carrier.
+cfix() {
+  C="$WORK/carrier/$1/repo"
+  git init -q --bare "$WORK/carrier/$1/remote.git"; git init -q "$C"
+  git -C "$C" symbolic-ref HEAD refs/heads/main
+  git -C "$C" config user.email smoke@example.invalid; git -C "$C" config user.name smoke
+  : > "$C/f"; git -C "$C" add f; git -C "$C" commit -qm init
+  git -C "$C" remote add origin "$WORK/carrier/$1/remote.git"; git -C "$C" push -q origin main 2>/dev/null
+  mkdir -p "$C/src" "$C/.attest"; echo a > "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm work
+  X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
+  if [ "${2:-}" = commit ]; then git -C "$C" add "$CREC"; git -C "$C" commit -qm 'chore: commit the ship record'; fi
+}
+cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD"; }
+cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
+cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
+casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
+cfix happy commit
+_out="$(cguard 'git push')"; _rc=$?
+if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's clean record passes: exit 0, no output"
+  else fail "a push whose HEAD only adds X's clean record passes: exit 0, no output"; fi
+says "…traced pass-carrier" "$(cdec)" '^pass-carrier$'
+cpasses 'git push -u origin main 2>&1'  "…and so does the push naming its branch"
+cpasses 'gh pr create --fill'           "…and the pull request opened on it"
+says "a release on the carrier still asks: only a push or a PR is carried" "$(cguard 'gh release create v1')" 'permissionDecision":"ask'
+# The carrier is looked for only once the shape passed, so a bad shape leaves HEAD with no record.
+says "a commit chained before the push asks" "$(cguard 'git commit --allow-empty -m x && git push')" 'permissionDecision":"ask'
+says "…traced ask: no carrier is looked for" "$(cdec)" '^ask$'
+_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push"}}' |
+  env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT=42 CLAUDE_PROJECT_DIR="$C" sh "$GUARD")"
+says "a leak on the carrier asks"                   "$_out" 'permissionDecision":"ask'
+says "…naming the commit its record is for"         "$_out" "only adds ship records to $X"
+says "…traced leak"                                 "$(cdec)" '^leak$'
+says "an MCP publish on the carrier asks" \
+  "$(echo '{"tool_name":"mcp__github__push_files","tool_input":{}}' | CLAUDE_PROJECT_DIR="$C" sh "$GUARD")" 'permissionDecision":"ask'
+says "…traced mcp" "$(cdec)" '^mcp$'
+# The window is the 10 newest records: with 10 newer ones, X's record is out of it. One of them
+# names nothing readable, and naming nothing must not read as naming every commit.
+_init="$(git -C "$C" rev-parse --short HEAD~2)"
+for _i in 0 1 2 3 4 5 6 7 8; do
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$_init" > "$C/.attest/ship-20260929-10000$_i-$_init.md"
+done
+printf -- '- findings: 0 blocker\n' > "$C/.attest/ship-20260929-100009-none.md"
+casks "X's record, the 11th newest,"
+rm "$C/.attest/ship-20260929-100009-none.md"
+cpasses 'git push' "…and as the 10th newest it passes"
+# Anything but added records between X and HEAD, and anything that breaks X's claim.
+cfix src; echo b >> "$C/src/a.py"; git -C "$C" add src "$CREC"; git -C "$C" commit -qm both
+casks "a carrier that also touches src/a.py"
+cfix modified commit; echo more >> "$C/$CREC"; git -C "$C" commit -qam 'edit the record'
+casks "a commit modifying the record"
+cfix renamed commit; git -C "$C" mv "$CREC" .attest/ship-20260928-120000-"$X".md; git -C "$C" commit -qm move
+casks "a commit renaming the record"
+cfix deleted commit; git -C "$C" rm -q --cached "$CREC"; git -C "$C" commit -qm drop
+casks "a commit deleting the record from history"
+cfix subdir; mkdir -p "$C/.attest/ship-x"; echo x > "$C/.attest/ship-x/a.md"
+git -C "$C" add .attest/ship-x "$CREC"; git -C "$C" commit -qm sub
+casks "a carrier adding a file below .attest/ship-x/"
+# A trailing space: no record guard or record lookup reads this file as a record, so neither may this.
+cfix spaced; echo x > "$C/.attest/ship-y.md "; git -C "$C" add ".attest/ship-y.md " "$CREC"; git -C "$C" commit -qm spaced
+casks "a carrier adding '.attest/ship-y.md ', with a trailing space,"
+cfix empty; git -C "$C" commit -q --allow-empty -m empty
+casks "a HEAD adding nothing at all"
+cfix blocker commit
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$X" > "$C/.attest/ship-20260928-110000-$X.md"
+casks "a carrier whose second record for X reports a blocker"
+cfix rebased commit; _c="$(git -C "$C" rev-parse HEAD)"
+git -C "$C" reset -q --hard HEAD~2; mkdir -p "$C/src"; echo a2 > "$C/src/a.py"
+git -C "$C" add src; git -C "$C" commit -qm 'work, rebased'; git -C "$C" cherry-pick "$_c" >/dev/null 2>&1
+casks "a carrier whose X is no longer an ancestor"
+# Here only ancestry fails: X..HEAD is the one record, committed on a branch X is not on.
+cfix offbranch; git -C "$C" reset -q --hard HEAD~1; git -C "$C" add "$CREC"; git -C "$C" commit -qm record
+casks "a record for X committed where X is not an ancestor"
+# git log shows no change for a merge, so an edit made in the merge itself hides from the list.
+cfix merged; git -C "$C" checkout -qb side; echo s > "$C/.attest/ship-20260928-090000-side.md"
+git -C "$C" add .attest/ship-20260928-090000-side.md; git -C "$C" commit -qm 'side record'
+git -C "$C" checkout -q main; git -C "$C" merge -q --no-ff --no-commit side >/dev/null 2>&1
+echo evil >> "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm 'merge, with an edit of its own'
+git -C "$C" add "$CREC"; git -C "$C" commit -qm carrier
+casks "a carrier above a merge that edits src/a.py itself"
+# A replace ref makes git log read another commit than the one a push sends.
+cfix replaced commit; _fake="$(git -C "$C" rev-parse HEAD)"
+git -C "$C" reset -q --soft HEAD~1; echo b >> "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm both
+git -C "$C" replace HEAD "$_fake"
+casks "a carrier that a replace ref shows as records only"
+# Signed commits under log.showSignature=true: the signature's lines must not read as a change.
+if command -v ssh-keygen >/dev/null 2>&1; then
+  cfix signed; ssh-keygen -q -t ed25519 -N '' -f "$WORK/carrier/signed/key" >/dev/null
+  git -C "$C" config gpg.format ssh; git -C "$C" config user.signingkey "$WORK/carrier/signed/key"
+  git -C "$C" config log.showSignature true; git -C "$C" add "$CREC"; git -C "$C" commit -S -qm carrier
+  cpasses 'git push' "a signed carrier passes under log.showSignature=true"
+else ok "a signed carrier passes under log.showSignature=true (skipped: no ssh-keygen to sign with)"; fi
+# From the review: a later blocker, empty commits, modes, submodules, grafts, a subdirectory.
+cfix midblock commit; _s1="$(git -C "$C" rev-parse --short HEAD)"
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$_s1" > "$C/.attest/ship-20260928-120000-$_s1.md"
+git -C "$C" add ".attest/ship-20260928-120000-$_s1.md"; git -C "$C" commit -qm 'chore: commit the second record'
+casks "a carrier above a commit whose later record reports a blocker"
+cfix emptytop commit; git -C "$C" commit -q --allow-empty -m empty
+casks "an empty commit above the carrier"
+cfix emptymid; git -C "$C" commit -q --allow-empty -m empty; git -C "$C" add "$CREC"; git -C "$C" commit -qm carrier
+casks "an empty commit between X and the carrier"
+cfix symlink; ln -s ../src/a.py "$C/.attest/ship-20260928-110000-link.md"
+git -C "$C" add .attest/ship-20260928-110000-link.md "$CREC"; git -C "$C" commit -qm carrier
+casks "a carrier adding a symlink named like a record"
+cfix exec; echo x > "$C/.attest/ship-20260928-110000-x.md"; git -C "$C" add .attest/ship-20260928-110000-x.md "$CREC"
+git -C "$C" update-index --chmod=+x .attest/ship-20260928-110000-x.md; git -C "$C" commit -qm carrier
+casks "a carrier adding an executable named like a record"
+cfix gitlink; _l1="$(git -C "$C" rev-parse HEAD~1)"; _l2="$(git -C "$C" rev-parse HEAD)"
+printf '[submodule "lib"]\n\tpath = lib\n\turl = ./lib\n\tignore = all\n' > "$C/.gitmodules"
+git -C "$C" update-index --add --cacheinfo "160000,$_l1,lib"; git -C "$C" add .gitmodules; git -C "$C" commit -qm sub
+rm "$C/$CREC"; X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
+git -C "$C" update-index --cacheinfo "160000,$_l2,lib"; git -C "$C" add "$CREC"; git -C "$C" commit -qm carrier
+git -C "$C" config diff.ignoreSubmodules all
+casks "a carrier that also moves a submodule under ignore = all"
+cfix graft commit; printf '%s %s\n' "$(git -C "$C" rev-parse HEAD)" "$(git -C "$C" rev-parse HEAD~2)" > "$C/.git/info/grafts"
+cpasses 'git push' "a graft file does not change the parents the walk reads"
+cfix headfile commit; : > "$C/HEAD"
+cpasses 'git push' "…and neither does an untracked file named HEAD"
+_R="$WORK/carrier/subproj"; C="$_R/proj"; git init -q "$_R"; mkdir -p "$C/.attest"
+git -C "$_R" config user.email smoke@example.invalid; git -C "$_R" config user.name smoke
+: > "$C/a.py"; git -C "$_R" add proj; git -C "$_R" commit -qm work; X="$(git -C "$_R" rev-parse --short HEAD)"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/.attest/ship-20260928-100000-$X.md"
+git -C "$_R" add "proj/.attest/ship-20260928-100000-$X.md"; git -C "$_R" commit -qm carrier
+cpasses 'git push' "a carrier in a project below the repository's top level passes"
+git -C "$_R" config diff.relative true
+cpasses 'git push' "…and still passes under diff.relative=true"
+: > "$_R/outside.txt"; git -C "$_R" add outside.txt; git -C "$_R" commit -q --amend --no-edit
+casks "…while one that also adds a file outside the project"
+# A record written in the push's own command never had its prompt; nor under a dry run.
+cfix forge commit
+for c in 'echo x > .attest/ship-20260929-000000-y.md && git push' 'git push --dry-run > .attest/ship-20260929-000000-y.md'; do
+  says "$c asks" "$(cguard "$c")" 'permissionDecision":"ask'
+  says "…traced record" "$(cdec)" '^record$'
+done
+says "…and the prompt still says it sends data" "$(cguard 'echo x > .attest/ship-20260929-000000-y.md && git push')" 'and sends data off the machine'
+# A PR with no push carries records only as a command of its own, in this repository.
+cpasses 'gh pr create --title \"feat(x): y\" --body-file f 2>&1' "a PR with a title and a body file passes on the carrier"
+# shellcheck disable=SC2016
+for c in 'npm publish; gh pr create --fill' 'git commit -qam x && gh pr create --fill' \
+         'gh pr create --body \"$(cat f)\"' 'cd .. && gh pr create --fill' 'gh pr create --fill <(npm publish)' \
+         'gh pr create --fill >(npm publish)' 'gh pr create --title x --body-file <(./deploy.sh)'; do
+  says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'
+done
+says "a PR whose shell sits in another repository asks on the carrier" \
+  "$(echo "{\"cwd\":\"$P/other\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}" |
+     CLAUDE_PROJECT_DIR="$C" sh "$GUARD")" 'permissionDecision":"ask'
+# A plain push under push.default=matching also sends another branch: the shape asks first.
+cfix matching commit
+git -C "$C" branch other HEAD~2; git -C "$C" push -q origin other 2>/dev/null
+git -C "$C" checkout -q other; echo o > "$C/o"; git -C "$C" add o; git -C "$C" commit -qm unpushed
+git -C "$C" checkout -q main; git -C "$C" config push.default matching
+says "a bare push under push.default=matching, another branch ahead, asks" "$(cguard 'git push')" 'permissionDecision":"ask'
+says "…traced ask, never pass-carrier" "$(cdec)" '^ask$'
+cpasses 'git push origin main' "…while naming HEAD's branch still passes as the carrier"
 
 # --- 3b. the guard leaves a trace, so "did it fire" is a fact (ADR-0034) ---------------
 echo "hooks — ship guard trace:"

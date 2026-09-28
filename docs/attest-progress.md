@@ -7,8 +7,31 @@
 
 ## Current state
 
-**Kit 0.14.0 on branch `fix/guard-compound-shape-redact`, not merged, not tagged — ADR-0076,
-closing issue #30.** A clean record for HEAD now passes a push only in a shape the guard reads as
+**Epic #28 (cut attest to its core), 2026-09-28: wave 1 half done, D1–D6 decided (D3 declined →
+lean `/checkpoint` and PROGRESS.md kept).** Shipped: #44 → `v0.12.1`, #29 → `v0.13.0`, #30 →
+`v0.14.0` (PR #47, `1736b89`). Branch `fix/guard-carrier-pass` holds #33 → kit 0.15.0, below.
+Open: #31–#43 (#33 closes with that branch), epic #28; #32 is next. How to work (the standing
+grant, the ship ritual, keeping push text out of Bash): the auto-memory for this project. Open
+work lives in the issues.
+
+**Kit 0.15.0 on branch `fix/guard-carrier-pass`, not merged, not tagged — ADR-0077, closing
+issue #33.** When no record names HEAD, a `git push` that passed the shape check, or a
+`gh pr create` that is the whole command, passes as `pass-carrier` if every commit down to a
+commit S only adds regular `.attest/ship-*.md` files, one of the 10 newest records names S, no
+record for S or a commit above it reports a blocker, and the scan is neither `leak` nor `error`.
+One walk down HEAD's line finds S. A record written inside a push's own command now asks. A PR
+takes one prompt, the record write, instead of three. The first draft's review reproduced three
+silent passes (a later blocker in between, `diff.relative` in a subdirectory, a compound
+`gh pr create`) and smaller ones; the second found `<(…)` passing in any push, on `main` too. Each
+is a smoke case. Replayed on a clone at `main`'s 18 record commits: 15 pass, and
+0a24f6f, 5c79205 and 0d9bfe5 ask, the issue's 12/3 on its 15 plus the three since. Suite
+**473 → 552**; 24 of 25 mutations fail a case (the survivor is explained in ADR-0077).
+`ship_guard.sh` 300 lines (32 comments, code 7 lines shorter). `main` measured 473 cases on
+2026-09-28, where ADR-0076 and this file said 472. Left to #32: `gh pr new`, and the leak scan
+missing files outside a project below the top level under `diff.relative=true`.
+
+**Kit 0.14.0 — ADR-0076, closing issue #30 — merged as PR #47 at `1736b89` and tagged `v0.14.0`,
+2026-09-28.** A clean record for HEAD now passes a push only in a shape the guard reads as
 shipping HEAD alone, an allow-list: redirections dropped, read-only parts before the push, a plain
 `git push` with known options and refspecs resolving to HEAD, in this repository (payload `cwd`,
 `cd` and `-C` resolved by git). Anything else asks, traced `compound` (a part before the push)
@@ -377,12 +400,12 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-28 on the kit-0.14.0 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-28 on the kit-0.15.0 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 472 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 552 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
@@ -400,6 +423,13 @@ resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *P
 2026-09-09*.
 
 ## Next
+
+- **Epic #28, in this order:** #32 (+ the three older gaps in its 2026-09-28 comment) → #31
+  (archive the ADR log) → wave 2:
+  #34 (a) then (b) → #35, #36 (D3 declined: lean), #37, #38 → wave 3: #39 → #40, #41, #42 →
+  #43 (v1.0.0 and anything published: ask first). Each issue's body is its spec; re-read its
+  comments before starting. Per PR: reviewer subagent on guard changes, ship ritual, PR, CI,
+  hand over the merge, tag after merge. Everything below is older and predates the epic.
 
 - **From the full gate on the kit-0.12.0 branch (`gate-20260924-090400-f5134a9`) — the nits,
   unfixed on purpose.** Its seven minors were closed before the push, while ADR-0073 could still

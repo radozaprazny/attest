@@ -2963,3 +2963,79 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   (`git push && scp …`). A quoted value holding a space still breaks the normalisation, so
   `git -c "a b" push` is never recognised as a push at all, and `--dry-run --no-dry-run` passes as
   a dry run; both predate this entry. Masking covers the shapes GUIDE lists and no other.
+
+## ADR-0077 — a commit that only adds ship records passes as the commit they name · 2026-09-28 · Accepted
+
+  Supersedes in part: ADR-0033 — its consequence that the commit carrying a record is unaudited by
+  construction, so the push that carries it has to ask.
+  Widens: ADR-0028 (a clean record for HEAD clears a push) — to a HEAD that only adds records on
+  top of the commit a clean record names.
+  Extends: ADR-0076 — the carrier is looked for only once the push passed its shape check, and on a
+  PR only when it is the whole command.
+  Widens: ADR-0060 (the record arm reads each command part) — to every shell command, a push's own
+  included, before the dry-run test.
+
+- **Context** — issue #33, decision D2 of epic #28 (accepted 2026-09-26), measured against `main`
+  @ 1736b89. Committing a record moves HEAD, so the push that carries it always asked *"no
+  /audit-history run record for HEAD"*, and the prompt's advice, re-run `/audit-history`, can only
+  loop: a new audit writes a new record that needs another commit. `main` holds 18 "commit the
+  ship record" commits, and `main`'s guard asks at each. A PR took three prompts: the record write,
+  the carrier push and `gh pr create`. The branch's first draft passed three shapes that ship
+  more: a carrier above a commit whose later record reports a blocker, a file outside a project in
+  a subdirectory under `diff.relative`, and `gh pr create` inside any compound command. Its review,
+  run against scratch remotes, reproduced each, and smaller ones: empty commits, a symlink,
+  executable or submodule move beside a record, and a record written inside the push's own
+  command. A second review found a process substitution passing: the redirection filter drops
+  `<(…)` and `>(…)`, so `git push origin main <(./deploy.sh)` passed on a record for HEAD on `main`
+  too, and ran the script. Each is now a smoke case.
+- **Options** — (a) pass the carrier, kept narrow; (b) keep the ask, traced honestly as
+  `ask-carrier`; (c) also delete the record guard; (d) stop committing records.
+- **Decision** — (a). When no record names HEAD, the guard looks for a carrier on a `git push`
+  that passed the shape check, and on a `gh pr create` that is the whole command (redirections
+  aside, no `$(…)`) run in this repository. A process substitution now fails the shape of any push
+  or PR. It walks HEAD's line once. Each commit it reaches is a
+  candidate S once every commit above it is a non-merge that adds at least one regular file
+  `.attest/ship-*.md` directly in the project's `.attest/` and changes nothing else; the walk
+  stops at the first commit that does anything else. HEAD passes, traced `pass-carrier`, at the
+  first candidate that one of the 10 newest records names and whose records are all clean, unless
+  a record for a candidate above it reports a blocker, and only if the scan is neither `leak` nor
+  `error`. The walk reads what a push sends: paths from the repository's top level, submodule
+  moves shown, replace refs and grafts off, signatures hidden. The issue stated the rule per
+  candidate (S an ancestor, no merge in `S..HEAD`, every `--name-status` line an added record).
+  With no merge in `S..HEAD`, S lies on HEAD's single-parent line, so the walk admits the same
+  commits, tightened twice: each commit must add a record, and a later blocker in between holds.
+  The record arm now reads every shell command, a push's included, before the dry-run test, and its
+  prompt still names what the command ships. The prompt's advice ends *"commit that record on its
+  own and push"*.
+- **Why** — (b) keeps an approve with no evidence behind it on every branch. (c) makes a record the
+  claim of whichever session wrote it: the record guard's prompt is the one human act behind it.
+  (d) takes the evidence out of history and PR review. With (a), the tree HEAD ships is the
+  audited one plus records whose write a human approved. A PR's shape is judged for the carrier
+  only: on a HEAD with its own record every ship command but a push of another shape already
+  passes, so a PR's shape there would ask without protecting anything. The walk replaced the first draft's three to four git calls per
+  candidate, ten candidates, which on a linear history ran `git log --name-status` over each
+  candidate's whole range; it reads HEAD's line down to its first other commit.
+- **Consequences** — a PR takes one prompt, the record write: audit, write the record, commit it
+  on its own, push, open the PR with `--body-file`. A model's usual PR body,
+  `--body "$(cat <<EOF …)"`, asks on a carrier: it is not the whole command. A replay on a clone
+  of this repository, running this guard at each of `main`'s 18 record commits with a plain
+  `git push` and the scan off: 15 trace `pass-carrier`, 3 ask. 0a24f6f and 5c79205 carry records
+  for commits with other commits after them (e89bef1 and 5947d30; c606f5e); 0d9bfe5 also edits
+  `docs/attest-progress.md`, and its record names 7a5cb60, which is not its ancestor. Of the 15
+  commits the issue counted, 12 pass, the split its prototype gave; the three since (bcfe767,
+  275828d, 7154b8d) pass. Suite **473 → 552**: 79 cases. Of 25 mutations, each disabling one part
+  of the rule, 24 fail a case; the one that survives drops the explicit stop at a merge, which the
+  walk also makes because git shows a merge with no changes. `ship_guard.sh` is 300 lines, 32 of
+  them comments, and its code is 7 lines shorter: the ship list takes fewer lines, and one lookup
+  function serves HEAD and S. Per call, 5 paired rounds of 20 runs: with no record for HEAD,
+  146–153 ms on `main` and 154–169 ms here, slower in every round; a carrier's push 135–158 ms
+  on `main`, where it asked, and 274–299 ms here, where it passes. Kit 0.15.0.
+- **Known limits.** The commit messages above S, the carrier's own included, ship unread: the
+  leak scan reads changes, not messages. A record is free text: what it says ships unread except
+  by the leak scan, and the record guard's prompt is what vouches for it; a record written by a
+  command the record arm does not match (#32) is read here as it is for HEAD. A PR's `--body-file`
+  sends a file the guard does not read, and its `--head` or `-R` can open a PR for other content,
+  as on a record for HEAD. `gh pr new`, an alias, and `gh -R … pr create` are not on the ship
+  list (#32). Under `diff.relative=true`, the leak scan, which runs from the project directory,
+  does not read files outside a project below the top level; that predates this entry and is left
+  to #32. A commit adding a `/gate` record is not a carrier. ADR-0076's limits hold.

@@ -207,6 +207,20 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   see them: a URL's `user:token@`, a `NAME=value` whose name holds KEY, TOKEN, SECRET, PASS, PAT,
   AUTH or CRED, the value of `--password`, `--token`, `--api-key`, `--auth` or `-p`, a
   `-u user:password`, and the word after `Bearer`, `Token` or `Basic`. Any other shape is not.
+- **The commit that carries a record passes as the commit the record names** (attest ADR-0077).
+  Committing a record moves HEAD, so the push carrying it used to ask with nothing behind the
+  answer. When no record names HEAD, a `git push` that passed the shape check above passes, traced
+  `pass-carrier`, if every commit between a commit S and HEAD is a non-merge that adds regular
+  `.attest/ship-*.md` files and nothing else, one of the 10 newest records names S, no record for
+  S or a commit above it reports a blocker, and the leak scan is neither `leak` nor `error`. So
+  does a `gh pr create` on such a HEAD when it is the whole command, redirections aside and with
+  no `$(…)`, run in this repository: give the PR its body with `--body-file`. A push whose shape
+  asks is not looked at this way and stays `ask`. A modified, renamed or deleted record, a symlink
+  or executable named like one, a file below `.attest/ship-…/`, any other file or submodule move,
+  an empty commit or a merge between S and HEAD: each asks. So the order is audit, write the
+  record, commit it on its own, push, open the PR: one prompt, the record write. A process
+  substitution, `<(…)` or `>(…)`, asks in any push or PR, and a record write the guard recognises
+  asks even inside a push's own command.
 - **The publish path that never opens a shell** (attest ADR-0058). A GitHub MCP server pushes
   files, opens pull requests and creates repositories over the API — `git push` is never typed,
   so the `Bash` matcher never fires and, until this arm, the gate was simply absent there. The
@@ -396,8 +410,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > itself; both only print, and what reaches the provider is whatever your session already does.
 
 > **Reading the trace.** Six columns — timestamp · decision · short sha · permission mode ·
-> scan · sanitised subject, credentials masked — and ten decision words: `pass` (a clean record
-> cleared it) ·
+> scan · sanitised subject, credentials masked — and eleven decision words: `pass` (a clean record
+> cleared it) · `pass-carrier` (HEAD only adds records on top of a commit a clean record clears;
+> ADR-0077) ·
 > `blocked` (a record for this commit exists and does not attest a clean scan) · `ask` (no
 > record at all) · `dryrun` (waved through as a simple dry run) · `record` (something was
 > writing a ship record, from either hook) · `mcp` (a publish tool that never opens a shell,
