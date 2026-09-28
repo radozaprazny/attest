@@ -69,6 +69,32 @@ desc_w=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$AUDIT
 if [ "$desc_w" -ge 1 ] && [ "$desc_w" -le 40 ]; then ok "the auditor's description is 1-40 words ($desc_w)"; else fail "the auditor's description is 1-40 words ($desc_w)"; fi
 check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
 
+# --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
+# The skill is paid on every run and stands between install and first value; the skeleton
+# lives inside it, since no templates/BUSINESS.md ships, so its shape is checked here.
+echo "business budget:"
+BIZ_MD="$KIT/.claude/skills/business/SKILL.md"
+biz_w=$(wc -w 2>/dev/null < "$BIZ_MD" || echo 9999)
+if [ "$biz_w" -le 400 ]; then ok "business/SKILL.md is within 400 words ($biz_w)"; else fail "business/SKILL.md is within 400 words ($biz_w)"; fi
+biz_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$BIZ_MD" 2>/dev/null || true; } | wc -w)
+if [ "$biz_d" -ge 1 ] && [ "$biz_d" -le 40 ]; then ok "its description is 1-40 words ($biz_d)"; else fail "its description is 1-40 words ($biz_d)"; fi
+biz_adr=$(grep -c 'ADR-' "$BIZ_MD" 2>/dev/null || true)
+if [ "${biz_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($biz_adr)"; fi
+check "/business stays user-invoked" grep -qx 'disable-model-invocation: true' "$BIZ_MD"
+check "…and still retires the audit argument" grep -q 'The argument .audit. is retired' "$BIZ_MD"
+biz_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$BIZ_MD" 2>/dev/null || true)
+biz_h=$(printf '%s\n' "$biz_sk" | grep -c '^## ' || true)
+biz_l=$(printf '%s\n' "$biz_sk" | wc -l)
+if [ "$biz_h" -eq 3 ]; then ok "the skeleton in the skill has exactly 3 sections"; else fail "the skeleton in the skill has exactly 3 sections ($biz_h)"; fi
+if [ "$biz_l" -ge 3 ] && [ "$biz_l" -le 20 ]; then ok "…in at most 20 lines ($biz_l)"; else fail "…in at most 20 lines ($biz_l)"; fi
+says_not "…and no HTML comment" "$biz_sk" '<!--'
+if grep -rqiE 'archetype|gate-watch' "$KIT/.claude/skills/business" "$KIT/.claude/skills/gate" "$KIT/.claude/hooks"; then
+  fail "no archetype or gate-watch left in /business, /gate or the hooks"
+else
+  ok "no archetype or gate-watch left in /business, /gate or the hooks"
+fi
+check "no BUSINESS.md template ships" test ! -e "$KIT/templates/BUSINESS.md"
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do
@@ -84,10 +110,13 @@ echo "hooks — SessionStart declaration:"
 D0="$WORK/decl-empty"; mkdir -p "$D0"
 out=$(CLAUDE_PROJECT_DIR="$D0" sh "$DECL")
 if [ -z "$out" ]; then ok "silent in a project with no documents"; else fail "silent in a project with no documents"; fi
-# The shipped skeletons are <placeholder> text: a fresh install must add no session noise.
-D1="$WORK/decl-template"; mkdir -p "$D1"; cp "$KIT/templates/BUSINESS.md" "$KIT/templates/PROGRESS.md" "$D1/"
+# The shipped skeletons are <placeholder> text: a fresh install must add no session noise. No
+# BUSINESS.md template ships any more (#35), but an older kit left one in many projects, so its
+# Non-goals shape is written inline: a comment and a <placeholder> bullet declare nothing.
+D1="$WORK/decl-template"; mkdir -p "$D1"; cp "$KIT/templates/PROGRESS.md" "$D1/"
+printf '# B\n\n<!--\n  how to use this file\n-->\n\n## Non-goals\n\n- <what it deliberately does NOT cover>\n\n## What success looks like\n\n- <what done looks like>\n' > "$D1/BUSINESS.md"
 out=$(CLAUDE_PROJECT_DIR="$D1" sh "$DECL")
-if [ -z "$out" ]; then ok "silent while the documents are still the shipped templates"; else fail "silent while the documents are still the shipped templates"; fi
+if [ -z "$out" ]; then ok "silent while PROGRESS.md is the shipped template and BUSINESS.md an older kit's"; else fail "silent while PROGRESS.md is the shipped template and BUSINESS.md an older kit's"; fi
 # ...and speaks as soon as a non-goal is real
 D2="$WORK/decl-filled"; mkdir -p "$D2"
 printf '# B\n\n## Non-goals\n\n- no network access at runtime\n\n## What success looks like\n\n- <ph>\n' > "$D2/BUSINESS.md"
@@ -1402,9 +1431,12 @@ optin_out=$(run_install "$T5")
 check "no COMPLIANCE.md by default"       test ! -e "$T5/COMPLIANCE.md"
 check "no /compliance skill by default"   test ! -e "$T5/.claude/skills/compliance/SKILL.md"
 says  "the report says why it is absent"  "$optin_out" 'compliance — not installed'
-for d in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md; do
+for d in CLAUDE.md PROGRESS.md DECISIONS.md; do
   check "the non-optional document $d is there" test -f "$T5/$d"
 done
+# BUSINESS.md ships no skeleton (#35): /business writes it, and the report says so.
+check "no BUSINESS.md lands on install"           test ! -e "$T5/BUSINESS.md"
+says  "…the NEXT steps send you to /business for it" "$optin_out" '/business .*writes BUSINESS.md'
 later_out=$(run_install --compliance "$T5")
 check "--compliance on a re-run adds the document" test -f "$T5/COMPLIANCE.md"
 check "…and the skill"                             test -f "$T5/.claude/skills/compliance/SKILL.md"

@@ -239,17 +239,19 @@ echo "attest${KIT_VERSION:+ $KIT_VERSION}  →  $TARGET"
 echo
 
 # --- documents ------------------------------------------------------------------------
-# COMPLIANCE.md is NOT here: it is opt-in, decided after /business knows the archetype
-# (ADR-0030). An empty posture file reads as "declared" to every later audit. The templates
-# sit in templates/, because the kit's root holds attest's own documents.
+# COMPLIANCE.md is NOT here: it is opt-in, decided after /business records whether the project
+# is regulated (ADR-0030). An empty posture file reads as "declared" to every later audit.
+# BUSINESS.md is not here either: /business writes it from the repo and at most three
+# questions, so no skeleton ships for it (#35). The templates sit in templates/, because the
+# kit's root holds attest's own documents.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 group_reset
-for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md; do
+for doc in CLAUDE.md PROGRESS.md DECISIONS.md; do
   copy_if_absent "$doc" "document" "templates/$doc"
   [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
 done
-DOC_LIST="CLAUDE · PROGRESS · BUSINESS · DECISIONS"
+DOC_LIST="CLAUDE · PROGRESS · DECISIONS"
 if [ "$WANT_COMPLIANCE" = 1 ]; then
   copy_if_absent "COMPLIANCE.md" "document" "templates/COMPLIANCE.md"
   [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
@@ -397,7 +399,7 @@ fi
 
 # --- what deliberately did not land --------------------------------------------------------
 if [ "$WANT_COMPLIANCE" = 0 ]; then
-  say "·" "Opt-in" "compliance — not installed; /business tells you whether you need it"
+  say "·" "Opt-in" "compliance — not installed; re-run with --compliance if /business finds the project regulated"
 fi
 say "·" "Not ours" "README.md · LICENSE — they describe attest, not your project"
 
@@ -449,7 +451,7 @@ if [ "$CLAUDE_INSTALLED" = 1 ]; then
   printf '  %d  %-24s %s\n' "$n" "Fill CLAUDE.md" "loaded every turn, ships with <placeholders>; /init is quickest"
   n=$((n + 1))
 fi
-printf '  %d  %-24s %s\n' "$n" "/business" "purpose, archetype, non-goals — the hooks read these"
+printf '  %d  %-24s %s\n' "$n" "/business" "writes BUSINESS.md; its non-goals reach every session and /gate"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "/decision" "one entry per choice, as it lands — not a backlog"
 n=$((n + 1))
