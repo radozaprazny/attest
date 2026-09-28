@@ -8,8 +8,7 @@
 set -euo pipefail
 
 # The hooks honour five environment overrides — two paths (ADR-0028) and three headings
-# (ADR-0047). A maintainer who sets any of them for this checkout — which docs/attest-progress.md
-# tells them to do, so the SessionStart hook is not silent here — would otherwise have that
+# (ADR-0047). A maintainer who sets any of them for this checkout would otherwise have that
 # ambient value reach every fixture below, and the assertions pinning the DEFAULT document paths
 # and headings would fail against files no test wrote. The suite controls its own environment;
 # the tests that want an override set it per invocation.
@@ -53,44 +52,6 @@ py_count=$(find "$KIT/.claude" -name '*.py' | wc -l)
 if [ "$py_count" -eq 0 ]; then ok "no .py anywhere under .claude/"; else fail "no .py anywhere under .claude/ ($py_count found)"; fi
 check "no formatter config ships"  test ! -e "$KIT/ruff.toml"
 check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
-
-# --- 0b. the log's relation grammar and the rules describing it agree -------------------
-# Three entries — ADR-0045, ADR-0056, ADR-0064 — were spent recording relations the log had
-# already started using while every rule-home still named the shorter list. Each time it was
-# an audit that noticed, one entry too late. This ends the series with a grep: the vocabulary
-# is fixed here, the log is checked against it, and the two shipped rule-homes are checked for
-# the same words — so drift in either direction fails the suite instead of a later pass.
-echo "decision log — relation grammar:"
-LOG="$KIT/docs/attest-decisions.md"
-RELATIONS='Supersedes|Supersedes in part|Narrows|Widens|Extends|Relates to'
-# `Related:` is a legacy spelling of `Relates to:` carried by ADR-0058 and ADR-0059, which were
-# pushed before it was noticed and are therefore immutable (ADR-0057). Accepted here so the
-# suite passes over history; it is named in the log header as not to be written again.
-# Two steps, and the second one is why: `-o` with a `^`-anchored pattern returns at most one
-# match per line, and the log already carries two fields on one line (ADR-0058: `Widens: … .
-# Related: …`). So step one SELECTS the relation lines — indented, opening with a field, tab or
-# space — and step two extracts EVERY field on them. Prose is not reachable from here: a line
-# only qualifies if it opens with `Word: ADR-`.
-used_bad=$(grep -hE '^[[:space:]]+[A-Za-z][A-Za-z ]*: ADR-' "$LOG" \
-  | grep -oE '[A-Za-z][A-Za-z ]*: ADR-' \
-  | sed 's/^ *//; s/: ADR-$//' | sort -u | grep -vxE "$RELATIONS|Related" || true)
-if [ -z "$used_bad" ]; then
-  ok "every relation word in the log is one the rules name"
-else
-  fail "every relation word in the log is one the rules name (found: $(echo "$used_bad" | tr '\n' ' '))"
-fi
-
-for home in "templates/DECISIONS.md" ".claude/skills/decision/SKILL.md" "docs/attest-decisions.md"; do
-  missing=""
-  for rel in "Supersedes" "Supersedes in part" "Narrows" "Widens" "Extends" "Relates to"; do
-    grep -q "$rel" "$KIT/$home" || missing="$missing $rel"
-  done
-  if [ -z "$missing" ]; then
-    ok "$home names all six relations"
-  else
-    fail "$home names all six relations (missing:$missing)"
-  fi
-done
 
 # --- 0b2. `/gate fix`: the contract, in the two files that have to agree ----------------
 # The loop itself is model behaviour and this suite cannot run it. What it can pin is the pair

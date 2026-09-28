@@ -71,7 +71,7 @@ the other?"* If yes, record it; if no, leave it to the commit.
   written, cited and pushed:
 
   ```sh
-  LOG=DECISIONS.md                      # attest's own log is docs/attest-decisions.md
+  LOG=DECISIONS.md
   git fetch --all --quiet 2>/dev/null   # a ref you have not fetched cannot be seen
   git for-each-ref --format='%(refname)' refs/heads refs/remotes \
     | xargs -I{} git grep -h -E '^## ADR-[0-9]{4} — [^<]' {} -- "$LOG" 2>/dev/null \

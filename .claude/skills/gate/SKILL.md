@@ -58,8 +58,9 @@ each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
 
    `$DOCS` below is the control documents **as this repo actually keeps them** — usually
    `BUSINESS.md DECISIONS.md COMPLIANCE.md` at the root, but a repo that ships those as
-   templates keeps its live ones elsewhere (attest's own are `docs/attest-*.md`). Use what
-   scoping just showed you; a hardcoded list would log the skeletons and miss the real log.
+   templates keeps one of the two sets elsewhere (attest's templates are in `templates/`).
+   Use what scoping just showed you; a hardcoded list would log the skeletons and miss the
+   real log.
    The clean-tree case is a branch **inside** the same invocation — never a second command:
 
    ```bash

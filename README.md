@@ -134,7 +134,7 @@ which is a different and smaller claim than *nothing sensitive can leave*.
 
 Dogfooded before shipping: two sandboxes seeded with **known planted faults**, audited by
 agents told nothing about them — **6/6 caught at the right severity, 0 false positives**
-([the record](docs/attest-devlog.md)). Read that as what it is: a clean sweep of **six** faults
+([the record](docs/archive/attest-devlog.md)). Read that as what it is: a clean sweep of **six** faults
 across **two** sandboxes, every one of them counted, not a benchmark — the sample is small
 enough to name. The four results that matter:
 
