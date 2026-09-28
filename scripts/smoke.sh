@@ -53,39 +53,34 @@ if [ "$py_count" -eq 0 ]; then ok "no .py anywhere under .claude/"; else fail "n
 check "no formatter config ships"  test ! -e "$KIT/ruff.toml"
 check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
 
-# --- 0b2. `/gate fix`: the contract, in the two files that have to agree ----------------
-# The loop itself is model behaviour and this suite cannot run it. What it can pin is the pair
-# of statements the loop is made of — a cap and a record line in the skill, a re-review mode in
-# the agent — because those living in two files is exactly how one of them drifts (ADR-0068).
+# --- 0a. the gate's word budgets (issue #34) --------------------------------------------
+# Every word of these two files is paid on every /gate run, in two contexts. The targets are
+# 800 and 500; a replay showing that more auditor text catches a miss outranks them (#34).
+echo "gate budgets:"
+GATE_MD="$KIT/.claude/skills/gate/SKILL.md"; AUDITOR_MD="$KIT/.claude/agents/auditor.md"
+gate_w=$(wc -w < "$GATE_MD"); auditor_w=$(wc -w 2>/dev/null < "$AUDITOR_MD" || echo 9999)
+if [ "$gate_w" -le 800 ]; then ok "gate/SKILL.md is within 800 words ($gate_w)"; else fail "gate/SKILL.md is within 800 words ($gate_w)"; fi
+if [ "$auditor_w" -le 500 ]; then ok "auditor.md is within 500 words ($auditor_w)"; else fail "auditor.md is within 500 words ($auditor_w)"; fi
+check "the auditor can read and nothing else" grep -qx 'tools: Read, Grep, Glob' "$AUDITOR_MD"
+desc_w=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$AUDITOR_MD" 2>/dev/null || true; } | wc -w)
+if [ "$desc_w" -ge 1 ] && [ "$desc_w" -le 40 ]; then ok "the auditor's description is 1-40 words ($desc_w)"; else fail "the auditor's description is 1-40 words ($desc_w)"; fi
+check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
+
+# --- 0b2. `/gate fix`: the contract, in the files that have to agree -------------------
+# #34 (a) rewrote /gate without fix mode, so the cases that pinned it in gate/SKILL.md are gone.
+# What is left pins the reviewer and the ladder, which #34 (b) deletes with this section.
 echo "gate fix — the contract:"
-check "the skill caps the loop at three rounds" \
-  grep -q 'cap is \*\*three rounds\*\*' "$KIT/.claude/skills/gate/SKILL.md"
-check "…and the record carries the round it was" \
-  grep -q 'round: <n>/3' "$KIT/.claude/skills/gate/SKILL.md"
-check "…and fix is said to edit code, never a control document" \
-  grep -q 'never edits a control document' "$KIT/.claude/skills/gate/SKILL.md"
 check "the reviewer has the re-review mode the loop calls" \
   grep -q '^## Re-review mode' "$KIT/.claude/agents/reviewer.md"
 check "…and is told not to re-litigate an untouched hunk" \
   grep -q 'Do not re-litigate' "$KIT/.claude/agents/reviewer.md"
 check "…and counts to the same cap the skill states" \
   grep -q 'round <n>/3' "$KIT/.claude/agents/reviewer.md"
-# ADR-0071: one document finding is in fix's reach. The mark is written by /business under the
-# ladder's output shape and read by /gate — three files, so each side is pinned where it lives.
+# ADR-0071: the mark is written by /business under the ladder's output shape.
 check "the ladder's output shape carries the repair mark on a /business blocker" \
   grep -q './business. blocker only.*.repair: code.' "$KIT/.claude/skills/_shared/audit-ladder.md"
 check "…and /business is told to set it on every blocker" \
   grep -q 'Mark every blocker .repair: code. or .repair: person.' "$KIT/.claude/skills/business/SKILL.md"
-check "…and /gate fix takes only a blocker so marked" \
-  grep -q 'a ./business. blocker marked .repair: code.' "$KIT/.claude/skills/gate/SKILL.md"
-check "…and writes the test before the repair" \
-  grep -q 'write the test first' "$KIT/.claude/skills/gate/SKILL.md"
-check "…and records who judged it closed" \
-  grep -q 'closed · business ·' "$KIT/.claude/skills/gate/SKILL.md"
-check "…and never closes a finding by weakening its judge" \
-  grep -q 'never closes a finding by weakening what judges it' "$KIT/.claude/skills/gate/SKILL.md"
-check "the skill no longer promises the gate changes no code" \
-  grep -q 'changes no code except in the named' "$KIT/.claude/skills/gate/SKILL.md"
 check "…and the ladder carries the same exception" \
   grep -q 'no code with' "$KIT/.claude/skills/_shared/audit-ladder.md"
 
@@ -1429,6 +1424,7 @@ T1="$WORK/fresh"; mkdir -p "$T1"
 "$KIT/install.sh" "$T1" >/dev/null
 check "fresh install lands the shared ladder" test -f "$T1/.claude/skills/_shared/audit-ladder.md"
 check "fresh install lands /gate"             test -f "$T1/.claude/skills/gate/SKILL.md"
+check "fresh install lands the auditor /gate runs" test -f "$T1/.claude/agents/auditor.md"
 check "fresh install lands the gate's stage 0" test -f "$T1/.claude/skills/gate/triggers.sh"
 check "the stage-0 script is LF-pinned in the adopter's repo" \
   grep -q '^\.claude/skills/\*/\*\.sh text eol=lf$' "$T1/.gitattributes"

@@ -278,7 +278,7 @@ say "$(group_icon)" "Commands" "${CMDS# }"
 # --- subagents ---------------------------------------------------------------------------
 group_reset
 copy_tree_if_absent ".claude/agents"
-say "$(group_icon)" "Checks" "reviewer · doc-auditor — the read-only subagents /gate runs"
+say "$(group_icon)" "Checks" "auditor — the read-only subagent /gate runs · reviewer · doc-auditor"
 
 # --- hooks + their wiring ----------------------------------------------------------------
 # Warn about unwired hooks only when the kept settings.json really leaves one unwired: an

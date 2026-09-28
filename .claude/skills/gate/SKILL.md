@@ -1,373 +1,99 @@
 ---
 name: gate
 description: >-
-  The commit-time gate as one command. Runs the code-level reviewer subagent plus the
-  document audits installed in this project — /business audit (non-goals/scope),
-  /decision audit (unrecorded decisions) and, where the opt-in /compliance skill is
-  installed, /compliance audit (regulated ground) — each in its own subagent, then merges
-  their findings under the shared audit ladder and ownership contract into ONE verdict and
-  appends a dated run record under .attest/ (the attestation that the gate ran). Touches no
-  control document, and changes no code except in the named `fix` mode, which repairs
-  reviewer-owned blockers and majors, and a /business blocker marked `repair: code` under a
-  test it writes first — nothing else. Does NOT include
-  /audit-history (that is the separate ship gate, run before a push/release). Generic —
-  usable in any repo. Run it before a commit; each sub-audit fires only where relevant.
+  The one gate before a push: betterleaks and one read-only auditor over what the next push
+  sends, then a committed ship record the ship guard reads. `full` adds all history.
+argument-hint: "[full]"
 disable-model-invocation: true
 ---
 
-# /gate — the commit-time gate, one command
+# /gate [full] — one gate before anything leaves
 
-One command instead of several. `/gate` runs the **commit-time** half of GUIDE PART 9's loop —
-the `reviewer` subagent (code-level) plus the document audits **the diff actually needs** — and
-returns **one** merged verdict. The **ship** gate stays separate: run `/audit-history` before a push and
-`/audit-history full` before a public release; `/gate` deliberately excludes it so the two
-cadences (every commit vs. leaving the machine) stay distinct.
+Scope is what the next push sends: `HEAD --not --remotes`, plus uncommitted and untracked
+files. `full` adds all history (`--all`). Code review is left to `/code-review`.
+No commit yet: say so and stop.
 
-## Two modes and one suffix, a word apart (attest ADR-0067, ADR-0068)
+## 1. Material and key layer — one Bash call
 
-| | scope | passes | when |
-|---|---|---|---|
-| **`/gate`** | the working diff, or `HEAD` when the tree is clean | only those a shell stage says the diff touched | before every commit |
-| **`/gate full`** | `<base>..HEAD` **plus** the working tree — the whole branch | **every** installed pass, unconditionally | once, before a push, beside `/audit-history` |
-| **`/gate fix`** (also `/gate full fix`) | as the mode it suffixes | the same, then a bounded repair loop | when you want the code-level findings closed as they are found |
+Run as **one** call, `bash <<'EOF'` … `EOF` (`FULL=1 bash` for `full`). It writes the
+material to `.attest/tmp/gate/` and prints a summary; never read the patches here.
 
-The light gate is cheap enough to run on a one-file change; that is the point, because a gate
-too expensive to run is not run. It buys that with keyword triggers, and **a keyword set finds
-what a word can find and nothing else** — the 2026-09-07 blocker was `*.sh text eol=lf` in
-`.gitattributes`, which no list flags. `full` is where the complete judgment happens, once, over
-the diff that ships. Never treat a light ✅ as the branch being cleared.
+```bash
+cd "$(git rev-parse --show-toplevel)" || exit 1
+D=.attest/tmp/gate; mkdir -p "$D"; rm -f "$D"/*
+g() { git -c core.quotepath=off "$@"; }
+K=(.claude/hooks/{ship_guard,record_guard,session_declaration}.sh .claude/agents/auditor.md
+  .claude/skills/{gate,business,decision,compliance,checkpoint}/SKILL.md)
+X=("${K[@]/#/:!}" ':!.attest/tmp'); F=(-p --no-ext-diff --date=short --format='commit %h %ad %s')
+R=(HEAD --not --remotes); L='HEAD --branches --tags --not --remotes'
+[ -z "${FULL:-}" ] || { R=(--all); L=--all; }
+{ g log "${F[@]}" "${R[@]}" -- . "${X[@]}"; g log "${F[@]}" --diff-filter=M "${R[@]}" -- "${K[@]}"; } > "$D/range.patch"
+g log --date=short --format='%h %ad %s' "${R[@]}" > "$D/log.txt"
+g diff --no-ext-diff HEAD > "$D/worktree.patch"
+U=(); while IFS= read -r -d '' e; do case $e in '?? '*) U+=("${e#?? }");; esac
+done < <(g status --porcelain -z -uall -- . "${X[@]}")
+printf '%s\n' "${U[@]}" | sed '/^$/d' > "$D/untracked.txt"
+ls -d BUSINESS.md DECISIONS.md COMPLIANCE.md 2>/dev/null > "$D/docs.txt"
+b() { n=$1; shift; betterleaks "$@" --redact=100 --no-banner --exit-code 42 --report-format json \
+  --report-path - < /dev/null > "$D/leaks-$n.json" 2>/dev/null; echo "$n $?"; }
+if command -v betterleaks >/dev/null; then echo "betterleaks $(betterleaks version)"
+  b unpushed git . --log-opts="$L"; b unstaged git . --pre-commit; b staged git . --pre-commit --staged
+  [ ${#U[@]} -eq 0 ] || b untracked dir "${U[@]}"; else echo 'betterleaks absent'; fi | tee "$D/leaks.txt"
+echo "HEAD $(git rev-parse --short HEAD) ($(git branch --show-current | grep . || echo detached))" \
+  "· tree $([ -n "$(git status --porcelain)" ] && echo dirty || echo clean) · ts $(date +%Y%m%d-%H%M%S)"
+echo "kit $(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' .claude/skills/_shared/audit-ladder.md)"
+wc -l "$D"/*.patch "$D"/*.txt
+```
 
-The skill is **generic** — work with what you actually find in the repo, and assume nothing
-about the specific project.
+- `-z` status is never quoted; `quotepath=off` keeps non-ASCII paths readable.
+- The kit's own 9 files are left out where added or untracked, so a first `/gate` audits your
+  change, not the install, even uncommitted or with no remote; an edit to one stays in.
+  `.claude/settings.json` never is left out: its `env` can hold secrets.
+- betterleaks takes the guard's range. `dir` is skipped with no untracked file: a bare `dir`
+  reads ignored files. `0` is clean, `42` a finding, anything else did not finish: `degraded`,
+  never clean. Never add `--validation`: it sends the secret to its provider.
 
-> **Router (this skill owns no doc):** status → `PROGRESS.md` · rules → `CLAUDE.md` ·
-> why-it-exists → `BUSINESS.md` · why-we-chose-X-over-Y → `DECISIONS.md` · under-what-rules →
-> `COMPLIANCE.md`. (full table: GUIDE PART 1)
+## 2. One auditor
 
-## How to run the passes
+Launch the `auditor` subagent once with the absolute path of `.attest/tmp/gate/` and the mode.
 
-**Do not invoke the audit skills as skills.** Every skill in this kit is
-`disable-model-invocation: true` — they cannot be model-invoked from here. Instead, **read
-each skill's `SKILL.md` and hand its audit-mode section to a subagent**:
+## 3. Verdict — derived, not judged
 
-1. **Scope first, cheaply, in the main context** — `git status --porcelain`,
-   `git diff HEAD --stat`. Then write the material the document audits will read to a
-   temp dir, **redirected so it never enters this context**. Run it as **one** Bash
-   invocation — shell state does not survive between calls, and a split run would leave `$M`
-   empty and redirect to `/diff.patch`:
+Every `leaks-*.json` finding (redacted) must appear in the auditor's list; add any it dropped
+as `blocker · secret · <File>`. A hit judged a false positive still makes the guard ask `LEAK`
+until its `Fingerprint` is in a committed `.betterleaksignore`: commit that before the record.
+Any blocker → **⚠️ fix before push**; none → **✅ clean to push**.
+Show each finding with its evidence; end with one imperative.
 
-   `$DOCS` below is the control documents **as this repo actually keeps them** — usually
-   `BUSINESS.md DECISIONS.md COMPLIANCE.md` at the root, but a repo that ships those as
-   templates keeps one of the two sets elsewhere (attest's templates are in `templates/`).
-   Use what scoping just showed you; a hardcoded list would log the skeletons and miss the
-   real log.
-   The clean-tree case is a branch **inside** the same invocation — never a second command:
+Remediation: rotate a leaked secret; purging history and force-pushing is the person's call.
+If it was ever public, GDPR Art 33/34 may apply: consult, do not decide.
 
-   ```bash
-   M=$(mktemp -d) && DOCS="BUSINESS.md DECISIONS.md COMPLIANCE.md" &&
-   git status --porcelain -uall > "$M/status.txt" &&
-   if [ -s "$M/status.txt" ]; then git diff HEAD; else git show --first-parent HEAD; fi > "$M/diff.patch" &&
-   git log -n 20 --date=short --format='%h %ad %s' > "$M/log.txt" &&
-   git log -n 5 --date=short --format='%h %ad %s' -- $DOCS > "$M/log-docs.txt" &&
-   ls -1 .attest 2>/dev/null | grep '^gate-' | tail -n 3 > "$M/gate-records.txt"; echo "$M"
-   ```
+## 4. The record — always, whatever the verdict
 
-   In **`full`** mode the diff line is the branch instead of the commit — everything since the
-   base, working tree included, which is what `git diff <base>` with no second commit means:
+Write `.attest/ship-<ts>-<short sha>.md` with the Write tool, from the summary's values. The
+record guard asks here: that approval is the one human prompt, the attestation.
 
-   ```bash
-   DEF=$(git symbolic-ref --short refs/remotes/origin/HEAD 2>/dev/null | sed 's|^origin/||') &&
-   DEF=${DEF:-$(git rev-parse --verify -q main >/dev/null && echo main || echo master)} &&
-   BASE=$(git merge-base HEAD "$DEF" 2>/dev/null || git rev-list --max-parents=0 HEAD | tail -1) &&
-   git diff "$BASE" > "$M/diff.patch" && echo "base: $BASE ($DEF)"
-   ```
+```markdown
+- HEAD: <short sha> (<branch>)
+- tree: clean|dirty
+- scope: HEAD --not --remotes + worktree (<n> commits, <n> untracked) | --all + worktree
+- findings: <n> blocker · <n> note
+- verdict: ✅ clean to push | ⚠️ fix before push
+- kit: <version>
+- key layer: betterleaks <version> — unpushed <rc> · unstaged <rc> · staged <rc> · untracked <rc|skipped> | degraded — <why>
+- blocker · <class> · <path>
+```
 
-   **Say which base you used, in the verdict and the record.** The default branch is asked for
-   rather than assumed — a repo on `master`, or with no `main` at all, would otherwise fall
-   through to the root commit and gate the entire history while the record said *"the branch"*.
-   If it really does come out as the root commit, that is a first-branch repo and worth saying
-   out loud rather than hiding in a range.
+One `blocker ·` line per blocker; notes are counted, not listed. The ship guard parses
+`- HEAD:` (the sha prefix) and `- findings:` (it clears only on `0 blocker`): write both
+exactly. **Attestation altitude:** class and path only, never a value, line number or excerpt —
+it is committed and published. Name a degraded auditor in `scope:`.
+Never edit an earlier record.
 
-   Three details in that first block are each a bug someone hit (attest ADR-0067):
-   **cleanliness comes from `git status --porcelain`**, never `git diff --quiet`, which reports a
-   tree with three new untracked files as clean; **`git show --first-parent`**, because plain
-   `git show` on a merge commit prints no diff at all and the gate would silently audit nothing;
-   and **`gate-records.txt` is filtered to `gate-*`**, because `ls | tail -3` is alphabetical and
-   `ship-` sorts after `gate-`, so three ship records used to push every gate record out of the
-   list an audit scopes itself by.
+Then, as its own Bash step, never chained with a push:
 
-   `status.txt` is the full porcelain status, untracked files included. `log.txt` is **dated**
-   and `log-docs.txt` holds the commits that last touched each control document — together
-   with the newest `.attest/` record names (each carries the HEAD sha it gated) they are what
-   lets an audit scope itself to *"since the last audit"* without git of its own. If the tree
-   was clean the diff is `git show --first-parent HEAD` — **say so in the verdict**, you gated
-   the last commit, not pending work. **Echo `$M` and hand the absolute paths on** — step 2's
-   subagents cannot expand a variable from your shell.
+```bash
+git add <record> && git commit -m "chore(attest): ship record for <sha>" -- <record>
+```
 
-   **1b. Run stage 0 — the passes are chosen by a script, not by you** (attest ADR-0067).
-   In `full` mode skip this step entirely and run every installed pass:
-
-   ```bash
-   sh .claude/skills/gate/triggers.sh "$M" && cat "$M/triggers.txt"
-   ```
-
-   It reads the diff, the untracked files `status.txt` names, and the two declaration documents,
-   and writes one line per pass — `run`, `skip`, or `not-installed` — plus, for each **document**
-   pass that runs, a `$M/trigger-<pass>.txt` of `file:line` hits it starts from (the `reviewer`
-   gets none: its ground is the whole diff).
-
-   **Two lines in that file are not about a pass, and both have to reach the verdict:**
-   `posture none · …` is `/compliance`'s **minor** — an unfilled `COMPLIANCE.md` reads as
-   *declared* to every later audit, which is the whole of ADR-0030 — so report it under
-   `/compliance` with the remedy that skill's Step 0 names, **even on a run where the compliance
-   pass itself skipped**; and a `note · …` line reports a fault in the project's own
-   configuration, such as a `gate-watch` list that will not compile. Neither is a finding the
-   trigger stage invented: each is a fact about the repository that a pass would otherwise have
-   been launched to discover. No model is involved, so
-   the stage costs nothing; a pass that skips costs nothing either, which is the whole point —
-   four contexts for a one-file change is the price that stopped the gate being run.
-   **If `triggers.txt` is missing or unreadable, run every pass.** The script exits 0 and writes
-   nothing when it cannot decide, and a stage that cannot decide must never be the reason an
-   audit was skipped.
-2. **Launch only the passes stage 0 marked `run`**, as parallel subagents, each returning only
-   findings — the document
-   audits read-only **by capability**, the reviewer read-only **by rule** (it keeps Bash to
-   run the tests; see its ground rules). **Which document audits exist is a fact on disk, not
-   an assumption**: a pass exists per **document-audit** skill present — `business`, `decision`,
-   `compliance` (the others own no document audit). `/compliance` is
-   opt-in and absent in projects that declared themselves out of regulated scope (attest
-   ADR-0030) — then it is three passes, not four, and the verdict says
-   *"compliance — not installed"* rather than *"skipped"*, because those mean different things.
-   **Hand a running document pass its `$M/trigger-<pass>.txt`** as the place to start: it is
-   evidence, not a boundary — the hits are where the diff touched that pass's ground, and the
-   pass still reads the whole diff. In `full` mode there are no trigger files and every pass
-   runs:
-   - the **`reviewer` subagent** (`.claude/agents/reviewer.md`) — the code-level pass,
-     run as itself;
-   - one **`doc-auditor` subagent per document audit** (`.claude/agents/doc-auditor.md` —
-     tools `Read, Grep, Glob`: it cannot run git, edit or write; attest ADR-0017), each
-     given: the audit-mode section of its skill (`.claude/skills/business/SKILL.md` Mode 3 ·
-     `.claude/skills/decision/SKILL.md` Mode 2 · `.claude/skills/compliance/SKILL.md`
-     Mode 3, **when that file exists**), the shared ladder (`.claude/skills/_shared/audit-ladder.md`), the `$M` paths
-     (its git material — the agent has no Bash), its `trigger-<pass>.txt` when stage 0 wrote
-     one, and the instruction to apply its skill's own rules. **In `full` mode each pass also
-     applies its own trigger check**, the one written in its skill text; in light mode that
-     check already ran in shell, which is why the pass was launched at all.
-
-   This is the kit's own token-hygiene rule (GUIDE PART 4): running the audits inline would
-   pull every SKILL.md, every control document and the diff into the main context; in
-   subagents each runs in its own context and returns a summary.
-
-   A missing piece **degrades, never fails**: no `BUSINESS.md` → note "nothing declared —
-   run `/business`" and skip that pass; a document still the shipped skeleton → same; the
-   reviewer agent absent → say so and run the other three; the `doc-auditor` agent absent
-   (an older install) → fall back to general-purpose subagents with the same material and
-   say in the verdict that those passes were read-only by instruction only. If a subagent
-   reports it **cannot read `$M`** (a temp dir is outside the project, and a harness may
-   refuse it), re-write the same material under `.attest/tmp/` inside the repo, re-run that
-   pass, and delete **the files you wrote** afterwards — it is scratch, never a record. Delete
-   your files, not the directory: `.attest/tmp/` is shared ignored scratch and the ship guard
-   keeps its decision trace there too (attest ADR-0034).
-
-   **The skeleton skip happens here, before the subagent exists** (attest ADR-0066) — and it
-   applies to a pass whose **ground is the document itself**, which today means `/business`,
-   whose findings are drift against declared non-goals. Read `BUSINESS.md` first: if everything
-   outside its HTML comments and `<angle-bracketed>` placeholders is empty, it is still the
-   skeleton, so do not launch that pass. Launching it spends a whole subagent context to be told
-   what one `Read` already answered — which is what seven of the ten runs recorded here did.
-   **`/decision` and `/compliance` are not covered by this**: their ground is the **diff**, not
-   their document. An empty `DECISIONS.md` is the normal state of a young project (ADR-0065) and
-   is exactly when an unrecorded decision is most likely, so that pass runs on the diff as
-   always; `/compliance` applies its own cheap trigger check instead. Three words, three
-   different facts, and they do not substitute for each other: **skipped** — the pass never ran,
-   with the reason in one word; **degraded** — it ran and part of its ground was out of reach;
-   **not installed** — the skill is not in this repo.
-3. **Merge under the ownership contract** (`_shared/audit-ladder.md`): if two passes return
-   the same hunk, keep the **owner's** finding and drop the other — the contract names the
-   owner, including for the two edges it resolves explicitly. Order everything by the shared
-   ladder — three bare rungs, no per-skill variants (attest ADR-0029). Reviewer `nit`s stay
-   nits and sort last; they never change the verdict line. If `/compliance` is not installed
-   and a hunk lands on regulated ground, the ladder's fallback applies: the closest audit
-   reports it once, naming what it would have been.
-4. **Return ONE verdict:**
-   - **one line overall**, and the ladder decides it, not your judgment of the run —
-     `_shared/audit-ladder.md`, *What flips the verdict line* (attest ADR-0055). Read it there
-     and apply it; do not restate the rule here, or this becomes a second copy to drift.
-     Then a one-liner per pass, including the clean and the skipped ones — a short clean gate
-     is a correct result;
-   - **act on** — every blocker and major, ordered by severity, each with its **owner**,
-     its **evidence** (`file:line` / commit / hunk) and its **severity**. This is the list the
-     verdict line is about, and on a ✅ run it is empty;
-   - **advisory** — the minors, and the reviewer's `nit`s last. Report them in full, but keep
-     them under the act-on list and never let their number argue with the verdict: thirteen
-     minors and a ✅ is a coherent result, and saying so is the point of the rung;
-   - each pass's recommended document update, if any — but **make none of them**;
-   - **last line: what to do now, in one imperative sentence** — the only line that tells the
-     reader what to *do*, so nothing may follow it. It is derived, never judged: on ✅ it is
-     *"commit; the N minors go to `PROGRESS.md` Next"* (and a re-run is not among the options —
-     `_shared/audit-ladder.md`, *✅ ends the round*); on ⚠️ it names the act-on count and the
-     command that follows the fix, *"fix the N above, then `/gate`"*. A reader who stops after
-     this line has not missed an instruction (attest ADR-0061).
-5. **Append the run record** — the gate's only write (attest ADR-0016). Create `.attest/`
-   if absent and write one new file, `.attest/gate-<UTC yyyymmdd-HHMMSS>-<HEAD short sha>.md`:
-
-   ```markdown
-   # gate run — <UTC ISO timestamp>
-   - HEAD: <sha> (<branch>) · tree: <dirty — gated the working diff | clean — gated HEAD>
-   - kit: <the "Kit version:" value from .claude/skills/_shared/audit-ladder.md, if present>
-   - mode: <light — the passes the diff needs | full — every pass over <base>..HEAD + worktree>
-   - round: <n>/3 (fix)                         (only in `fix` mode; omit the line otherwise)
-   - triggers: <the triggers.txt lines, joined with " · ", or "not run (full mode)" / "unavailable — every pass ran">
-   - passes: reviewer <ran|skipped (<reason>)|degraded> · business <…> · decision <…> · compliance <…|not installed>
-   - verdict: <✅ ready to commit | ⚠️ commit after changes>
-   - findings: <n> blocker · <n> major · <n> minor · <n> nit
-     - <severity> · <owning pass> · <class of thing> · <path>   (one line per blocker and major)
-     - closed · business · <class of thing> · <path> · pinned by <test file>   (only in `fix` mode)
-     - <severity> ×<n> · <owning passes>                        (minors and nits, by count)
-   - detail: the session output; a durable copy under `.attest/tmp/` (ignored) if you want one
-   ```
-
-   **`mode:` and `triggers:` exist so that a skipped pass never reads as a clean one** (attest
-   ADR-0067). Without them a record showing no `/compliance` finding is ambiguous between *ran
-   and found nothing* and *never ran*, and the second is what the light gate produces most of the
-   time. Keep the three words apart here as everywhere: **skipped** (never ran, reason in one
-   word), **degraded** (ran, part of its ground out of reach), **not installed** (the skill is
-   not in this repo). The `triggers:` line carries stage 0's own words, not a summary of them —
-   it is the cheapest way for a later reader to ask *why did nothing run?* and get an answer.
-
-   **The record is an attestation, not a report (attest ADR-0049).** One line per blocker and
-   major — severity, the pass that owns it, the class of the thing, and the **path**. No line
-   numbers, no quoted values, no narrative of what was wrong or how it was repaired. The reason
-   is that this file travels: it is committed, so it publishes the moment the repository does,
-   and a dated, pre-indexed inventory of every weakness a codebase has had is a gift to the next
-   person who reads it with bad intent. What the fix was is already in the commit that made it;
-   what the finding was belongs to the person at the keyboard. A project whose findings *are*
-   its documentation may say so in its own `CLAUDE.md` and write more — the default is narrow,
-   because the safe default is the one that survives being forgotten.
-
-   **If a run was not recorded when it happened, record it late — and say so.** Keep the run's
-   own timestamp in the filename when you know it; when you do not, use the time you are
-   *writing* and put one line at the top saying which it is. A gap in `.attest/` and a
-   plausible-looking invented time are both worse than a record that declares itself late
-   (attest ADR-0032). Because of this, **name order is write order, not run order** — anything
-   scoping itself to *"since the last audit"* must read the HEAD sha inside the names, never
-   assume the last line of `ls` is the last run.
-
-   The directory is append-only: never edit or delete a previous record. **Two carve-outs
-   exist, both named; nothing else is permitted:**
-   - the ignored `.attest/tmp/` scratch, which git never sees and whose **files** are removed
-     by whatever wrote them — the directory itself is shared, so a run that deleted it whole
-     would silently erase the ship guard's trace (attest ADR-0026, narrowed by ADR-0034). A
-     record is never written there;
-   - **redacting personal data a record should never have carried** — the data goes, a visible
-     mark stays where it was, and the record states what was removed, when, and under which
-     entry. The finding, its counts and its verdict are never touched (attest ADR-0040).
-
-   Recommend staging the record **with the commit it gates** — that is what makes "the gate ran" a fact in
-   history rather than a memory. The record holds the verdict summary only: never the
-   findings' full text, and never a fact whose home is a control document (the router
-   stands).
-
-**The gate writes nothing to the control documents, and nothing to code outside `fix`** — the
-run record above is its one artifact, one per round. If a finding warrants a document change, that is the owning
-skill's write mode, run by me afterwards — recording stays a separate, human-approved step.
-`fix` below is the one named exception, and it is narrow: it edits **code**, never a document.
-
-## `fix` — a bounded loop, only where a command is the judge (attest ADR-0068, ADR-0071)
-
-`/gate fix` and `/gate full fix` add a repair loop to the mode they suffix.
-
-**Count rounds this way, because two texts that count differently are two caps.** **Round 1 is
-the gate run itself** — it finds, it repairs nothing, and it is recorded like any other run.
-Every round after it is one repair cycle: *fix → checks → stage 0 on the hunks → re-review*.
-The cap is **three rounds**, which is **two repairs**: find · fix-and-verify · fix-and-verify.
-
-**The finish line this loop watches is its own, and narrower than the verdict line.** It is:
-**no blocker or major stands that `fix` may take** — the `reviewer`'s, and a `/business` blocker
-marked `repair: code` until step 1 hands it to the person (attest ADR-0071). Every other document
-finding never holds a round open —
-`fix` is forbidden to touch its ground, so letting one keep the loop alive would burn every
-round and end on *split the change* for a change that is not too large, only out of scope. Those
-findings go to the final verdict under *for you to decide*, exactly as they would without `fix`.
-
-Each repair round:
-
-1. **Fix only what `fix` may take, and only at `blocker` or `major`.** The edit is yours,
-   made in the main context, visible in the session — not a subagent's, because a subagent that
-   edits is a subagent whose read-only contract stopped being true (ADR-0017). Two kinds, and
-   nothing else:
-   - **what the `reviewer` owns** — repair it;
-   - **a `/business` blocker marked `repair: code`** — the pass judged that a stated non-goal is
-     broken and that the violation can go without what the change is for going with it. **No
-     test runner in the project → do not take it at all**; without the command there is no
-     judge. Otherwise **write the test first**: one that states the non-goal at that code, run on
-     the tree as found — with a fixture that is visibly fake where the value it guards is
-     secret-shaped. **Red → repair.** Green → it does not pin the violation: **delete the test
-     you wrote**, edit nothing else, and hand the finding to the person. A finding handed over
-     either way is out of `fix`'s reach for the rest of the loop. Unmarked, `repair: person`, or
-     a regulated-ground finding `/business` reports in `/compliance`'s absence → it is the
-     person's, as every other document finding is.
-
-   **Order inside a round: every test this step owes is written and run before any repair.** A
-   `reviewer` fix and a `/business` finding can sit in the same code — in the loop ADR-0071
-   came from they sat in the same file — and a repair made first turns the test green before it
-   ever ran red, which hands the finding to the person for no reason but order.
-
-   **Nothing left for `fix` to touch → stop here and say so**, with the verdict as it stands; an
-   empty round is not a round worth spending, and it is a different outcome from hitting the cap.
-2. **Run the project's own checks.** Take them from `CLAUDE.md` (*Tests*, *Formatting and lint*);
-   if it is still the shipped template, take them from the project's CI workflow if it has one,
-   and **say where you got them**. Red → back to 1, **same round, at most twice**; still red →
-   this round ends red and counts, because a check that stays red for a reason the fix cannot
-   reach (a missing toolchain, a flaky test, a fault in someone else's hunk) is a finding for
-   the person, not a reason to keep editing. **A round that ends red still finishes** — steps 3
-   and 4 run, because a re-review over a failed repair is exactly where the reason shows — and
-   the loop ends saying *the checks are red for something `fix` cannot reach*, which is a
-   different diagnosis from *split the change* and must not be printed as one. **This step is load-bearing**: it is the only judge
-   in the loop that gives the same answer twice for the same input.
-3. **Re-run stage 0 on the fix hunks alone.** If a document trigger hits on them — the fix added
-   a dependency, say — that pass runs once, on those hunks. This is the whole of the "graph": a
-   fix re-opens the ground it touched and nothing else. A test written under step 1 states the
-   non-goal, so it will often trip `/business`'s trigger: that run reports what the fix hunks
-   **newly** do, and never re-judges a finding step 1 took — its test does that.
-4. **Re-review.** Launch the `reviewer` in re-review mode with **its own** previous findings —
-   never a document pass's, which are not its ground to judge and would make it break either the
-   ownership contract or its own rule against dropping a finding — plus the fix
-   hunks, the touched files **and the round number** (it prints that number, so it has to be
-   given it). It says, per finding, *addressed / not addressed / regressed*, looks for what the
-   fix broke, and runs the checks again. **A `/business` finding taken in step 1 is closed by its
-   test and nothing else** — red before the repair, green after, with the checks green — never
-   by this re-review, which reads the test as one more fix hunk.
-5. **Finish line reached → stop.** Otherwise the next round, up to the third. Still red after
-   the third → **stop and say *split the change***: a fourth round is not a repair, it is
-   evidence that the change is too large to gate in one piece.
-
-**Every round appends its own record**, with one extra line — `round: <n>/3 (fix)` — so the
-series is legible afterwards and ADR-0016's one-file-per-run shape is untouched. In a repair
-round the `passes:` line says **`reviewer re-review (fix hunks)`**, never a bare `reviewer ran`:
-a later round looks at less than the first one did, and a record that hides that would let
-`0 major` in round 3 read as the same statement as `0 major` in round 1. A `/business` finding
-closed by its test leaves the `findings:` counts, and its blocker line under them becomes
-**`closed · business · <class> · <path> · pinned by <test file>`** — a path, never a value
-(ADR-0049) — so the record says who judged it closed. The `record_guard.sh` prompt is unaffected.
-
-**Four things `fix` never does**, and each is a rule rather than a habit:
-
-- **It never edits a control document.** A violated non-goal it may not take, an unrecorded
-  decision, regulated ground: these come back in the final verdict under *for you to decide*,
-  with the owning skill's write mode named as the next step. What a command can verify may
-  loop; what a declaration governs needs the person (ADR-0017, ADR-0051).
-- **It never closes a finding by weakening what judges it.** No non-goal removed or narrowed,
-  no feature deleted to make a `repair: code` finding go away, no test skipped, disabled or
-  loosened — the one test `fix` may delete is its own, when it never went red. Each of those
-  turns the judge off instead of satisfying it (ADR-0071).
-- **It never takes a `minor` or a `nit`.** Advisory stays advisory, the diff stays minimal, and
-  a fix that adds text to close an advisory finding is new ground for the next round — which is
-  the mechanism ADR-0062 exists to slow down. Ask for one by name if you want it.
-- **It never runs by itself.** Not a `Stop` hook, not `/loop`: ADR-0028 removed this kit's nags
-  on purpose. `fix` is a word you type, with a cap you can read.
-
-**If no checks can be found at all — not in `CLAUDE.md`, not in CI — say so and run at most one
-repair round.** Without a command as judge the loop is exactly the judgment loop the ladder
-refuses: a pass that returns a different list on the same tree, asked again until it tires. One
-repair, reviewed once, is worth having; a second is not, and the record says why it stopped.
+A clean record lets the next push pass as its carrier; after a ⚠️, fix and re-run `/gate`.
