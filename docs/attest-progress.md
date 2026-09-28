@@ -7,12 +7,24 @@
 
 ## Current state
 
-**Kit 0.13.0 on branch `chore/remove-template-path`, not merged, not tagged — ADR-0075,
-closing issue #29.** `install.sh` is the only way in: the template cleanup script, its workflow
+**Kit 0.14.0 on branch `fix/guard-compound-shape-redact`, not merged, not tagged — ADR-0076,
+closing issue #30.** A clean record for HEAD now passes a push only in a shape the guard reads as
+shipping HEAD alone, an allow-list: redirections dropped, read-only parts before the push, a plain
+`git push` with known options and refspecs resolving to HEAD, in this repository (payload `cwd`,
+`cd` and `-C` resolved by git). Anything else asks, traced `compound` (a part before the push)
+or `nothead`. The first draft was a deny-list; its review reproduced pushes it still passed, and
+each is now a smoke case. Credentials are masked before the trace and the prompt; `>|` is a record
+write; both guards run under `LC_ALL=C`. Hook comments 426 → 37 lines, 0 ADR citations,
+`ship_guard.sh` at 300 lines. Suite **366 → 472**; 84 cases fail against `main`'s guards.
+Still open: aliases, scripts and commands after the push; a quoted value with a space hides a
+push from the list; `--dry-run --no-dry-run` passes.
+
+**Kit 0.13.0 — ADR-0075, closing issue #29 — merged as PR #46 at `8cc4701`, tagged `v0.13.0`
+(2026-09-28); the repository's template setting and topic are off.**
+`install.sh` is the only way in: the template cleanup script, its workflow
 (the repository's only write token), smoke section 10 and the README and GUIDE branches are
 gone, along with every template-path sentence in the kit. Suite **395 → 365**, the section's 30
-cases. The repository's *Template repository* setting and `template` topic are still on — the
-maintainer turns them off.
+cases.
 
 **Kit 0.12.1 — ADR-0074, closing issue #44 — merged as PR #45 and tagged `v0.12.1` at `af946fe`
 (tag object `97afb7d`), 2026-09-26.** The leak scan read `HEAD --not --remotes`, so a secret on
@@ -365,15 +377,15 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-26 on the kit-0.13.0 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-28 on the kit-0.14.0 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 365 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 472 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
-git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 3 — ADR-0075's three Status flips, the one sanctioned edit
+git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
 ```
 
 There is no linter step for another language because the kit no longer contains one. Both new

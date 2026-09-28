@@ -13,18 +13,15 @@
 
 set -uf
 export LC_ALL=C
-
 # The hook's own state starts empty, whatever the session's environment holds.
 KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; NOHEAD_NEXT=
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
 [ -n "$PAYLOAD" ] || exit 0
-
 CMD="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$CMD" ] || CMD="$PAYLOAD"
-
 TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
   sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')"
 
@@ -44,14 +41,12 @@ NORM="$(printf '%s' "$CMD" | awk '
     print out
   }' 2>/dev/null)"
 [ -n "$NORM" ] || NORM="$CMD"
-
 case "$TOOL" in
   mcp__*create_repository*) KIND=mcp
     ACT="creates a repository and can publish what you send to it" ;;
   mcp__*) KIND=mcp
     ACT="sends data off the machine without going through a shell" ;;
 esac
-
 [ -n "${KIND:-}" ] || case "$NORM" in
   *"git push"*|*"git send-email"*) ACT="sends data off the machine" ;;
   *"gh pr create"*|*"gh release create"*|*"gh gist create"*) ACT="sends data off the machine" ;;
@@ -86,17 +81,16 @@ fi
 
 # A credential in the command never reaches the trace or the prompt.
 if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
-SUBJ="$(printf '%s' "$SUBJ" | sed -E 's#://[^/@[:space:]]*@#://***@#g
-  s/([A-Za-z0-9_]*([Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss])[A-Za-z0-9_]*)=[^[:space:]]*/\1=***/g')"
+SUBJ="$(printf '%s' "$SUBJ" | sed -E 's#://[^/@[:space:]]*@#://***@#g; s/(--password|--pass|--token|--api-key|--auth|-p)([= ]+)[^[:space:]]+/\1\2***/g
+  s/([A-Za-z0-9_]*([Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss]|PAT|AUTH|CRED)[A-Za-z0-9_]*)=(\\"[^"]*\\"|[^[:space:]]*)/\1=***/g
+  s/(-u|--user)([= ]+)[^[:space:]]*:[^[:space:]]*/\1\2***/g; s/([Bb]earer|[Tt]oken|[Bb]asic)[[:space:]]+[^[:space:]\\"]+/\1 ***/g')"
 san() { printf '%s' "$1" | tr -c 'A-Za-z0-9 ._/:=@*+-' ' ' | cut -c1-"${2:-60}"; }
 SAFE="$(san "$SUBJ" 120)"
 
 SHA="$(git -C "$ROOT" rev-parse --short --verify -q HEAD 2>/dev/null || true)"
 FULL="$(git -C "$ROOT" rev-parse --verify -q HEAD 2>/dev/null || true)"
-
 MODE="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"permission_mode"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p')"
-
 trace() { { mkdir -p "$ROOT/.attest/tmp" && printf '%s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   "$1" "${SHA:--}" "${MODE:--}" "$SCAN" "$SAFE" >> "$ROOT/.attest/tmp/ship-guard.log"; } 2>/dev/null || true; }
 ask() { printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' "$1"; }
@@ -123,7 +117,6 @@ if [ "${KIND:-}" = record ]; then
   ask "attest ship gate: this command $ACT ($SAFE). Approve only if /audit-history actually ran and this is its verdict — nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
   exit 0
 fi
-
 record_head_sha() {
   sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
     sed -n 's/^- HEAD:[[:space:]]*\([0-9a-fA-F][0-9a-fA-F]*\).*/\1/p' | tr 'A-F' 'a-f'
@@ -162,44 +155,53 @@ if [ -n "$FULL" ]; then
   esac
 fi
 
-# Asks, even with a clean record: a commit earlier in the command, git options or config set in
-# the command, another directory or ref, and push config that widens a plain push.
+# Allow-list: redirections dropped, each part up to the last push on a short list, the push a
+# plain `git push` with known options and refspecs that resolve to HEAD, in this repository.
 SHAPE=; SHAPEDEC=nothead; _plain=0
 if [ -n "$FULL" ]; then
   case "$NORM" in *"git push"*)
-    case "$CMD" in *GIT_CONFIG*|*GIT_DIR=*|*GIT_WORK_TREE=*)
-      SHAPE="it sets git's config or repository inside the command" ;; esac
-    _opts="$(printf '%s' "$CMD" | awk '{ gsub(/\\\042/, ""); gsub(/[\042\047]/, "")
-      for (i = 1; i < NF; i++) if ($i ~ /git$/) { o = ""
-        for (j = i + 1; j <= NF && substr($j, 1, 1) == "-"; j++) {
-          if ($j ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env))$/) { o = o $j " " $(j+1) "\n"; j++ }
-          else if ($j ~ /^--(git-dir|work-tree|namespace|config-env)=/) o = o $j "\n"
-        }
-        if ($j == "push") printf "%s", o }
-    }')"
-    _shape="$(printf '%s' "$NORM" | sed 's/\\n/;/g' | tr ';|&' '\n' | awk '
-      { for (k = 1; k < NF; k++) if ($k ~ /git$/ && $(k+1) ~ /^(commit|merge|rebase|cherry-pick|am|pull|reset|revert|checkout|switch)$/) moved = 1
-        if ($1 == "cd" || $1 == "pushd") cd = 1
-        for (i = 1; i < NF; i++) if ($i ~ /git$/ && $(i+1) == "push") {
-          if (moved) print "compound"; if (cd) print "cd"; n = 0
-          for (j = i + 2; j <= NF; j++) {
-            if ($j ~ /^--(all|branches|mirror|tags|recurse-submodules=(on-demand|only))$/) print "flag " $j
-            else if ($j ~ /^(-o|--push-option|--receive-pack|--exec|--repo)$/) j++
-            else if ($j !~ /^-/ && ++n > 1) print "src " $j
-          }
-          if (n < 2) print "plain"
-        } }')"
-    ROOT_P="$(cd "$ROOT" 2>/dev/null && pwd -P)"
+    TOP="$(git -C "$ROOT" rev-parse --show-toplevel 2>/dev/null)"
+    CWD="$(printf '%s' "$PAYLOAD" | sed -nE 's/.*"cwd"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
+    CWD="${CWD:-$ROOT}"
+    [ "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ] ||
+      SHAPE="the shell is in another repository, $(san "$CWD")"
+    _shape="$(printf '%s' "$CMD" | sed -E 's/\\n/;/g; s/\\//g; s/[0-9]*>&[0-9-]*//g; s/&>>?[[:space:]]*[^[:space:];|&]+//g
+      s/[0-9]*>>?\|?[[:space:]]*[^[:space:];|&]+//g; s/[0-9]*<+[[:space:]]*[^[:space:];|&]+//g' | tr ';|&' '\n' | awk '
+      function scan(k) { G = 0; V = 0; for (k = 1; k <= NF; k++) if ($k ~ /(^|\/)git$/) { G = k; break }
+        if (G) { for (k = G + 1; k <= NF && substr($k, 1, 1) == "-"; k++)
+          if ($k ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|exec-path|super-prefix))$/) k++
+          if (k <= NF) V = k } }
+      { gsub(/[\042\047]/, ""); if (NF) p[++n] = $0 }
+      END { for (i = 1; i <= n; i++) { $0 = p[i]; scan(); if (V && $V == "push") last = i }
+        if (!last) print "nopush"
+        for (i = 1; i <= last; i++) { $0 = p[i]; scan(); bad = ""
+          for (k = 1; k <= NF; k++) if ($k !~ /^[A-Za-z0-9._\/:@^~+=,%-]+$/) { bad = $k; break }
+          if (bad != "") print "unsafe " bad
+          else if (V && $V == "push" && G != 1) print "wrapped " $1
+          else if (V && $V == "push") { m = 0
+            for (k = 2; k < V; k++) if ($k == "-C") print "C " $(++k)
+              else if ($k !~ /^(--no-pager|-P|--no-optional-locks)$/) { print "gopt " $k; if ($k ~ /^(-c|--[a-z-]+)$/) k++ }
+            for (k = V + 1; k <= NF; k++) if ($k ~ /^(-o|--push-option)$/) k++
+              else if ($k ~ /^-/) { if ($k !~ /^(-[uf46nqv]|--(set-upstream|force|force-with-lease(=.*)?|force-if-includes|no-force-if-includes|quiet|verbose|(no-)?progress|(no-)?verify|(no-)?atomic|porcelain|ipv4|ipv6|signed(=.*)?|no-signed|(no-)?thin|dry-run|push-option=.*))$/) print "opt " $k }
+              else if (++m > 1) print "src " $k
+            if (m < 2) print "plain" }
+          else if ($1 == "cd" && NF == 2) print "cd " $2
+          else if (!(G == 1 && V && $V ~ /^(status|diff|log|show|fetch|add|rev-parse)$/) && $1 !~ /^(echo|printf|ls|pwd|true|sleep|date|cat|head|tail|grep|wc|sort)$/)
+            print "pre " $1 " " (V ? $V : "") } }')"
     while read -r _k _v; do
       [ -z "$SHAPE" ] || break
       case "$_k" in
-        -C) case "$_v" in /*) [ "$(cd "$_v" 2>/dev/null && pwd -P)" = "$ROOT_P" ] && continue ;; esac
-            SHAPE="it runs git in another directory, $(san "$_v")" ;;
-        -*) SHAPE="it runs git with $(san "$_k"), which can change what a push sends" ;;
-        compound) SHAPE="the commit it pushes does not exist yet: this command commits, pulls or resets, and pushes in one go"
-          SHAPEDEC=compound ;;
-        cd) SHAPE="it changes directory before it pushes, so it may push another repository" ;;
-        flag) SHAPE="it pushes with $(san "$_v"), which sends more than HEAD" ;;
+        C) [ "$(cd "$CWD" 2>/dev/null && git -C "$_v" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ] ||
+             SHAPE="it runs git in another directory, $(san "$_v")" ;;
+        cd) _d="$(cd "$CWD" 2>/dev/null && cd "$_v" 2>/dev/null && pwd -P)"
+            if [ -n "$_d" ] && [ "$(git -C "$_d" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ]; then CWD="$_d"
+            else SHAPE="it changes directory to $(san "$_v") before it pushes"; fi ;;
+        pre) SHAPE="it runs $(san "$_v") before the push, so the commit it pushes may not exist yet"; SHAPEDEC=compound ;;
+        gopt) SHAPE="it runs git with $(san "$_v"), which can change what a push sends" ;;
+        opt) SHAPE="it pushes with $(san "$_v"), which the guard does not read as HEAD alone" ;;
+        wrapped) SHAPE="it runs the push through $(san "$_v"), which can change what it sends" ;;
+        unsafe) SHAPE="it holds $(san "$_v"), which the guard cannot read (a variable, a subshell, a glob)" ;;
+        nopush) SHAPE="the guard could not read which push this is" ;;
         src) _s="${_v#+}"; _s="${_s%%:*}"
           case "$_s" in
             HEAD|@) ;;
@@ -210,28 +212,28 @@ if [ -n "$FULL" ]; then
         plain) _plain=1 ;;
       esac
     done <<EOF
-$_opts
 $_shape
 EOF
-    if [ -z "$SHAPE" ] && [ "$_plain" = 1 ]; then
-      while read -r _k _v; do
-        case "$_k=$_v" in
-          =|push.default=simple|push.default=current|push.default=upstream|remote.*.mirror=false) ;;
-          push.recursesubmodules=check|push.recursesubmodules=no|push.recursesubmodules=false) ;;
-          *) SHAPE="git's config sets $(san "$_k $_v"), so a plain push can send more than HEAD"; break ;;
-        esac
-      done <<EOF
-$(git -C "$ROOT" config --get-regexp '^(push\.default|push\.recursesubmodules|remote\..*\.(push|mirror))$' 2>/dev/null)
+    while read -r _k _v; do
+      [ -z "$SHAPE" ] || break
+      case "$_k=$_v" in
+        =|push.recursesubmodules=check|push.recursesubmodules=no|push.recursesubmodules=false|submodule.recurse=false) ;;
+        push.default=simple|push.default=current|push.default=upstream|remote.*.mirror=false) ;;
+        push.default=*|remote.*) [ "$_plain" = 1 ] &&
+          SHAPE="git's config sets $(san "$_k $_v"), so a plain push can send more than HEAD" ;;
+        *) SHAPE="git's config sets $(san "$_k $_v"), so a push can send submodules too" ;;
+      esac
+    done <<EOF
+$(git -C "$ROOT" config --get-regexp '^(push\.default|push\.recursesubmodules|submodule\.recurse|remote\..*\.(push|mirror))$' 2>/dev/null)
 EOF
-    fi ;;
+    ;;
   esac
 fi
 
 if [ -n "$FULL" ]; then
-  # Every record naming HEAD must be clean: a later blocker for the same sha still holds.
+  # Every record naming HEAD must be clean (a later blocker still holds); the glob needs set +f.
   FOUND=0
   BAD=0
-  # Globbing was off for the parsing above; the record lookup needs it.
   set +f
   for rec in "$ROOT"/.attest/ship-*.md; do
     [ -e "$rec" ] || continue
@@ -269,9 +271,10 @@ fi
 NEXT="Run /audit-history first (full before a public release) and let it write a clean record for this HEAD, or approve to proceed on the evidence as it stands."
 if [ -n "$NOHEAD_NEXT" ]; then NEXT="$NOHEAD_NEXT"; fi
 if [ -n "$SHAPE" ]; then
-  [ "$CLEAN_RECORD" = 1 ] && DEC=$SHAPEDEC
   WHY="$WHY, but $SHAPE"
-  if [ "$SHAPEDEC" = compound ]; then
+  [ "$CLEAN_RECORD" = 1 ] && DEC=$SHAPEDEC
+  if [ "$CLEAN_RECORD" = 0 ]; then :
+  elif [ "$SHAPEDEC" = compound ]; then
     NEXT="Run the commit as its own command and push in the next one, so the guard judges the commit that actually ships."
   else
     NEXT="Push HEAD alone (git push, or git push origin HEAD), or check out what this sends, run /audit-history there and push from it."
@@ -292,9 +295,6 @@ case "$SCAN" in
     fi
     ;;
 esac
-
 trace "${DEC:-ask}"
-
 ask "attest ship gate: this command $ACT ($SAFE) and $WHY. $NEXT"
-
 exit 0

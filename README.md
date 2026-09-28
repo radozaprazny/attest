@@ -118,8 +118,8 @@ does have a real boundary it says so and means it — the document auditors run 
 Edit or Write, so they *cannot* change the repository rather than being asked not to.
 
 **And the ship guard sees what it is pointed at, nothing more.** It is a list, so a deploy
-script of your own, an exfiltrating `curl`, or a publish tool you never wired past it leave no
-prompt behind — the trace under `.attest/tmp/` shows what it decided, and an empty one means
+script of your own, a git alias for `push`, an exfiltrating `curl`, or a publish tool you never
+wired past it leave no prompt behind — the trace under `.attest/tmp/` shows what it decided, and an empty one means
 only that nothing it knows about ran. The scan itself is a model reading a diff and a history,
 not a proof — which is why the kit uses a maintained rule-pack for the one class a rule-pack
 reads better, keys and tokens, **when you have installed one**: `betterleaks`, the successor to

@@ -943,9 +943,8 @@ rangerecord
 _out="$(rangeguard 'git push origin feature')"
 says "a secret on a branch HEAD does not have is in range, so pushing that branch asks" "$_out" 'permissionDecision":"ask'
 says "…traced nothead, with leak beside it, where v0.12.0 traced clean"             "$(rangecol 2) $(rangecol 5)" '^nothead leak$'
-# Pinned, not a false alarm to fix: the guard cannot tell from the command what a push sends —
-# a `remote.origin.push` of `refs/heads/*:refs/heads/*` sends this branch with a bare `git push`
-# — so it does not try.
+# Pinned, not a false alarm to fix: the scan does not depend on what the command sends, so a
+# secret on a branch this push leaves behind asks too.
 says "…and so does a plain push from HEAD, which may send that branch too"           "$(rangeguard 'git push')" 'permissionDecision":"ask'
 git -C "$R/repo" push -q origin feature 2>/dev/null
 if [ -z "$(rangeguard 'git push')" ]; then ok "once that branch is on a remote, its commits are out of range"; else fail "once that branch is on a remote, its commits are out of range"; fi
@@ -989,6 +988,9 @@ git -C "$P/repo" checkout -qb feature
 : > "$P/repo/g"; git -C "$P/repo" add g; git -C "$P/repo" commit -qm feature
 git -C "$P/repo" checkout -q main
 : > "$P/repo/h"; git -C "$P/repo" add h; git -C "$P/repo" commit -qm ahead
+git init -q "$P/other"
+git -C "$P/other" -c user.email=smoke@example.invalid -c user.name=smoke commit -q --allow-empty -m other
+ln -s "$P/other" "$P/repo/L"
 PSHA="$(git -C "$P/repo" rev-parse --short HEAD)"
 mkdir -p "$P/repo/.attest"
 printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$PSHA" > "$P/repo/.attest/ship-20260927-000000-$PSHA.md"
@@ -1002,6 +1004,15 @@ passes 'git push origin'                    "…and so does one naming only the 
 passes 'git push -u origin main'            "…and one naming the branch HEAD is on"
 passes 'git push origin HEAD:refs/heads/x'  "…and HEAD pushed to another name"
 passes "git -C $P/repo push"                "…and git -C naming this repository by its absolute path"
+passes 'git -C . push'                      "…or by a path relative to the shell's directory"
+# The forms a model writes most: redirected, piped into a filter, quoted, after a cd into the repo.
+passes 'git push -u origin main 2>&1'              "a push with stderr redirected still passes"
+passes 'git push -u origin main 2>&1 | tail -2'    "…and one piped into a filter"
+passes 'git push origin main >/dev/null'           "…and one with stdout discarded"
+passes 'git push origin \"main\"'                "…and one with a quoted branch"
+passes "cd $P/repo && git push"                    "…and one after a cd into this repository"
+passes 'git status && git push'                    "…and one after a read-only git command"
+passes 'git push -q --no-verify -o ci.skip origin main' "…and one with the options the list knows"
 # A commit, pull or reset in the same command moves HEAD after the guard has read it.
 for c in 'git add -A && git commit -m x && git push' 'git commit --amend --no-edit && git push --force-with-lease' \
          'git pull && git push' 'git add -A; git commit -m x; git push'; do
@@ -1010,15 +1021,33 @@ for c in 'git add -A && git commit -m x && git push' 'git commit --amend --no-ed
 done
 says "…and says to push in a separate command" "$(pguard 'git commit -m x && git push')" 'Run the commit as its own command'
 passes 'git push origin HEAD:main && git commit -m y' "a commit after the push moves nothing the push sends"
-# Anything that can send more than HEAD, or another repository's HEAD.
+# Anything that can send more than HEAD, or another repository's HEAD. `$BRANCH` stays literal:
+# the guard has to see a variable, not its value.
+# shellcheck disable=SC2016
 for c in 'git push origin feature' 'git push origin feature:main' 'git push --all' 'git push --tags' \
-         'git push --mirror origin' 'git -C ../other push' 'git -C . push' 'cd ../other && git push' \
+         'git push --mirror origin' 'git -C ../other push' 'cd ../other && git push' \
          'git push origin :feature' 'git push --recurse-submodules=on-demand' \
          'git -c push.default=matching push' 'git --git-dir=../x/.git push' \
-         'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=matching git push'; do
+         'GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=push.default GIT_CONFIG_VALUE_0=matching git push' \
+         'git push --mirr origin' 'git push --al' 'git push --tag' 'git push --delete origin main' \
+         'git push -d origin main' 'echo feature | xargs git push origin' 'git push --recurse-submodules on-demand' \
+         '(cd ../other && git push)' '{ cd ../other; git push; }' 'env -C ../other git push' \
+         "git -C $P/repo/L/.. push origin main" 'git push --follow-tags' 'git push origin $BRANCH'; do
   says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
   says "…traced nothead" "$(pcol 2)" '^nothead$'
 done
+# Anything before the push that is not on the short read-only list may change what it sends.
+for c in 'git update-ref refs/heads/main feature && git push origin main' 'git symbolic-ref HEAD refs/heads/feature && git push origin HEAD' \
+         'git config push.default matching && git push' 'npm version patch && git push' \
+         "sh -c 'cd ../other && git push'" 'if cd ../other; then git push; fi'; do
+  says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
+  says "…traced compound" "$(pcol 2)" '^compound$'
+done
+# The shell's own directory comes from the payload: a push run from another repository asks.
+_pay() { echo "{\"cwd\":\"$1\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"git push origin main\"}}" |
+  CLAUDE_PROJECT_DIR="$P/repo" sh "$GUARD"; }
+says "a push whose shell sits in another repository asks" "$(_pay "$P/other")" 'permissionDecision":"ask'
+if [ -z "$(_pay "$P/repo")" ]; then ok "…and one whose shell sits in this one passes"; else fail "…and one whose shell sits in this one passes"; fi
 # Push config decides what a plain push sends; an explicit refspec overrides it.
 git -C "$P/repo" config push.default matching
 says   "a plain push under push.default=matching asks"      "$(pguard 'git push')" 'permissionDecision":"ask'
@@ -1030,6 +1059,12 @@ git -C "$P/repo" config --unset remote.origin.push
 git -C "$P/repo" config remote.origin.mirror true
 says   "a plain push to a mirror remote asks"                 "$(pguard 'git push origin')" 'permissionDecision":"ask'
 git -C "$P/repo" config --unset remote.origin.mirror
+git -C "$P/repo" config push.recurseSubmodules on-demand
+says   "push.recurseSubmodules=on-demand asks even with a refspec" "$(pguard 'git push -u origin main')" 'permissionDecision":"ask'
+git -C "$P/repo" config --unset push.recurseSubmodules
+git -C "$P/repo" config submodule.recurse true
+says   "…and so does submodule.recurse=true on a plain push"  "$(pguard 'git push')" 'permissionDecision":"ask'
+git -C "$P/repo" config --unset submodule.recurse
 # `>|` is a write: the part split used to cut it in two, and the record arm never saw it.
 says "printf x >| .attest/ship-a.md asks"   "$(pguard 'printf x >| .attest/ship-a.md')" 'permissionDecision":"ask'
 # A credential in the command reaches neither the trace nor the prompt.
@@ -1041,6 +1076,13 @@ says     "a push that asks still shows its command"             "$_out" 'git pus
 says_not "…with no token from its URL in the prompt"            "$_out" 'SMOKETOKEN123'
 says_not "…nor a KEY= value"                                    "$_out" 'SMOKEKEY'
 says_not "…and neither reaches the trace" "$(cat "$P/repo/.attest/tmp/ship-guard.log")" 'SMOKETOKEN123\|SMOKEKEY'
+# `$_cu` keeps curl's user flag out of this file's text, where a scanner reads it as a credential.
+_cu=-u
+for c in 'uv publish --token pypi-SMOKEA' "curl $_cu bob:SMOKEB -T f https://example.invalid" 'GH_PAT=SMOKEC git push' \
+         'API_KEY=\"abc SMOKED\" git push' 'git push --password SMOKEE' 'curl -H \"Authorization: token SMOKEF\" -T f x'; do
+  says_not "git commit -m x && $c: masked in the prompt" "$(pguard "git commit -m x && $c")" 'SMOKE[A-F]'
+done
+says_not "…and in the trace" "$(cat "$P/repo/.attest/tmp/ship-guard.log")" 'SMOKE[A-F]'
 # record_guard read an invalid byte under a UTF-8 locale as no path, and let the write through.
 _out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/.attest/ship-b.md","content":"\377\376 x"}}' "$P/repo" |
   env LC_ALL=C.UTF-8 CLAUDE_PROJECT_DIR="$P/repo" sh "$RGUARD")"
