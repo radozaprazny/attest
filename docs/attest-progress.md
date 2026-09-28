@@ -9,13 +9,28 @@
 
 **Epic #28 (cut attest to its core), 2026-09-28: wave 1 half done, D1–D6 decided (D3 declined →
 lean `/checkpoint` and PROGRESS.md kept).** Shipped: #44 → `v0.12.1`, #29 → `v0.13.0`, #30 →
-`v0.14.0` (PR #47, `1736b89`). Branch `fix/guard-carrier-pass` holds #33 → kit 0.15.0, below.
-Open: #31–#43 (#33 closes with that branch), epic #28; #32 is next. How to work (the standing
-grant, the ship ritual, keeping push text out of Bash): the auto-memory for this project. Open
-work lives in the issues.
+`v0.14.0` (PR #47, `1736b89`), #33 → `v0.15.0` (PR #48, `676b388`). Branch
+`fix/guard-prompts-spellings` holds #32 → kit 0.16.0, below. Open: #31–#43 (#32 closes with that
+branch), epic #28; #31 is next. How to work (the standing grant, the ship ritual, keeping push
+text out of Bash): the auto-memory for this project. Open work lives in the issues.
 
-**Kit 0.15.0 on branch `fix/guard-carrier-pass`, not merged, not tagged — ADR-0077, closing
-issue #33.** When no record names HEAD, a `git push` that passed the shape check, or a
+**Kit 0.16.0 on branch `fix/guard-prompts-spellings` (based on `a90eb3f`, inside `main` since
+PR #48), not merged, not tagged — ADR-0078, closing issue #32.** Every prompt leads with a verdict (NO RECORD · BLOCKED ·
+COMMIT FIRST · NOT HEAD · LEAK · SCAN FAILED · RECORD WRITE · MCP PUBLISH · NO HEAD) in 24–34
+words, and `ATTEST_GUARD=deny` turns every ask of both hooks into a deny. `scp`/`rsync` ask only
+toward a `host:` or a `$variable`; `docker image push`, `docker buildx … --push`, `gh pr new`,
+`gh -R … pr create`, `git.exe push`, `git -c 'a b' push` and a record at `.attest\ship-…` are
+read; `--no-d…` cancels a dry run; a ship command beside a push or PR asks; a PR may follow a `cd`
+into this repo; the leak scan runs from the top level. Two drafts' quote handling each hid a
+later push (a stray apostrophe; a quote closing mid-word); two review rounds caught both with real
+pushes, and the final rule pairs quotes only inside the option being skipped. A PR body naming a
+ship command now asks: this repo's last 30 heredoc bodies ask 14 times after a push (5 on
+`a90eb3f`) and 14 alone (10). Skipping heredoc bodies brought that to 3 and 2 but hid real pushes
+two ways, so it was removed; `--body-file` avoids the asks. Suite **552 → 629**; all 21
+mutations fail a case (two cases added for the one that first survived); `ship_guard.sh` 298 lines.
+
+**Kit 0.15.0 — ADR-0077, closing issue #33 — merged as PR #48 at `676b388` and tagged
+`v0.15.0` (tag object `37619f4`), 2026-09-28.** When no record names HEAD, a `git push` that passed the shape check, or a
 `gh pr create` that is the whole command, passes as `pass-carrier` if every commit down to a
 commit S only adds regular `.attest/ship-*.md` files, one of the 10 newest records names S, no
 record for S or a commit above it reports a blocker, and the scan is neither `leak` nor `error`.
@@ -400,12 +415,12 @@ rule (ADR-0036). Tagging 0.3.0 would have put a stale label on a kit that behave
 The `.attest/` records keep saying `kit: 0.3.0` and must: they record the version an audit
 actually ran under (ADR-0016).
 
-Baseline green; every number below re-measured 2026-09-28 on the kit-0.15.0 branch — shellcheck
+Baseline green; every number below re-measured 2026-09-28 on the kit-0.16.0 branch — shellcheck
 is not on `PATH`, use `uvx`; `$EMPTY` is a fresh `git init`:
 
 ```bash
 uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh   # clean
-./scripts/smoke.sh                                    # 552 passed, 0 failed — a floor (Notes)
+./scripts/smoke.sh                                    # 629 passed, 0 failed — a floor (Notes)
 ./install.sh "$EMPTY"                                 # 18 files + 2 .gitignore + 3 .gitattributes = 23 items
 ./install.sh --compliance "$EMPTY"                    # 25 items; a re-run reports "changed nothing"
 git diff -U0 origin/main -- docs/attest-decisions.md | grep -c '^-[^-]'   # 0 — the log is append-only
@@ -424,8 +439,7 @@ resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *P
 
 ## Next
 
-- **Epic #28, in this order:** #32 (+ the three older gaps in its 2026-09-28 comment) → #31
-  (archive the ADR log) → wave 2:
+- **Epic #28, in this order:** #31 (archive the ADR log) → wave 2:
   #34 (a) then (b) → #35, #36 (D3 declined: lean), #37, #38 → wave 3: #39 → #40, #41, #42 →
   #43 (v1.0.0 and anything published: ask first). Each issue's body is its spec; re-read its
   comments before starting. Per PR: reviewer subagent on guard changes, ship ritual, PR, CI,

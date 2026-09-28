@@ -148,14 +148,22 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   (attest ADR-0073) — the hook matches it against a short list of
   commands that **publish, submit or upload** — `git push`, `gh pr create`, `gh release
   create` and `upload`, the common registries' publish (`npm`, `pnpm`, `yarn`, `bun`, `uv` and
-  `poetry publish`, `twine upload`, `cargo publish`, `gem push`), `docker push`, a Kaggle
-  submit,
-  `scp`/`rsync`, `aws s3 cp`, `curl --upload-file` — plus the one that changes **who may read**
-  what you already sent: `gh repo edit --visibility` and `gh repo create`. On a hit it looks
-  under `.attest/` for an `/audit-history` run record naming the **current** HEAD sha **and
-  reads it** (see *"What the record has to prove"* below). Anything short of a clean record for
-  this HEAD answers with `permissionDecision: "ask"`, and the reason says which of the two it
-  was — no record, or a record that does not attest a clean scan.
+  `poetry publish`, `twine upload`, `cargo publish`, `gem push`), `docker push`,
+  `docker image push` and `docker buildx … --push`, `gh pr new`, a Kaggle submit, `scp` or
+  `rsync` to a `host:` or `$variable` target, `aws s3 cp`, `curl --upload-file` — plus the one that changes
+  **who may read** what you already sent: `gh repo edit --visibility` and `gh repo create`. On a
+  hit it looks under `.attest/` for an `/audit-history` run record naming the **current** HEAD
+  sha **and reads it** (see *"What the record has to prove"* below). Anything short of a clean
+  record for this HEAD answers with `permissionDecision: "ask"`.
+- **Every prompt opens with its verdict** (attest ADR-0078): `attest ship guard:` or
+  `attest record guard:`, then one of NO RECORD · BLOCKED · COMMIT FIRST · NOT HEAD · LEAK ·
+  SCAN FAILED · RECORD WRITE · MCP PUBLISH · NO HEAD, then one condition and one thing to do, in
+  at most 35 words besides the quoted command. BLOCKED names the first record that fails. An ask
+  needs a human to answer it: some permission modes and a headless `-p` run resolve it without
+  one. Where nobody is watching, set `ATTEST_GUARD=deny` in the `env` block of
+  `.claude/settings.json`: every ask from both hooks becomes a deny with the same reason, and
+  passes and dry runs are unchanged. A command that merely mentions a push, such as
+  `grep -rn 'git push' docs/`, is then denied too; that is the price of matching words.
 - **The list is literal, and that is the coverage.** It is a `case` of fixed substrings, not a
   category of command. The common registries' publish commands are on it — `npm`, `pnpm`,
   `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem` (attest ADR-0072) — and every other
@@ -177,8 +185,11 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   right and never steps over a subcommand, which is why `git --no-pager log --grep push` stays a
   log search: `--no-pager` goes, and then `log` stops the walk. It is not a parser, though, and
   it fires on any word ending in `git`, so `grep -r git -l push` now asks — a prompt, never a
-  miss. **Coverage is untouched by all this** — normalising spellings is not the same as adding
-  commands, and the script-shaped paths above still need adding by hand.
+  miss. `git.exe` reads as `git`, and an option or value whose quotes do not pair up runs on to
+  the word that pairs them, so `git -c 'a.b=c d' push` and
+  `git -c http.extraheader="AUTHORIZATION: bearer …" push` are pushes while
+  `git commit -m "push the fix"` stays silent (attest ADR-0078). **Coverage is untouched by all this** — normalising spellings is not the same as
+  adding commands, and the script-shaped paths above still need adding by hand.
 - **A record speaks for HEAD, so a push passes on it only in a shape the guard can read as
   shipping HEAD alone** (attest ADR-0076). It is an allow-list; anything it does not recognise
   asks. What passes on HEAD's clean record:
@@ -202,8 +213,11 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 
   Past the cases the smoke suite pins, the allow-list is unverified: the guard reads a command
   string and git decides what ships. A **git alias** for push (`git p`) and a script that pushes
-  never reach the guard at all. Commands **after** the push are not judged, even when they ship
-  something themselves. Credentials in the command are masked before the trace and the prompt
+  never reach the guard at all. A ship command **beside** the push or a PR, before or after it,
+  asks, traced `nothead` (`git push && scp key host:`); a `gh pr create` after a push is the usual
+  next step and does not. The command is split at `;` `&` `|` and newlines without regard to
+  quotes, so a PR body, in quotes or a heredoc, with a line naming a ship command asks too: give a
+  PR its body with `--body-file` (attest ADR-0078). Credentials in the command are masked before the trace and the prompt
   see them: a URL's `user:token@`, a `NAME=value` whose name holds KEY, TOKEN, SECRET, PASS, PAT,
   AUTH or CRED, the value of `--password`, `--token`, `--api-key`, `--auth` or `-p`, a
   `-u user:password`, and the word after `Bearer`, `Token` or `Basic`. Any other shape is not.
@@ -213,8 +227,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   `pass-carrier`, if every commit between a commit S and HEAD is a non-merge that adds regular
   `.attest/ship-*.md` files and nothing else, one of the 10 newest records names S, no record for
   S or a commit above it reports a blocker, and the leak scan is neither `leak` nor `error`. So
-  does a `gh pr create` on such a HEAD when it is the whole command, redirections aside and with
-  no `$(…)`, run in this repository: give the PR its body with `--body-file`. A push whose shape
+  does a `gh pr create` or `gh pr new` on such a HEAD, run in this repository, with nothing before
+  it but read-only parts or a `cd` into this repository, no other ship command beside it and no
+  `$(…)` in it: give the PR its body with `--body-file`. A push whose shape
   asks is not looked at this way and stays `ask`. A modified, renamed or deleted record, a symlink
   or executable named like one, a file below `.attest/ship-…/`, any other file or submodule move,
   an empty commit or a merge between S and HEAD: each asks. So the order is audit, write the
@@ -252,9 +267,9 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   trace line. With Git Bash installed, hooks still run in it, so the guard now sees those
   commands. **Without it the guard is absent, not asking:** hooks then run in PowerShell, where
   the hook's `sh` does not exist, and a hook that fails that way is a non-blocking error — the
-  command proceeds. The list reads POSIX spelling: `git.exe push`, `Publish-Module` and a ship
-  record written to a backslash path are silent (attest ADR-0073). None of this was run on
-  Windows; it is the documented behaviour.
+  command proceeds. `git.exe push` and a ship record written to a backslash path
+  (`.attest\ship-…`), by the shell or by Write, are read since attest ADR-0078; `Publish-Module`
+  is still silent. None of this was run on Windows; it is the documented behaviour.
 - **The visibility flip is the one with the largest blast radius.** A push exposes the tree you
   just wrote; making a repository public exposes **every commit and every old blob**, including
   the ones you have not re-read in a year — and it is the one action you cannot take back by
@@ -279,11 +294,12 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   exactly how a real push once slipped past unexplained; `cat` that file to see whether the guard
   is alive and what it decided (attest ADR-0034). It is ignored by git, never a record, and safe
   to delete at any time.
-- **Adding your own ship command:** it is a `case` statement near the top of the script. Put
-  your deploy script or submit CLI in it literally — do not make the patterns clever.
+- **Adding your own ship command:** it is the `case` in `ship_act()` near the top of the script.
+  Put your deploy script or submit CLI in it literally — do not make the patterns clever.
 - **A dry run publishes nothing** and is allowed through (`--dry-run`) — but only when the dry
-  run is a **simple, unquoted** command and `--dry-run` is a **whole word** of it (attest
-  ADR-0069). In a compound command the flag may belong to a different call than the one that
+  run is a **simple, unquoted** command, `--dry-run` is a **whole word** of it (attest
+  ADR-0069), no `--no-dry-run`, or an abbreviation such as `--no-dry`, cancels it, and it is not
+  the value of `-o`/`--push-option` (attest ADR-0078). In a compound command the flag may belong to a different call than the one that
   ships (`git push --dry-run && git push origin main`), so anything holding `;` `&` `|` `$(` a
   backtick, a `#` comment or a newline is judged as a whole and still asks. **A quote counts
   too**, because it means part of the command is *data*, and a flag read out of data is not a
