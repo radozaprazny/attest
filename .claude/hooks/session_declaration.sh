@@ -1,70 +1,63 @@
 #!/bin/sh
-# attest SessionStart hook: prints the non-goals from BUSINESS.md and where the work stands from
-# PROGRESS.md, so both are in context before the first edit, and nothing when neither declares
-# anything. Knobs: ATTEST_BUSINESS, ATTEST_THREAD_CARRIER, and ATTEST_NONGOALS_HEADING,
-# ATTEST_STATE_HEADING and ATTEST_NEXT_HEADING, each an awk regex for its heading.
+# attest SessionStart hook: prints BUSINESS.md's non-goals and PROGRESS.md's Current state and
+# Next from the project root, so they are in context before the first edit. With no non-goals it
+# still prints one line, so a wired hook never looks like a missing one. For documents in another
+# language, ATTEST_NONGOALS_HEADING, ATTEST_STATE_HEADING and ATTEST_NEXT_HEADING each take an
+# awk regex for the heading.
 
 set -u
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
-NG_MAX=24              # non-goals: the binding half, so it gets the largest share
-ST_MAX=8               # current state
-NX_MAX=8               # next steps
-
-BUSINESS="${ATTEST_BUSINESS:-BUSINESS.md}"
-CARRIER="${ATTEST_THREAD_CARRIER:-PROGRESS.md}"
-
 NG_PAT="${ATTEST_NONGOALS_HEADING:-[Nn]on-goals}"
 ST_PAT="${ATTEST_STATE_HEADING:-[Cc]urrent state}"
 NX_PAT="${ATTEST_NEXT_HEADING:-^##[[:space:]]*[Nn]ext}"
 
+# section <file> <heading-pattern> <cap>: the lines under each `## ` heading the pattern matches,
+# blank runs collapsed to one, cut after <cap> NON-EMPTY lines; the notice counts only those too.
+# The pattern travels through the environment, so no quoting in it can break the awk program.
+# Placeholder lines (<…>, HTML comments outside code fences, however many lines) are dropped: an
+# unfilled template declares nothing. A line is cut at 400 bytes (characters under gawk in a UTF-8
+# locale), and only a regular file is read (a FIFO hangs).
 section() {
-  [ -r "$1" ] || return 0
-  # The pattern travels through the environment, so no quoting in it can break the awk program.
-  # Placeholder lines (<…>, HTML comments) are dropped: an unfilled template declares nothing.
-  ATTEST_HEADING_PAT="$2" awk '
-    BEGIN { pat = ENVIRON["ATTEST_HEADING_PAT"] }
+  [ -f "$1" ] && [ -r "$1" ] || return 0
+  DECL_PAT="$2" awk -v cap="$3" '
+    BEGIN { pat = ENVIRON["DECL_PAT"] }
+    { sub(/\r$/, "") }
+    com { if (/-->/) com = 0; next }
+    /^[[:space:]]*(```|~~~)/ { fence = !fence }
+    !fence && /^[[:space:]]*<!--/ { if (!/-->/) com = 1; next }
     /^##[^#]/ { inside = ($0 ~ pat) ? 1 : 0; next }
-    inside {
-      if ($0 ~ /^[[:space:]]*$/)    { pending = 1; next }
-      if ($0 ~ /^[[:space:]]*<!--/) { next }
-      if ($0 ~ /^[[:space:]]*[-*][[:space:]]*<[^>]*>[[:space:]]*$/) { next }
-      if ($0 ~ /^[[:space:]]*<[^>]*>[[:space:]]*$/)                 { next }
-      if (pending && n > 0) { out[++n] = "" }
-      pending = 0
-      out[++n] = $0
-    }
-    END { for (i = 1; i <= n; i++) print out[i] }
+    !inside { next }
+    /^[[:space:]]*$/ { gap = 1; next }
+    /^[[:space:]]*([-*][[:space:]]*)?<[^>]*>[[:space:]]*$/ { next }
+    ++n > cap { next }
+    { if (gap && n > 1) print ""; gap = 0; print (length($0) > 400 ? substr($0, 1, 400) " …" : $0) }
+    END { if (n > cap) printf "  … (%d more line(s) — read the file itself)\n", n - cap
+      if (com) print "  … (an unclosed <!-- hides the rest — read the file itself)" }
   ' "$1"
 }
 
-trunc() {
-  printf '%s\n' "$1" | awk -v m="$2" '
-    NR <= m { print }
-    END { if (NR > m) printf "  … (%d more line(s) — read the file itself)\n", NR - m }
-  '
-}
+NONGOALS="$(section "$ROOT/BUSINESS.md" "$NG_PAT" 24 2>/dev/null || true)"
+STATE="$(section "$ROOT/PROGRESS.md" "$ST_PAT" 8 2>/dev/null || true)"
+NEXT="$(section "$ROOT/PROGRESS.md" "$NX_PAT" 8 2>/dev/null || true)"
 
-NONGOALS="$(section "$ROOT/$BUSINESS" "$NG_PAT" 2>/dev/null || true)"
-STATE="$(section "$ROOT/$CARRIER" "$ST_PAT" 2>/dev/null || true)"
-NEXT="$(section "$ROOT/$CARRIER" "$NX_PAT" 2>/dev/null || true)"
-
+[ -n "$NONGOALS" ] || echo "attest: no non-goals found in BUSINESS.md — /gate still checks secrets and personal data before a push; /business declares yours."
 [ -n "$NONGOALS$STATE$NEXT" ] || exit 0
 
 echo "<project-declaration>"
 echo "Read from this repository's own control documents at session start."
 if [ -n "$NONGOALS" ]; then
   echo
-  echo "NON-GOALS ($BUSINESS) — what this project declares it does not do."
+  echo "NON-GOALS (BUSINESS.md) — what this project declares it does not do."
   echo "A change that builds one contradicts the declaration; this project treats that as a"
   echo "blocker rather than a judgement call, and expects it named rather than worked around:"
-  trunc "$NONGOALS" "$NG_MAX"
+  printf '%s\n' "$NONGOALS"
 fi
 if [ -n "$STATE$NEXT" ]; then
   echo
-  echo "WHERE THE WORK STANDS ($CARRIER) — /checkpoint owns this file; keep it current."
-  [ -n "$STATE" ] && trunc "$STATE" "$ST_MAX"
-  [ -n "$NEXT" ] && { echo "Next:"; trunc "$NEXT" "$NX_MAX"; }
+  echo "WHERE THE WORK STANDS (PROGRESS.md) — /checkpoint keeps it current."
+  [ -n "$STATE" ] && printf '%s\n' "$STATE"
+  [ -n "$NEXT" ] && { echo "Next:"; printf '%s\n' "$NEXT"; }
 fi
 echo "</project-declaration>"
 

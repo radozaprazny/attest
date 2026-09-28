@@ -41,3 +41,9 @@ clears on `0 blocker`. Rejected: a required run per commit, and a second reviewe
 ## 2026-09-28 — Ask by default, deny only by opt-in
 An ask needs a human; `ATTEST_GUARD=deny` turns every ask into a deny where nobody answers.
 Denying by default would block every mention of a push in an attended session. (ADR-0078)
+
+## 2026-09-29 — Keep PROGRESS.md as the thread-carrier the session hook prints
+The SessionStart hook prints BUSINESS.md's non-goals and PROGRESS.md's Current state and Next
+from the project root, or one line when no non-goals are declared, so a wired hook never looks
+missing. `/checkpoint` rewrites only those two sections. Rejected: dropping the carrier for
+resume and compaction, which do not survive `/clear`. (epic #28 D3, declined 2026-09-26; #36)

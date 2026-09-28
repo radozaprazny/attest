@@ -4,7 +4,7 @@
 # Never clobbers. Every file is copy-if-absent; anything already present is left exactly as
 # it is and reported for you to merge by hand. Nothing here is attest's identity: README.md,
 # LICENSE and the root documents describe *attest* and are deliberately not installed; the
-# documents it installs are the templates in templates/.
+# one document it installs is the template templates/CLAUDE.md.
 #
 # The report is grouped by CAPABILITY, not by path (attest ADR-0031): what you can now do,
 # what stayed yours, what did not land and why. The per-file detail prints only when there is
@@ -240,17 +240,15 @@ echo
 # BUSINESS.md is not here: /business writes it from the repo and at most three questions, so
 # no skeleton ships for it (#35). Nor is COMPLIANCE.md: /compliance carries its template and
 # writes the file only when run, since an empty posture file reads as "declared" (#38). Nor is
-# DECISIONS.md: /decision creates it with its first entry (#37). The templates sit in
-# templates/, because the kit's root holds attest's own documents.
+# DECISIONS.md: /decision creates it with its first entry (#37). Nor is PROGRESS.md:
+# /checkpoint creates it on first use (#36). The template sits in templates/, because the
+# kit's root holds attest's own documents.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 group_reset
-for doc in CLAUDE.md PROGRESS.md; do
-  copy_if_absent "$doc" "document" "templates/$doc"
-  [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
-done
-DOC_LIST="CLAUDE · PROGRESS"
-say "$(group_icon)" "Documents" "$DOC_LIST — templates, you fill them in"
+copy_if_absent "CLAUDE.md" "document" "templates/CLAUDE.md"
+if [ "$LAST" = "new" ]; then G_NEW=$((G_NEW + 1)); fi
+say "$(group_icon)" "Documents" "CLAUDE.md — a template, you fill it in"
 
 # --- skills ------------------------------------------------------------------------------
 # Enumerate the kit's skills rather than listing them: a hardcoded list means a skill added
@@ -442,6 +440,8 @@ fi
 printf '  %d  %-24s %s\n' "$n" "/business" "writes BUSINESS.md; its non-goals reach every session and /gate"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "/decision" "writes DECISIONS.md: one entry per choice, as it lands"
+n=$((n + 1))
+printf '  %d  %-24s %s\n' "$n" "/checkpoint" "writes PROGRESS.md before /clear; the next session reads it"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
 echo

@@ -7,12 +7,10 @@
 
 set -euo pipefail
 
-# The hooks honour five environment overrides — two paths (ADR-0028) and three headings
-# (ADR-0047). A maintainer who sets any of them for this checkout would otherwise have that
-# ambient value reach every fixture below, and the assertions pinning the DEFAULT document paths
-# and headings would fail against files no test wrote. The suite controls its own environment;
-# the tests that want an override set it per invocation.
-unset ATTEST_BUSINESS ATTEST_THREAD_CARRIER
+# The declaration hook honours three heading overrides (ADR-0047). A maintainer who sets any of
+# them for this checkout would otherwise have that ambient value reach every fixture below, and
+# the assertions pinning the DEFAULT headings would fail against files no test wrote. The suite
+# controls its own environment; the tests that want an override set it per invocation.
 unset ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ATTEST_NEXT_HEADING
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
@@ -190,6 +188,38 @@ if [ "$dec_r" -eq 1 ]; then ok "…and one relation line, Supersedes"; else fail
 says     "…whose value is the older heading" "$dec_sk" "^Supersedes: <the older entry's heading>$"
 check "no DECISIONS.md template ships" test ! -e "$KIT/templates/DECISIONS.md"
 
+# --- 0e. /checkpoint and the declaration hook, cut to size (issue #36) --------------------
+# /checkpoint rewrites two sections of PROGRESS.md and creates the file with exactly those two;
+# the hook that reads them back keeps only the three heading patterns as knobs.
+echo "checkpoint and declaration budgets:"
+CP_MD="$KIT/.claude/skills/checkpoint/SKILL.md"
+cp_w=$(wc -w 2>/dev/null < "$CP_MD" || echo 9999)
+if [ "$cp_w" -le 300 ]; then ok "checkpoint/SKILL.md is within 300 words ($cp_w)"; else fail "checkpoint/SKILL.md is within 300 words ($cp_w)"; fi
+cp_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$CP_MD" 2>/dev/null || true; } | wc -w)
+if [ "$cp_d" -ge 1 ] && [ "$cp_d" -le 40 ]; then ok "its description is 1-40 words ($cp_d)"; else fail "its description is 1-40 words ($cp_d)"; fi
+cp_adr=$(grep -c 'ADR-' "$CP_MD" 2>/dev/null || true)
+if [ "${cp_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($cp_adr)"; fi
+check "/checkpoint stays user-invoked" grep -qx 'disable-model-invocation: true' "$CP_MD"
+cp_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$CP_MD" 2>/dev/null || true)
+cp_h=$(printf '%s\n' "$cp_sk" | grep '^## ' | tr '\n' '|')
+if [ "$cp_h" = '## Current state|## Next|' ]; then ok "the file it creates has exactly two sections, Current state and Next"; else fail "the file it creates has exactly two sections, Current state and Next ($cp_h)"; fi
+cp_l=$(printf '%s\n' "$cp_sk" | awk '/^## / { if (n > m) m = n; n = 0; s = 1; next } s && NF { n++ } END { if (n > m) m = n; print m + 0 }')
+if [ "$cp_l" -ge 1 ] && [ "$cp_l" -le 8 ]; then ok "…of at most 8 lines each ($cp_l)"; else fail "…of at most 8 lines each ($cp_l)"; fi
+check "no PROGRESS.md template ships" test ! -e "$KIT/templates/PROGRESS.md"
+decl_l=$(wc -l < "$DECL")
+if [ "$decl_l" -le 70 ]; then ok "session_declaration.sh is within 70 lines ($decl_l)"; else fail "session_declaration.sh is within 70 lines ($decl_l)"; fi
+decl_v=$(grep -oE 'ATTEST_[A-Z_]+' "$DECL" | LC_ALL=C sort -u | tr '\n' ' ')
+if [ "$decl_v" = 'ATTEST_NEXT_HEADING ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ' ]; then
+  ok "…and reads exactly three ATTEST_ variables, the heading patterns"
+else
+  fail "…and reads exactly three ATTEST_ variables, the heading patterns ($decl_v)"
+fi
+if grep -rnE 'ATTEST_(BUSINESS|THREAD_CARRIER)' "$KIT/.claude" "$KIT/install.sh" >/dev/null 2>&1; then
+  fail "no path knob is left in .claude/ or install.sh"
+else
+  ok "no path knob is left in .claude/ or install.sh"
+fi
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do
@@ -200,27 +230,36 @@ for hook in "$DECL" "$GUARD"; do
   check "$name survives a missing project"   sh -c "echo '{}' | CLAUDE_PROJECT_DIR='$WORK/nowhere' sh '$hook'"
 done
 
-# --- 2. the declaration hook: silent until something is declared -----------------------
+# --- 2. the declaration hook: one line until something is declared (#36) ----------------
 echo "hooks — SessionStart declaration:"
+# A wired hook with nothing to say used to print nothing, which from inside a session is the
+# same as a hook that was never registered. With no non-goals found it now says so in one line.
+NO_NG='attest: no non-goals found in BUSINESS.md — /gate still checks secrets and personal data before a push; /business declares yours.'
+one_line() { # one_line <description> <output> — exactly that one line, of at most 25 words
+  local n w
+  n=$(printf '%s\n' "$2" | wc -l); w=$(printf '%s\n' "$2" | wc -w)
+  if [ "$2" = "$NO_NG" ] && [ "$n" -eq 1 ] && [ "$w" -le 25 ]; then ok "$1 ($w words)"; else fail "$1 ($n lines, $w words)"; fi
+}
 D0="$WORK/decl-empty"; mkdir -p "$D0"
-out=$(CLAUDE_PROJECT_DIR="$D0" sh "$DECL")
-if [ -z "$out" ]; then ok "silent in a project with no documents"; else fail "silent in a project with no documents"; fi
-# The shipped skeletons are <placeholder> text: a fresh install must add no session noise. No
-# BUSINESS.md template ships any more (#35), but an older kit left one in many projects, so its
-# Non-goals shape is written inline: a comment and a <placeholder> bullet declare nothing.
-D1="$WORK/decl-template"; mkdir -p "$D1"; cp "$KIT/templates/PROGRESS.md" "$D1/"
+one_line "no BUSINESS.md: exactly 1 line of at most 25 words" "$(CLAUDE_PROJECT_DIR="$D0" sh "$DECL")"
+# An older kit's skeletons are <placeholder> text and still sit in many projects, though no
+# template ships any more (#35, #36). Their shapes are written inline: a comment and a
+# <placeholder> line declare nothing, so only the one line prints.
+D1="$WORK/decl-template"; mkdir -p "$D1"
+printf '# P\n\n<!--\nHow to use this file\n-->\n\n## Current state\n\n<2–3 sentences: what is done>\n\n## Done\n\n- <completed steps>\n\n## Next\n\n- <the next step / open tasks>\n' > "$D1/PROGRESS.md"
 printf '# B\n\n<!--\n  how to use this file\n-->\n\n## Non-goals\n\n- <what it deliberately does NOT cover>\n\n## What success looks like\n\n- <what done looks like>\n' > "$D1/BUSINESS.md"
-out=$(CLAUDE_PROJECT_DIR="$D1" sh "$DECL")
-if [ -z "$out" ]; then ok "silent while PROGRESS.md is the shipped template and BUSINESS.md an older kit's"; else fail "silent while PROGRESS.md is the shipped template and BUSINESS.md an older kit's"; fi
-# ...and speaks as soon as a non-goal is real
+one_line "an older kit's unfilled templates print only the one line" "$(CLAUDE_PROJECT_DIR="$D1" sh "$DECL")"
+# ...and the declaration speaks as soon as a non-goal is real
 D2="$WORK/decl-filled"; mkdir -p "$D2"
 printf '# B\n\n## Non-goals\n\n- no network access at runtime\n\n## What success looks like\n\n- <ph>\n' > "$D2/BUSINESS.md"
 printf '# P\n\n## Current state\n\nEngine wired.\n\n## Next\n\n- tune it\n' > "$D2/PROGRESS.md"
 out=$(CLAUDE_PROJECT_DIR="$D2" sh "$DECL")
 says     "carries the declared non-goal into the session" "$out" 'no network access at runtime'
+says     "…stated as fact about the repository"          "$out" '^NON-GOALS (BUSINESS.md) — what this project declares it does not do\.$'
 says     "carries the live state and the next step"       "$out" 'Engine wired'
 says     "…and the next step"                             "$out" 'tune it'
 says_not "drops the placeholder sections"                 "$out" '<ph>'
+says_not "…and has no one-line notice once a non-goal is real" "$out" 'no non-goals found'
 # The cap must trim EACH section, not the block: a single trailing `head` silently dropped
 # whichever section came last, plus the closing tag. Fixture deliberately overruns it.
 D3="$WORK/decl-huge"; mkdir -p "$D3"
@@ -229,42 +268,94 @@ D3="$WORK/decl-huge"; mkdir -p "$D3"
 printf '# P\n\n## Current state\n\nstate marker\n\n## Next\n\n- next marker\n' > "$D3/PROGRESS.md"
 huge=$(CLAUDE_PROJECT_DIR="$D3" sh "$DECL")
 says "an overrunning section is trimmed"              "$huge" 'non-goal number 24'
-says "…and says how much it dropped"                  "$huge" 'more line(s)'
+says "…and says how much it dropped"                  "$huge" '(36 more line(s)'
 says_not "…and really does drop it"                   "$huge" 'non-goal number 25'
 says "the later section survives the trim"            "$huge" 'state marker'
 says "…including the one after that"                  "$huge" 'next marker'
 says "the block is always closed"                     "$huge" '</project-declaration>'
 lines=$(printf '%s\n' "$huge" | wc -l)
 if [ "$lines" -le 55 ]; then ok "output stays bounded ($lines lines)"; else fail "output stays bounded ($lines)"; fi
-# A BUSINESS.md with no non-goals section at all must not spill the neighbouring sections in
+# The cap and its notice count NON-EMPTY lines. Counting the blank separators too showed 12 of
+# 15 spaced-out non-goals and reported "5 more line(s)" when 3 were missing (#36).
+D5="$WORK/decl-spaced"; mkdir -p "$D5"
+{ echo '# B'; echo; echo '## Non-goals'; i=1
+  while [ "$i" -le 15 ]; do echo; echo "- spaced non-goal $i."; i=$((i + 1)); done; } > "$D5/BUSINESS.md"
+sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
+sp_n=$(printf '%s\n' "$sp" | grep -c '^- spaced non-goal [0-9]*\.$' || true)
+if [ "$sp_n" -eq 15 ]; then ok "15 non-goals separated by blank lines: all 15 print"; else fail "15 non-goals separated by blank lines: all 15 print ($sp_n)"; fi
+says_not "…with no notice" "$sp" 'more line(s)'
+{ echo '# B'; echo; echo '## Non-goals'; i=1
+  while [ "$i" -le 30 ]; do echo; echo "- spaced non-goal $i."; i=$((i + 1)); done; } > "$D5/BUSINESS.md"
+sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
+sp_n=$(printf '%s\n' "$sp" | grep -c '^- spaced non-goal [0-9]*\.$' || true)
+if [ "$sp_n" -eq 24 ]; then ok "30 non-goals: 24 print"; else fail "30 non-goals: 24 print ($sp_n)"; fi
+says "…plus a notice naming 6 more" "$sp" '^  … (6 more line(s) — read the file itself)$'
+# A run of blank lines prints as one; a multi-line HTML comment prints none of its lines, and a
+# heading inside it moves no section; a line is cut at 400 characters; a FIFO is never read.
+{ echo '## Non-goals'; echo '<!--'; echo 'Write what it will NOT do.'; echo '## Next'; echo '-->'
+  echo '- first'; echo; echo; echo; echo '- second'; printf -- '- %0500d\n' 0; } > "$D5/BUSINESS.md"
+sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
+_b=$(printf '%s\n' "$sp" | awk '/^- first$/ { f = 1; next } f && /^- second$/ { print b + 0; exit } f { b++ }')
+if [ "$_b" = 1 ]; then ok "three blank lines between two non-goals print as one"; else fail "three blank lines between two non-goals print as one ($_b)"; fi
+says_not "…a multi-line HTML comment prints none of its lines" "$sp" 'Write what it will NOT do'
+says "…and a heading inside it moves no section" "$sp" '^- second$'
+_w=$(printf '%s\n' "$sp" | awk '/^- 0000/ { print length($0) }')
+if [ "${_w:-0}" -ge 400 ] && [ "${_w:-0}" -le 404 ]; then ok "…a 500-character line is cut to 400"; else fail "…a 500-character line is cut to 400 ($_w)"; fi
+if command -v timeout >/dev/null 2>&1 && command -v mkfifo >/dev/null 2>&1; then
+  rm -f "$D5/PROGRESS.md"; mkfifo "$D5/PROGRESS.md"
+  if timeout 5 env CLAUDE_PROJECT_DIR="$D5" sh "$DECL" >/dev/null; then ok "a FIFO named PROGRESS.md is skipped, not waited on"
+    else fail "a FIFO named PROGRESS.md is skipped, not waited on"; fi; rm -f "$D5/PROGRESS.md"
+else ok "a FIFO named PROGRESS.md is skipped, not waited on (skipped: no timeout or mkfifo)"; fi
+# A `<!--` inside a code fence opens no comment; an unclosed one says what it hid.
+# shellcheck disable=SC2016
+printf '## Purpose\n\n```html\n<!-- an example snippet\n```\n\n## Non-goals\n\n- fenced ng\n' > "$D5/BUSINESS.md"
+says "a <!-- inside a code fence hides no later non-goal" "$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")" '^- fenced ng$'
+printf '## Non-goals\n\n- shown ng\n<!-- unclosed\n- hidden ng\n' > "$D5/BUSINESS.md"
+sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
+says_not "an unclosed <!-- hides what follows it" "$sp" 'hidden ng'
+says "…and says so, instead of claiming no non-goals" "$sp" 'an unclosed <!-- hides the rest'
+# A BUSINESS.md with no non-goals section at all must not spill the neighbouring sections in,
+# and a PROGRESS.md still carries the thread across /clear: the one line, then the state.
 printf '# B\n\n## Purpose\n\nsecret sauce\n' > "$D2/BUSINESS.md"
-says_not "never prints a section it was not asked for" "$(CLAUDE_PROJECT_DIR="$D2" sh "$DECL")" 'secret sauce'
-# A repo that ships the kit's documents as templates and keeps its live ones elsewhere
+nb=$(CLAUDE_PROJECT_DIR="$D2" sh "$DECL")
+says_not "never prints a section it was not asked for" "$nb" 'secret sauce'
+says "…opens with the one line when no non-goal is found" "$(printf '%s\n' "$nb" | head -n1)" 'no non-goals found in BUSINESS.md'
+says "…and still carries where the work stands"       "$nb" 'Engine wired'
+# The path knobs are gone (#36): both documents are read from the project root, whatever an
+# environment left over from an older kit still says.
 mkdir -p "$D2/docs"
 printf '# live\n\n## Non-goals\n\n- never touch production\n' > "$D2/docs/live-business.md"
-out=$(CLAUDE_PROJECT_DIR="$D2" ATTEST_BUSINESS=docs/live-business.md sh "$DECL")
-says     "ATTEST_BUSINESS redirects it to the live document" "$out" 'never touch production'
-says     "…and the heading names the file it actually read"  "$out" 'docs/live-business.md'
-says_not "an unset override does not read the live document" "$(CLAUDE_PROJECT_DIR="$D2" sh "$DECL")" 'never touch production'
+printf '# live\n\n## Current state\n\nelsewhere marker\n' > "$D2/docs/live-progress.md"
+left=$(CLAUDE_PROJECT_DIR="$D2" ATTEST_BUSINESS=docs/live-business.md ATTEST_THREAD_CARRIER=docs/live-progress.md sh "$DECL")
+says_not "a leftover ATTEST_BUSINESS redirects nothing"   "$left" 'never touch production'
+says_not "…nor a leftover ATTEST_THREAD_CARRIER"          "$left" 'elsewhere marker'
+says     "…the root PROGRESS.md is still the one read"    "$left" 'Engine wired'
+# CRLF documents: the sections are still found, placeholders still dropped, and no CR reaches
+# the session.
+D6="$WORK/decl-crlf"; mkdir -p "$D6"
+printf '# B\r\n\r\n## Non-goals\r\n\r\n- crlf goal\r\n- <placeholder>\r\n' > "$D6/BUSINESS.md"
+printf '# P\r\n\r\n## Current state\r\n- crlf state\r\n\r\n## Next\r\n- crlf next\r\n' > "$D6/PROGRESS.md"
+crlf=$(CLAUDE_PROJECT_DIR="$D6" sh "$DECL")
+says     "a CRLF BUSINESS.md still declares its non-goals" "$crlf" 'crlf goal'
+says     "…a CRLF PROGRESS.md its state"                   "$crlf" 'crlf state'
+says     "…and its next step"                              "$crlf" 'crlf next'
+says_not "…its placeholder is dropped"                     "$crlf" '<placeholder>'
+says_not "…and no CR reaches the session"                  "$crlf" $'\r'
 
 # A project that writes its documents in another language. Without an override the hook reads
-# the file, matches nothing and prints nothing — which from inside a session is the same thing
-# as a hook that was never registered, so the silence is asserted first and the fix second
-# (ADR-0047).
+# the file and matches nothing, so it prints the one line — which, unlike the silence it used
+# to print, a reader can tell from a hook that was never registered (ADR-0047, #36).
 D4="$WORK/decl-lang"; mkdir -p "$D4"
 printf '# B\n\n## Čo nerobíme\n\n- žiadne články\n' > "$D4/BUSINESS.md"
 printf '# P\n\n## Stav k 7. 9.\n\nSK marker\n\n## Ďalší krok\n\n- SK next marker\n' > "$D4/PROGRESS.md"
-if [ -z "$(CLAUDE_PROJECT_DIR="$D4" sh "$DECL")" ]; then
-  ok "non-English headings print nothing without an override"
-else
-  fail "non-English headings print nothing without an override"
-fi
+one_line "non-English headings print only the one line without an override" "$(CLAUDE_PROJECT_DIR="$D4" sh "$DECL")"
 lang=$(CLAUDE_PROJECT_DIR="$D4" \
   ATTEST_NONGOALS_HEADING='Čo nerobíme' ATTEST_STATE_HEADING='Stav' ATTEST_NEXT_HEADING='Ďalší krok' \
   sh "$DECL")
 says "ATTEST_NONGOALS_HEADING finds a renamed section"  "$lang" 'žiadne články'
 says "ATTEST_STATE_HEADING finds a renamed section"     "$lang" 'SK marker'
 says "ATTEST_NEXT_HEADING finds a renamed section"      "$lang" 'SK next marker'
+says_not "…and the one line goes once non-goals are found" "$lang" 'no non-goals found'
 # The defaults are what a project that never sets them keeps getting, and `${VAR:-}` rather
 # than `${VAR-}` is what guarantees it. An exported-but-EMPTY override is not "no override":
 # an empty awk pattern matches EVERY `## ` heading, so the wrong operator would not blank the
@@ -279,17 +370,28 @@ says_not "…and does not become a match-everything pattern"     "$empty" 'FOREI
 # Under `-v` this exact value arrives as `Current state (WIP)` — a grouping, matching nothing —
 # and awk's warning about it lands on the stderr the hook discards, so the miss is silent.
 printf '# P\n\n## Current state (WIP)\n\nparen marker\n' > "$D4/PROGRESS.md"
-says "a single backslash escapes a metacharacter in an override" \
+says "a single backslash escapes a metacharacter in ATTEST_STATE_HEADING" \
      "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Current state \(WIP\)' sh "$DECL")" 'paren marker'
-# A regex the engine refuses is the new failure mode this knob introduces — user input reaches
-# a regex compiler here for the first time. Fail-open is the hook's whole contract: it may
-# print nothing, it must never fail, or a SessionStart hook starts erroring on every session.
+printf '# B\n\n## Čo nerobíme (v2)\n\n- paren goal\n' > "$D4/BUSINESS.md"
+says "…and in ATTEST_NONGOALS_HEADING" \
+     "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_NONGOALS_HEADING='Čo nerobíme \(v2\)' sh "$DECL")" 'paren goal'
+# A regex the engine refuses is the failure mode these knobs introduce — user input reaches a
+# regex compiler. Fail-open is the hook's whole contract: it must never fail, or a SessionStart
+# hook starts erroring on every session. The paren is unbalanced, not escaped: through ENVIRON[]
+# `\(` is a literal paren, a valid regex, so it would test nothing. An unparseable non-goals
+# pattern finds nothing, so it leaves the one line rather than silence.
 printf '# P\n\n## Current state\n\nEN marker\n' > "$D4/PROGRESS.md"
-if CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Current state \(WIP' sh "$DECL" >/dev/null 2>&1; then
-  ok "an unparseable override still exits 0"
-else
-  fail "an unparseable override still exits 0"
-fi
+bad='Current state (WIP'
+for knob in ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ATTEST_NEXT_HEADING; do
+  if env "$knob=$bad" CLAUDE_PROJECT_DIR="$D4" sh "$DECL" >/dev/null 2>&1; then
+    ok "an unparseable $knob still exits 0"
+  else
+    fail "an unparseable $knob still exits 0"
+  fi
+done
+D7="$WORK/decl-badpat"; mkdir -p "$D7"; printf '# B\n\n## Non-goals\n\n- a real non-goal\n' > "$D7/BUSINESS.md"
+one_line "…and an unparseable ATTEST_NONGOALS_HEADING leaves the one line, nothing on stderr" \
+         "$(CLAUDE_PROJECT_DIR="$D7" ATTEST_NONGOALS_HEADING="$bad" sh "$DECL" 2>&1)"
 # A heading regex is matched against `## …` lines only, so it cannot reach into a level-3
 # heading: neither to cut a section short at its own first subsection, nor to select one.
 printf '# P\n\n## Current state\n\nEN marker\n\n### Detail\n\nsub marker\n' > "$D4/PROGRESS.md"
@@ -1527,11 +1629,11 @@ check "the /compliance skill lands with the others" test -f "$T5/.claude/skills/
 says  "…and the command is listed"                  "$fresh_out" 'Commands.*/compliance'
 check "no COMPLIANCE.md lands: /compliance writes it when run" test ! -e "$T5/COMPLIANCE.md"
 says_not "…and the report has no opt-in line left"  "$fresh_out" 'Opt-in'
-for d in CLAUDE.md PROGRESS.md; do
-  check "the document $d is there" test -f "$T5/$d"
-done
-# BUSINESS.md ships no skeleton (#35), nor DECISIONS.md (#37): each skill writes its own file,
-# and the report says so.
+check "the document CLAUDE.md is there" test -f "$T5/CLAUDE.md"
+# BUSINESS.md ships no skeleton (#35), nor DECISIONS.md (#37), nor PROGRESS.md (#36): each
+# skill writes its own file, and the report says so.
+check "no PROGRESS.md lands on install"           test ! -e "$T5/PROGRESS.md"
+says  "…the NEXT steps send you to /checkpoint for it" "$fresh_out" '/checkpoint .*writes PROGRESS.md'
 check "no BUSINESS.md lands on install"           test ! -e "$T5/BUSINESS.md"
 says  "…the NEXT steps send you to /business for it" "$fresh_out" '/business .*writes BUSINESS.md'
 check "no DECISIONS.md lands on install"          test ! -e "$T5/DECISIONS.md"
