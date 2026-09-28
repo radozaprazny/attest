@@ -155,6 +155,41 @@ else
   fail "…and Art 27 appears only in the deployer list ($a27_dep of $a27_all lines)"
 fi
 
+# --- 0d. /decision: one entry, one relation, and it refuses to fabricate (issue #37) -------
+# The file it creates lives inside the skill, since no templates/DECISIONS.md ships. The four
+# refusal sentences are METHOD property 6 for this skill, so each is pinned word for word.
+echo "decision budget and refusal:"
+DEC_MD="$KIT/.claude/skills/decision/SKILL.md"
+dec_w=$(wc -w 2>/dev/null < "$DEC_MD" || echo 9999)
+if [ "$dec_w" -le 300 ]; then ok "decision/SKILL.md is within 300 words ($dec_w)"; else fail "decision/SKILL.md is within 300 words ($dec_w)"; fi
+dec_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$DEC_MD" 2>/dev/null || true; } | wc -w)
+if [ "$dec_d" -ge 1 ] && [ "$dec_d" -le 40 ]; then ok "its description is 1-40 words ($dec_d)"; else fail "its description is 1-40 words ($dec_d)"; fi
+dec_adr=$(grep -c 'ADR-' "$DEC_MD" 2>/dev/null || true)
+if [ "${dec_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($dec_adr)"; fi
+dec_rel=$(grep -cE 'Supersedes in part|Narrows|Widens|Extends|Relates to' "$DEC_MD" 2>/dev/null || true)
+if [ "${dec_rel:-0}" -eq 0 ]; then ok "…and names none of the five retired relations"; else fail "…and names none of the five retired relations ($dec_rel)"; fi
+check "/decision stays user-invoked" grep -qx 'disable-model-invocation: true' "$DEC_MD"
+check "…and still retires the audit argument" grep -q 'The argument .audit. is retired' "$DEC_MD"
+check "refusal: Options and Why only from the session or the user" \
+  grep -qxF -- '- Options and Why come only from this session or from the user.' "$DEC_MD"
+check "…alternatives not weighed: ask, even when told to just record it" \
+  grep -qxF -- '- If alternatives were not weighed, ask, even when told to just record it.' "$DEC_MD"
+check "…none at all: below the threshold, nothing written" \
+  grep -qxF -- '- If there were none, the choice is below the threshold, so nothing is written.' "$DEC_MD"
+# shellcheck disable=SC2016  # the backticks are the skill's Markdown, matched literally
+check "…and anything inferred is marked" grep -qxF -- '- Anything inferred is marked `(inferred)`.' "$DEC_MD"
+dec_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$DEC_MD" 2>/dev/null || true)
+dec_hl=$(printf '%s\n' "$dec_sk" | awk '/^## / { exit } { n++ } END { print n + 0 }')
+if [ "$dec_hl" -ge 1 ] && [ "$dec_hl" -le 3 ]; then ok "the file it creates has a 1-3 line header ($dec_hl)"; else fail "the file it creates has a 1-3 line header ($dec_hl)"; fi
+says_not "…no HTML comment"                  "$dec_sk" '<!--'
+says     "…an entry headed by date and title" "$dec_sk" '^## YYYY-MM-DD — <imperative title>$'
+dec_f=$(printf '%s\n' "$dec_sk" | grep -cE '^- \*\*(Context|Options|Decision|Why|Consequences)\*\* — ' || true)
+if [ "$dec_f" -eq 5 ]; then ok "…the five fields"; else fail "…the five fields ($dec_f)"; fi
+dec_r=$(printf '%s\n' "$dec_sk" | grep -cE '^[A-Z][a-z ]+: ' || true)
+if [ "$dec_r" -eq 1 ]; then ok "…and one relation line, Supersedes"; else fail "…and one relation line, Supersedes ($dec_r)"; fi
+says     "…whose value is the older heading" "$dec_sk" "^Supersedes: <the older entry's heading>$"
+check "no DECISIONS.md template ships" test ! -e "$KIT/templates/DECISIONS.md"
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do
@@ -1492,12 +1527,15 @@ check "the /compliance skill lands with the others" test -f "$T5/.claude/skills/
 says  "…and the command is listed"                  "$fresh_out" 'Commands.*/compliance'
 check "no COMPLIANCE.md lands: /compliance writes it when run" test ! -e "$T5/COMPLIANCE.md"
 says_not "…and the report has no opt-in line left"  "$fresh_out" 'Opt-in'
-for d in CLAUDE.md PROGRESS.md DECISIONS.md; do
+for d in CLAUDE.md PROGRESS.md; do
   check "the document $d is there" test -f "$T5/$d"
 done
-# BUSINESS.md ships no skeleton (#35): /business writes it, and the report says so.
+# BUSINESS.md ships no skeleton (#35), nor DECISIONS.md (#37): each skill writes its own file,
+# and the report says so.
 check "no BUSINESS.md lands on install"           test ! -e "$T5/BUSINESS.md"
 says  "…the NEXT steps send you to /business for it" "$fresh_out" '/business .*writes BUSINESS.md'
+check "no DECISIONS.md lands on install"          test ! -e "$T5/DECISIONS.md"
+says  "…the NEXT steps send you to /decision for it" "$fresh_out" '/decision .*writes DECISIONS.md'
 rerun_out=$(run_install "$T5")
 check "a re-run lands no COMPLIANCE.md either"    test ! -e "$T5/COMPLIANCE.md"
 says_not "…and drags nothing into NEEDS YOU"      "$rerun_out" 'NEEDS YOU'

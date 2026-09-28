@@ -239,16 +239,17 @@ echo
 # --- documents ------------------------------------------------------------------------
 # BUSINESS.md is not here: /business writes it from the repo and at most three questions, so
 # no skeleton ships for it (#35). Nor is COMPLIANCE.md: /compliance carries its template and
-# writes the file only when run, since an empty posture file reads as "declared" (#38). The
-# templates sit in templates/, because the kit's root holds attest's own documents.
+# writes the file only when run, since an empty posture file reads as "declared" (#38). Nor is
+# DECISIONS.md: /decision creates it with its first entry (#37). The templates sit in
+# templates/, because the kit's root holds attest's own documents.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 group_reset
-for doc in CLAUDE.md PROGRESS.md DECISIONS.md; do
+for doc in CLAUDE.md PROGRESS.md; do
   copy_if_absent "$doc" "document" "templates/$doc"
   [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
 done
-DOC_LIST="CLAUDE · PROGRESS · DECISIONS"
+DOC_LIST="CLAUDE · PROGRESS"
 say "$(group_icon)" "Documents" "$DOC_LIST — templates, you fill them in"
 
 # --- skills ------------------------------------------------------------------------------
@@ -440,11 +441,11 @@ if [ "$CLAUDE_INSTALLED" = 1 ]; then
 fi
 printf '  %d  %-24s %s\n' "$n" "/business" "writes BUSINESS.md; its non-goals reach every session and /gate"
 n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "/decision" "one entry per choice, as it lands — not a backlog"
+printf '  %d  %-24s %s\n' "$n" "/decision" "writes DECISIONS.md: one entry per choice, as it lands"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
 echo
-echo "  Day one is CLAUDE.md and your non-goals. An empty DECISIONS.md is the correct"
-echo "  state until a choice lands, and the gate is worth most on your first real"
-echo "  change: over documents alone it has only prose to judge."
+echo "  Day one is CLAUDE.md and your non-goals. DECISIONS.md waits for the first choice"
+echo "  that lands, and the gate is worth most on your first real change: over"
+echo "  documents alone it has only prose to judge."
 echo
