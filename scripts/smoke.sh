@@ -95,6 +95,66 @@ else
 fi
 check "no BUSINESS.md template ships" test ! -e "$KIT/templates/BUSINESS.md"
 
+# --- 0c. /compliance: one file, always shipped, no legal date (issue #38) -----------------
+# The COMPLIANCE.md template lives inside the skill, since no templates/COMPLIANCE.md ships. A
+# legal date in a kit is a fact with a shelf life, so none may ship. The anchors pin the AI Act
+# structure #38 checked against the consolidated text.
+echo "compliance budget and anchors:"
+COMP_MD="$KIT/.claude/skills/compliance/SKILL.md"
+comp_w=$(wc -w 2>/dev/null < "$COMP_MD" || echo 9999)
+comp_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$COMP_MD" 2>/dev/null || true)
+comp_tw=$(printf '%s\n' "$comp_sk" | wc -w)
+comp_iw=$((comp_w - comp_tw))
+if [ "$comp_w" -le 1200 ]; then ok "compliance/SKILL.md is within 1,200 words ($comp_w)"; else fail "compliance/SKILL.md is within 1,200 words ($comp_w)"; fi
+if [ "$comp_tw" -ge 1 ] && [ "$comp_tw" -le 800 ]; then ok "…its template is 1-800 words ($comp_tw)"; else fail "…its template is 1-800 words ($comp_tw)"; fi
+if [ "$comp_iw" -le 400 ]; then ok "…its instructions are within 400 ($comp_iw)"; else fail "…its instructions are within 400 ($comp_iw)"; fi
+comp_adr=$(grep -c 'ADR-' "$COMP_MD" 2>/dev/null || true)
+if [ "${comp_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($comp_adr)"; fi
+comp_date=$(grep -ciE 'shifting|20[0-9]{2}-[0-9]{2}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* 20[0-9]{2}' "$COMP_MD" 2>/dev/null || true)
+if [ "${comp_date:-0}" -eq 0 ]; then ok "…and it ships no legal date"; else fail "…and it ships no legal date ($comp_date lines)"; fi
+check "/compliance stays user-invoked" grep -qx 'disable-model-invocation: true' "$COMP_MD"
+check "…still retires the audit argument" grep -q 'The argument .audit. is retired' "$COMP_MD"
+check "…and starts from BUSINESS.md's Regulated line" grep -q '## Regulated' "$COMP_MD"
+if grep -qi 'archetype' "$COMP_MD"; then fail "…with no archetype left"; else ok "…with no archetype left"; fi
+check "no COMPLIANCE.md template ships" test ! -e "$KIT/templates/COMPLIANCE.md"
+comp_flag=$(grep -c -- '--compliance' "$KIT/install.sh" || true)
+if [ "${comp_flag:-0}" -eq 0 ]; then ok "install.sh has no --compliance flag"; else fail "install.sh has no --compliance flag ($comp_flag)"; fi
+# One line per bullet, continuation lines joined on, so a rewrap cannot move an anchor.
+comp_b=$(printf '%s\n' "$comp_sk" | awk '
+  /^ *- / { if (b != "") print b; b = $0; next }
+  /^ +[^ ]/ && b != "" { sub(/^ +/, " "); b = b $0; next }
+  { if (b != "") print b; b = ""; print }
+  END { if (b != "") print b }')
+comp_has() { printf '%s\n' "$comp_b" | grep -qE "$1"; }
+check "template: an Art 4 AI literacy line"             comp_has '^- \*\*Art 4 '
+check "…a GPAI model you provide, 3(63)"               comp_has '^- \[ \] .*Art 3\(63\)'
+check "…a system built on a GPAI model, 3(66)"          comp_has '^- \[ \] .*Art 3\(66\)'
+check "…an Art 2 exclusions line"                       comp_has '^- \*\*Art 2 exclusions'
+check "…an Art 6(3) derogation line"                    comp_has '^- \*\*Art 6\(3\)'
+check "…a standalone Art 50 line"                       comp_has '^- \*\*Art 50 '
+if printf '%s\n' "$comp_b" | grep -E '^- \*\*Level' | grep -q 'Art 50'; then
+  fail "…and Art 50 is no option in the level"; else ok "…and Art 50 is no option in the level"; fi
+comp_25=$(printf '%s\n' "$comp_b" | awk '/^- \*\*Art 25\(1\)/ { f = 1; next } f && /^  - \([abc]\) / { n++ } f && /^- / { exit } END { print n + 0 }')
+if [ "$comp_25" -eq 3 ]; then ok "…the Art 25(1) tripwire, limbs (a) to (c)"; else fail "…the Art 25(1) tripwire, limbs (a) to (c) ($comp_25)"; fi
+check "…Art 5(1) examples with (ba) and (bb)"           comp_has '^- \*\*Art 5\(1\).*\(ba\).*\(bb\)'
+check "…the national layer, date checked live"          comp_has 'Art 70.*Art 99.*record the date checked'
+check "…the GDPR joints, date checked live"             comp_has 'Art 26\(9\).*Art 4a.*record the date checked'
+check "…the ship guard's log as a local store"          comp_has '^- \*\*.\.attest/tmp/ship-guard\.log'
+# Registration sits with the provider; a deployer registers only as a public authority, and
+# the FRIA (Art 27) is a deployer duty: count its mentions in the deployer list and overall.
+comp_prov=$(printf '%s\n' "$comp_sk" | awk '/^Provider:/ { f = 1; next } /^Deployer/ { exit } f')
+comp_depl=$(printf '%s\n' "$comp_sk" | awk '/^Deployer/ { f = 1; next } f && /^## / { exit } f')
+says     "…provider registration in the provider list"  "$comp_prov" 'Art 49(1)'
+says     "…deployer registration only via Art 26(8)"    "$comp_depl" 'Art 26(8)'
+says_not "…never in the provider list"                  "$comp_prov" '26(8)'
+a27_all=$(printf '%s\n' "$comp_sk" | grep -cE 'Art 27|27\(' || true)
+a27_dep=$(printf '%s\n' "$comp_depl" | grep -cE 'Art 27|27\(' || true)
+if [ "${a27_dep:-0}" -ge 1 ] && [ "${a27_all:-0}" -eq "${a27_dep:-0}" ]; then
+  ok "…and Art 27 appears only in the deployer list"
+else
+  fail "…and Art 27 appears only in the deployer list ($a27_dep of $a27_all lines)"
+fi
+
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
 for hook in "$DECL" "$GUARD"; do
@@ -1424,28 +1484,23 @@ psperm_out=$(run_install "$T4e")
 says     "a PowerShell permission rule does not count as the matcher"  "$psperm_out" 'NOT wired'
 says_not "…and is not reported as wired"                               "$psperm_out" 'registers every'
 
-# --- 8. compliance is opt-in, and adding it later is just a re-run ---------------------
-echo "install.sh — compliance opt-in:"
-T5="$WORK/optin"; mkdir -p "$T5"
-optin_out=$(run_install "$T5")
-check "no COMPLIANCE.md by default"       test ! -e "$T5/COMPLIANCE.md"
-check "no /compliance skill by default"   test ! -e "$T5/.claude/skills/compliance/SKILL.md"
-says  "the report says why it is absent"  "$optin_out" 'compliance — not installed'
+# --- 8. a fresh install: every skill, /compliance included, and no COMPLIANCE.md (#38) ------
+echo "install.sh — a fresh install:"
+T5="$WORK/plain-install"; mkdir -p "$T5"
+fresh_out=$(run_install "$T5")
+check "the /compliance skill lands with the others" test -f "$T5/.claude/skills/compliance/SKILL.md"
+says  "…and the command is listed"                  "$fresh_out" 'Commands.*/compliance'
+check "no COMPLIANCE.md lands: /compliance writes it when run" test ! -e "$T5/COMPLIANCE.md"
+says_not "…and the report has no opt-in line left"  "$fresh_out" 'Opt-in'
 for d in CLAUDE.md PROGRESS.md DECISIONS.md; do
-  check "the non-optional document $d is there" test -f "$T5/$d"
+  check "the document $d is there" test -f "$T5/$d"
 done
 # BUSINESS.md ships no skeleton (#35): /business writes it, and the report says so.
 check "no BUSINESS.md lands on install"           test ! -e "$T5/BUSINESS.md"
-says  "…the NEXT steps send you to /business for it" "$optin_out" '/business .*writes BUSINESS.md'
-later_out=$(run_install --compliance "$T5")
-check "--compliance on a re-run adds the document" test -f "$T5/COMPLIANCE.md"
-check "…and the skill"                             test -f "$T5/.claude/skills/compliance/SKILL.md"
-says  "…and the command is listed"                 "$later_out" 'Commands.*/compliance'
-says_not "…without dragging anything into NEEDS YOU" "$later_out" 'NEEDS YOU'
-check "a re-run without the flag does not remove it" test -f "$T5/COMPLIANCE.md"
-T5b="$WORK/optin-first"; mkdir -p "$T5b"
-run_install --compliance "$T5b" >/dev/null
-check "the flag works on a first install too" test -f "$T5b/.claude/skills/compliance/SKILL.md"
+says  "…the NEXT steps send you to /business for it" "$fresh_out" '/business .*writes BUSINESS.md'
+rerun_out=$(run_install "$T5")
+check "a re-run lands no COMPLIANCE.md either"    test ! -e "$T5/COMPLIANCE.md"
+says_not "…and drags nothing into NEEDS YOU"      "$rerun_out" 'NEEDS YOU'
 
 # --- 9. GUIDE.md collision: the kit's manual lands beside yours, and says when it is stale
 echo "install.sh — GUIDE collision:"
