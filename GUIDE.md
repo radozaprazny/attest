@@ -179,6 +179,34 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
   it fires on any word ending in `git`, so `grep -r git -l push` now asks — a prompt, never a
   miss. **Coverage is untouched by all this** — normalising spellings is not the same as adding
   commands, and the script-shaped paths above still need adding by hand.
+- **A record speaks for HEAD, so a push passes on it only in a shape the guard can read as
+  shipping HEAD alone** (attest ADR-0076). It is an allow-list; anything it does not recognise
+  asks. What passes on HEAD's clean record:
+  - `git push`, `git push <remote>`, or refspecs whose source resolves to HEAD's commit
+    (`git push -u origin <the branch you are on>`, `git push origin HEAD:main`);
+  - with known options only: `-u`, `-f`, `--force-with-lease[=…]`, `-q`, `-v`, `--no-verify`,
+    `--atomic`, `-o …` and a few more;
+  - redirections and a filter after it (`2>&1 | tail -2`, `>/dev/null`);
+  - in this repository: the shell's directory from the payload, and any `cd` or `git -C` in
+    the command, have to resolve, by git, to this repository's top level;
+  - after read-only parts only: `git status`, `diff`, `log`, `show`, `fetch`, `add` and
+    `rev-parse`, and `echo`, `ls`, `pwd`, `cat` and a few filters.
+
+  Everything else asks. Any other part before the push is traced `compound` (a commit, a
+  `git config`, `npm version`): the guard reads HEAD before any of it runs, so commit in one
+  command and push in the next. The rest is traced `nothead`: another ref, `--all`, `--tags`,
+  `--follow-tags`, `--delete`, an unknown or abbreviated option such as `--mirr`, a push wrapped
+  in `xargs`, `env` or `sh -c`, a variable, subshell or glob in the push, `-c`, `--git-dir`,
+  push config that widens a plain push (`push.default`, `remote.*.push`, `remote.*.mirror`), and
+  submodule pushing (`push.recurseSubmodules`, `submodule.recurse`) for any push.
+
+  Past the cases the smoke suite pins, the allow-list is unverified: the guard reads a command
+  string and git decides what ships. A **git alias** for push (`git p`) and a script that pushes
+  never reach the guard at all. Commands **after** the push are not judged, even when they ship
+  something themselves. Credentials in the command are masked before the trace and the prompt
+  see them: a URL's `user:token@`, a `NAME=value` whose name holds KEY, TOKEN, SECRET, PASS, PAT,
+  AUTH or CRED, the value of `--password`, `--token`, `--api-key`, `--auth` or `-p`, a
+  `-u user:password`, and the word after `Bearer`, `Token` or `Basic`. Any other shape is not.
 - **The publish path that never opens a shell** (attest ADR-0058). A GitHub MCP server pushes
   files, opens pull requests and creates repositories over the API — `git push` is never typed,
   so the `Bash` matcher never fires and, until this arm, the gate was simply absent there. The
@@ -189,8 +217,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
     list of ship commands has to be inside the script; an MCP tool only ever reaches a hook the
     matcher **names**, so the matcher *is* the list. Wiring a tool to this hook is the statement
     that it publishes: anything `mcp__*` that gets there asks. Wire the publish tools, not the server.
-  - **It asks every time and never consults a record.** Every other arm passes on a clean record
-    for HEAD. This one cannot: a record attests the **tree at a commit**, and these calls send
+  - **It asks every time and never consults a record.** The shell arms can pass on a clean record
+    for HEAD, in the shapes above. This one cannot: a record attests the **tree at a commit**, and these calls send
     bytes chosen **in the call**, which need not be committed and need not match HEAD. Passing
     on evidence about something else is the believed-but-false gate ADR-0035 refuses; the prompt
     says so, and points you at `git push` if you want the record to cover the thing you send.
@@ -368,13 +396,17 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 > itself; both only print, and what reaches the provider is whatever your session already does.
 
 > **Reading the trace.** Six columns — timestamp · decision · short sha · permission mode ·
-> scan · sanitised subject — and eight decision words: `pass` (a clean record cleared it) ·
+> scan · sanitised subject, credentials masked — and ten decision words: `pass` (a clean record
+> cleared it) ·
 > `blocked` (a record for this commit exists and does not attest a clean scan) · `ask` (no
 > record at all) · `dryrun` (waved through as a simple dry run) · `record` (something was
 > writing a ship record, from either hook) · `mcp` (a publish tool that never opens a shell,
 > which no record can clear — ADR-0058; the subject column is the tool name there, never the
 > bytes it was sending) · `leak` and `scanerr` (a clean record would have cleared it, and the
-> scanner took the pass away — it found a secret, or it did not finish; ADR-0070). The **scan**
+> scanner took the pass away — it found a secret, or it did not finish; ADR-0070) · `compound`
+> and `nothead` (a clean record would have cleared HEAD, but the command runs something before
+> the push, or its push is not one the guard reads as HEAD alone; ADR-0076 — with no clean record
+> the word stays `ask` or `blocked`). The **scan**
 > column says what `betterleaks` did, beside whichever word the record earned: `-` where no scan
 > was in question · `off` · `absent` (not on the PATH the session had) · `clean` · `leak` ·
 > `error`. So `ask leak` is a push with no record *and* a finding, and `pass absent` is a clean

@@ -2908,3 +2908,58 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
 - **Known limits.** The document templates stay at the root, and ADR-0006 with them, until #31
   moves them. `docs/attest-*.md` still describe the template path: that is history, and #31
   archives it — this log's own header included.
+
+## ADR-0076 — a record clears a push only in a shape read as shipping HEAD alone, and credentials never reach the trace · 2026-09-28 · Accepted
+
+  Narrows: ADR-0028 (a clean record for HEAD clears a push) — to a push the guard reads as shipping
+  HEAD alone.
+  Extends: ADR-0074 — the record half of issue #44, which ADR-0074 left to this entry.
+  Widens: ADR-0060 (the record arm reads each command part) — to `>|`, which the split cut in two.
+
+- **Context** — issue #30, measured against `main` @ 8cc4701. With a clean record for HEAD, the
+  guard passed any command containing `git push` and traced `pass`. That included a commit, pull
+  or amend earlier in the same command, since HEAD is read before any of it runs; the carrier push
+  of PR #46 did exactly that, tracing `pass 15f9baa` for a push that sent 275828d. It also passed
+  another ref, `--all`, `--tags`, `-C` elsewhere, a `cd` first, and a plain push whose config sends
+  other branches, set in git's config or in the command (`-c`, `GIT_CONFIG_*`). A URL's
+  `user:token@` and a `…KEY=value` reached the trace and the prompt verbatim.
+  `printf x >| .attest/ship-a.md` passed. `record_guard.sh` passed a write holding an invalid byte
+  under a UTF-8 locale. The branch's first draft listed the shapes to refuse. Its review, run
+  against scratch remotes, found pushes that draft still passed while shipping another commit:
+  abbreviated options (`--mirr`, `--al`, `--tag`), `--delete`, `xargs git push`, a variable in
+  the push, a ref moved first (`update-ref`, `symbolic-ref`, `git config`, `npm version`), a
+  subshell or `env -C` into another repository, a symlinked `-C` path, and submodule config under
+  a refspec. It also found the draft asking on `git push -u origin main 2>&1`, the most common
+  form a model writes.
+- **Options** — (a) a deny-list of the shapes known to ship more than HEAD; (b) an allow-list:
+  pass on HEAD's record only a command the guard can read as shipping HEAD alone, and ask on
+  anything else; (c) ask on every push but a bare `git push`; (d) run
+  `git push --dry-run --porcelain` from the hook to learn the shipped set; (e) state it as a limit.
+- **Decision** — (b). Redirections are dropped before the command is split into parts. Every
+  part up to the last push has to be on a short read-only list, or a `cd` that git resolves to
+  this repository. The push itself has to be a plain `git` invocation with known global and push
+  options and refspecs that resolve to HEAD's commit, in this repository: the payload's `cwd`, and
+  any `cd` or `git -C`, are resolved by git to its top level. Push config is read for a plain
+  push, and submodule config for every push. The two new decision words are `compound` and
+  `nothead`. Credentials are masked before the subject is sanitised. Both guards run under
+  `LC_ALL=C`, and parsing runs with globbing off.
+- **Why** — (a) is what the review defeated: a deny-list misses the shapes nobody thought of,
+  and git accepts more spellings than any list holds. (c) asks on `git push -u origin <branch>`,
+  the commonest first push, and a guard that asks on the ordinary case gets approved without
+  reading. (d) contacts the remote from inside a hook and re-executes arguments from a
+  model-written string (ADR-0074). (e) keeps a trace that says `pass` for a push nothing audited.
+- **Consequences** — the guard asks more often on unusual commands and less on the usual one.
+  `>|` is a record write. Hook comments drop from 426 lines to 37 with no code change (the
+  non-comment lines of that commit match the one before it line for line), the hooks cite no ADR,
+  and `ship_guard.sh` is 300 lines. Suite **366 → 472**. Of its 472 cases, 84 fail against
+  `main`'s guards and 49 against this branch's first draft of `ship_guard.sh`. Three fixtures
+  moved to branch `main`: their `git push origin main` named a branch they did not have, which
+  only a guard that never read the refspec could pass. Two expectations in the ADR-0074 block
+  change from `leak leak` to `nothead leak`: those pushes now ask for their shape as well as for
+  the secret. Kit 0.14.0.
+- **Known limits.** Past the cases smoke pins, the allow-list is unverified: the guard reads a
+  command string and git decides what ships. A git alias for push and a script that pushes never
+  reach the guard. Commands after the push are not judged, even ship-list ones
+  (`git push && scp …`). A quoted value holding a space still breaks the normalisation, so
+  `git -c "a b" push` is never recognised as a push at all, and `--dry-run --no-dry-run` passes as
+  a dry run; both predate this entry. Masking covers the shapes GUIDE lists and no other.
