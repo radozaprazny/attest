@@ -1,7 +1,7 @@
 #!/bin/sh
 # attest record guard: PreToolUse on Write and Edit. Writing .attest/ship-*.md asks, because the
 # ship guard reads that file as evidence: the human accepts the audit's verdict here, while they
-# still know whether the audit ran. It asks, never denies; anything else proceeds.
+# still know whether the audit ran. It asks (denies under ATTEST_GUARD=deny); anything else proceeds.
 
 set -u
 export LC_ALL=C
@@ -16,11 +16,12 @@ FP="$(printf '%s' "$PAYLOAD" |
 [ -n "$FP" ] || exit 0
 
 case "$FP" in
-  *".attest/ship-"*".md") ;;
+  *".attest/ship-"*".md"|*'.attest\\ship-'*".md") ;;
   *) exit 0 ;;
 esac
 
-SAFE="$(printf '%s' "$FP" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
+B="${FP##*/}"; B="${B##*\\}"
+SAFE="$(printf '.attest/%s' "$B" | tr -c 'A-Za-z0-9 ._/:=@-' ' ' | cut -c1-120)"
 MODE="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"permission_mode"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p')"
 SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
@@ -32,7 +33,8 @@ SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
       >> "$ROOT/.attest/tmp/ship-guard.log"
 } 2>/dev/null || true
 
-printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"ask","permissionDecisionReason":"%s"}}\n' \
-  "attest ship gate: this writes a ship record ($SAFE) — the file the ship guard reads as evidence that /audit-history ran. Approve only if the audit actually ran and this is its verdict: nothing in the tooling can tell a written record from an earned one, so this prompt is the step that makes it an attestation rather than a claim."
+D=ask; [ "${ATTEST_GUARD:-}" != deny ] || D=deny
+printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"}}\n' "$D" \
+  "attest record guard: RECORD WRITE — writes a ship record ($SAFE). Approve only if /audit-history ran and this is its verdict: approving is the attestation."
 
 exit 0

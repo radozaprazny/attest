@@ -3039,3 +3039,78 @@ maintainer's own already-public data, no third party and no Art 9 category. Smok
   list (#32). Under `diff.relative=true`, the leak scan, which runs from the project directory,
   does not read files outside a project below the top level; that predates this entry and is left
   to #32. A commit adding a `/gate` record is not a carrier. ADR-0076's limits hold.
+
+## ADR-0078 — the guard's prompts lead with a verdict, can deny, and read the spellings and parts it missed · 2026-09-28 · Accepted
+
+  Widens: ADR-0069 (the ship list matches a command, not a spelling) — to `git.exe` and to a
+  quoted value holding a space.
+  Widens: ADR-0073 — `git.exe push` and a record written to a backslash path, which it named
+  silent, are read.
+  Extends: ADR-0076 — a ship command after the push is judged, and a PR's shape admits a `cd` into
+  this repository.
+
+- **Context** — issue #32 and its two comments, measured against `fix/guard-carrier-pass` @
+  a90eb3f (PR #48). The prompts ran 50–81 words at v0.12.0 (the issue's count), each opened
+  "attest ship gate:", and the verdict sat mid-sentence. `rsync` and `scp` matched
+  `cat notes/rsync.md` and local copies, whose prompt then said data would leave the machine.
+  `docker image push`, `docker buildx … --push`, `gh pr new`, `gh -R … pr create`, `git.exe push`
+  and a record written to `.attest\ship-…` were silent. `git -c 'a.b=c d' push` was never read as a
+  push, `--dry-run --no-dry-run` passed as a dry run, and `git push && scp key host:` passed on
+  HEAD's record. Under `diff.relative=true` the leak scan, run from a project below the top level,
+  missed files outside it. `cd <this repo> && gh pr create` could not carry a record. In a mode or
+  a `-p` run where nobody answers, an ask protects nothing, and the README said the guard "runs
+  whatever permission mode you are in". The branch's first draft read quoted values by tracking
+  quote state across the whole command. Its review showed that one unbalanced quote, in a comment,
+  a heredoc or `don\'t`, then hid a later `git -C . push` from the list, silently, where a90eb3f
+  asked; a real push confirmed it. It also found `--no-dry`, ship commands beside a PR,
+  `git push && git -C . send-email` and a `$variable` target of `scp` passing. The second draft
+  read a quoted value up to the word that ends in a quote; its review showed `git -C "$D"/r2 …`,
+  whose quote closes mid-word, swallowing a later push, and the issue's own
+  `git -c http.extraheader="AUTHORIZATION: bearer …" push` still silent. Both were confirmed with
+  real pushes to scratch remotes.
+- **Options** — (a) fix each gap where it lives, rewrite every reason verdict-first, and add an
+  opt-in deny; (b) the same without a deny, leaving unattended runs to the permission mode; (c)
+  deny by default.
+- **Decision** — (a). The reason is `attest ship guard:` or `attest record guard:`, then a verdict
+  (NO RECORD · BLOCKED · COMMIT FIRST · NOT HEAD · LEAK · SCAN FAILED · RECORD WRITE · MCP PUBLISH
+  · NO HEAD), one condition and one imperative, at most 35 words besides the quoted command and
+  the leak's listing command. BLOCKED names the first failing record, sanitised; a record prompt
+  names `.attest/<name>`. COMMIT FIRST and NOT HEAD are the verdict only where a clean record
+  exists, as `compound` and `nothead` are the trace words only there; LEAK overrides every
+  verdict. `ATTEST_GUARD=deny` turns every ask of both hooks into a deny with the same reason.
+  `scp` and `rsync` ask only with a `:` or a `$` after them. `docker image push`,
+  `docker buildx … --push`, `gh … pr new` and `gh … pr create` join the list, which now lives in
+  one function. The normalisation folds `git.exe` into `git`; when it skips one of git's options,
+  a token whose quotes of the kind it opens with do not pair up (an escaped quote not counted)
+  runs on to the word that pairs them, and no quote state is kept past it. `--no-d…`, and
+  `--dry-run` as the value of `-o` or `--push-option`, cancel a dry run. Every part beside the
+  push or PR, before or after it, is normalised with its quotes and run through the list, and a
+  match asks as NOT HEAD, except a `gh pr create` or `gh pr new` after a push. With no push, the first
+  PR part anchors the shape, so read-only parts and a `cd` into this repository may come before
+  it; whether a command is a PR is decided by that anchor, not by words in its body. A part
+  before the push that is a plain command is read as COMMIT FIRST before its words are judged.
+  The record arm and `record_guard.sh` read `.attest\ship-`. The leak scan runs from the
+  repository's top level, and the LEAK prompt says so.
+- **Why** — (b) leaves a headless run to answer its own question. (c) blocks every mention of a
+  push in an ordinary session, where a human is there to answer. A verdict first is what a person
+  approving at speed reads. Pairing quotes only inside the one option being skipped fixes the
+  missed pushes without a quote state that one stray apostrophe can turn against the list.
+- **Consequences** — the 14 reasons smoke measures run 24–34 words. The trace words are unchanged.
+  The parts are split without regard to quotes, so a PR body with a line naming a ship command
+  asks. Replaying this repository's last 30 PR bodies, which discuss ship commands more than
+  most, as a heredoc `--body` on a clean record: a push followed by the PR asked 5 times on
+  a90eb3f and 14 here, a PR on its own 10 and 14. A third draft skipped the lines of a heredoc
+  that `cat` reads for `--body` or `-m`, which brought that to 3 and 2; its own review could not
+  attack it, and reading it through showed two ways to hide a real push behind the skip (a
+  delimiter such as `END-OF`, a `<<EOF` inside quotes). Both were confirmed silent and the skip
+  was removed: an over-ask costs a click, a hidden push costs the guard. `--body-file` avoids
+  the asks. Suite **552 → 629**. Of 21 mutations, each disabling one part of this change, all 21
+  fail a case; the last two cases were added when dropping the mark that lets a PR on HEAD's own
+  record pass, whatever runs before it, failed none. `ship_guard.sh` 300 → 298 lines, 36 of them
+  comments. Kit 0.16.0.
+- **Known limits.** Matching words stays a stated limit: a command that mentions a push asks, and
+  under `ATTEST_GUARD=deny` is denied. `rsync` to a mounted network path is silent. Without a clean
+  record the prompt names the missing record, not the push's shape, and a carrier with another
+  ship command beside its push asks as NO RECORD. `gh -R … pr create` and `GH_REPO=… gh pr create`
+  ask but never carry a record, and a `$(…)` inside a PR's arguments is not judged as a part.
+  `Publish-Module` and a script that pushes are still silent.

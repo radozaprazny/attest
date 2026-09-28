@@ -98,8 +98,9 @@ scanned by it over the commits not yet on any remote: a leak asks even when the 
 and nothing about the guard changes when the tool is absent (attest ADR-0070).
 
 > **"My harness already refuses the obvious — why a guard?"** Because this one is yours and it
-> answers a different question. It runs whatever permission mode you are in and does not depend
-> on a model's judgement at the moment it matters; it names the classes a generic filter has no
+> answers a different question. It does not depend on a model's judgement at the moment it
+> matters, but an ask needs a human to answer it: some permission modes and `-p` runs resolve it
+> without one, so set `ATTEST_GUARD=deny` where nobody is watching (attest ADR-0078). It names the classes a generic filter has no
 > reason to know — GDPR Art 9 categories, national identifiers, client confidentiality, the
 > difference between a maintainer's own address and a third party's; it is scoped by **your**
 > declared non-goals rather than by a general notion of harm; and when it passes, it leaves a
