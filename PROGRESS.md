@@ -7,12 +7,12 @@
 - #34 → kit 0.18.0: one `/gate` (798 words) and one read-only `auditor` (498) replace the four
   passes; `scripts/fixture.sh` plants 4 faults, all found. The reviewer, doc-auditor, ladder,
   triggers.sh, audit-history and the audit modes are gone; README and GUIDE follow in #40, #41.
-- Smoke 604 passed, 0 failed; the count grows by one per committed ship record.
+- Smoke 606 passed, 0 failed; the count grows by one per committed ship record.
 - How to work (the standing grant, the ship ritual): the maintainer's auto-memory.
 
 ## Next
-- #34 (b): the deletions. Then #35, #36, #37, #38 in one PR, a commit each. Wave 3: #39 →
-  #40, #41, #42 → #43 (v1.0.0 and anything published: ask first).
+- #35, #36, #37, #38 in one PR, a commit each. Wave 3: #39 → #40, #41, #42 → #43 (v1.0.0
+  and anything published: ask first).
 - Each issue's body is its spec; re-read its comments before starting.
 - Per PR: reviewer on hook changes (time-boxed), ship ritual, PR, CI, hand over the merge,
   tag after merge.

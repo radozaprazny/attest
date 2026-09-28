@@ -133,6 +133,7 @@ records_for() {
 # HEAD carries records for S when no commit in S..HEAD is a merge and each adds regular files
 # .attest/ship-*.md and nothing else, one of the 10 newest records names S, and no record for S or
 # a commit above it reports a blocker. Such an S lies on HEAD's line, which the walk follows.
+# A blocker there prints `blocked <record>` and returns 2, so the prompt says BLOCKED.
 carrier() {
   export GIT_NO_REPLACE_OBJECTS=1 GIT_GRAFT_FILE=/dev/null; set +f; set -- "$ROOT"/.attest/ship-*.md; [ $# -le 10 ] || shift $(($# - 10))
   _ss="$(git -C "$ROOT" log --no-show-signature --no-relative --ignore-submodules=none --no-abbrev --raw \
@@ -141,7 +142,7 @@ carrier() {
     NF { if ($1 !~ "^:000000 100644 0+ [0-9a-f]+ A$" || substr($2, 1, length(p)) != p ||
       substr($2, length(p) + 1) !~ "^[.]attest/ship-[^/]*[.]md$") exit; k++ }')"
   for _s in $_ss; do
-    _st="$(records_for "$_s")"; [ "${_st%% *}" != blocked ] || return 1; [ "$_st" = clean ] || continue
+    _st="$(records_for "$_s")"; [ "${_st%% *}" != blocked ] || { echo "$_st"; return 2; }; [ "$_st" = clean ] || continue
     for rec in "$@"; do
       _r="$(record_head_sha "$rec")"
       case "$_s" in "${_r:--}"*) git -C "$ROOT" rev-parse --short "$_s"; return 0 ;; esac
@@ -265,12 +266,13 @@ if [ -n "$FULL" ]; then
   # Every record naming HEAD must be clean (a later blocker still holds). A carrier is looked for
   # only once the push is read as shipping HEAD alone.
   RECORDS="$(records_for "$FULL")"
-  if [ -z "$RECORDS" ] && [ -z "$SHAPE" ] && [ "$CARRY" = 1 ]; then AUDITED="$(carrier)" && RECORDS=clean; fi
+  if [ -z "$RECORDS" ] && [ -z "$SHAPE" ] && [ "$CARRY" = 1 ]; then AUDITED="$(carrier)"
+    case $? in 0) RECORDS=clean ;; 2) RECORDS="$AUDITED"; AUDITED= ;; esac; fi
   case "$RECORDS" in
     clean) if [ -z "$SHAPE" ] && [ "$SCAN" != leak ] && [ "$SCAN" != error ]; then trace "pass${AUDITED:+-carrier}"; exit 0; fi
       CLEAN_RECORD=1 ;;
-    blocked*) DEC=blocked; V=BLOCKED; WHY="Record $(san "${RECORDS#blocked }") for HEAD $SHA reports a blocker, or has no readable header"
-      NEXT="Fix it and re-run /gate; do not approve past it." ;;
+    blocked*) DEC=blocked; V=BLOCKED; WHY="Record $(san "${RECORDS#blocked }") reports a blocker, or has no readable header"
+      NEXT="Fix the blocker and re-run /gate; do not approve past it." ;;
     *) V="NO RECORD"; WHY="No clean /gate record names HEAD $SHA"
       NEXT="Run /gate, which commits its record, then push; or approve anyway." ;;
   esac

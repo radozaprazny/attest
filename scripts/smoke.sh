@@ -878,6 +878,9 @@ cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" |
 cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
 cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
 casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
+# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
+cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
+  says "…traced blocked" "$(cdec)" '^blocked$'; }
 cfix happy commit
 _out="$(cguard 'git push')"; _rc=$?
 if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's clean record passes: exit 0, no output"
@@ -926,7 +929,12 @@ cfix empty; git -C "$C" commit -q --allow-empty -m empty
 casks "a HEAD adding nothing at all"
 cfix blocker commit
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$X" > "$C/.attest/ship-20260928-110000-$X.md"
-casks "a carrier whose second record for X reports a blocker"
+cblocked "a carrier whose second record for X reports a blocker" "ship-20260928-110000-$X.md"
+# /gate's own flow after a ⚠️ run: the record, committed on its own, is the carrier's only record.
+cfix gateblock
+printf -- '- HEAD: %s (main)\n- tree: clean\n- findings: 1 blocker · 0 note\n- verdict: ⚠️ fix before push\n' "$X" > "$C/$CREC"
+git -C "$C" add "$CREC"; git -C "$C" commit -qm "chore(attest): ship record for $X" -- "$CREC"
+cblocked "a push after a committed ⚠️ /gate record" "ship-20260928-100000-$X.md"
 cfix rebased commit; _c="$(git -C "$C" rev-parse HEAD)"
 git -C "$C" reset -q --hard HEAD~2; mkdir -p "$C/src"; echo a2 > "$C/src/a.py"
 git -C "$C" add src; git -C "$C" commit -qm 'work, rebased'; git -C "$C" cherry-pick "$_c" >/dev/null 2>&1
@@ -957,7 +965,7 @@ else ok "a signed carrier passes under log.showSignature=true (skipped: no ssh-k
 cfix midblock commit; _s1="$(git -C "$C" rev-parse --short HEAD)"
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$_s1" > "$C/.attest/ship-20260928-120000-$_s1.md"
 git -C "$C" add ".attest/ship-20260928-120000-$_s1.md"; git -C "$C" commit -qm 'chore: commit the second record'
-casks "a carrier above a commit whose later record reports a blocker"
+cblocked "a carrier above a commit whose later record reports a blocker" "ship-20260928-120000-$_s1.md"
 cfix emptytop commit; git -C "$C" commit -q --allow-empty -m empty
 casks "an empty commit above the carrier"
 cfix emptymid; git -C "$C" commit -q --allow-empty -m empty; git -C "$C" add "$CREC"; git -C "$C" commit -qm carrier
