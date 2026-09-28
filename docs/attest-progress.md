@@ -7,8 +7,14 @@
 
 ## Current state
 
-**Kit 0.14.0 on branch `fix/guard-compound-shape-redact`, not merged, not tagged — ADR-0076,
-closing issue #30.** A clean record for HEAD now passes a push only in a shape the guard reads as
+**Epic #28 (cut attest to its core), 2026-09-28: wave 1 half done, D1–D6 decided (D3 declined →
+lean `/checkpoint` and PROGRESS.md kept).** Shipped: #44 → `v0.12.1`, #29 → `v0.13.0`, #30 →
+`v0.14.0` (PR #47, `1736b89`). Open: #31–#43, epic #28. Branch `fix/guard-carrier-pass` holds
+only this status update; #33 is next. How to work (the standing grant, the ship ritual, keeping
+push text out of Bash): the auto-memory for this project. Open work lives in the issues.
+
+**Kit 0.14.0 — ADR-0076, closing issue #30 — merged as PR #47 at `1736b89` and tagged `v0.14.0`,
+2026-09-28.** A clean record for HEAD now passes a push only in a shape the guard reads as
 shipping HEAD alone, an allow-list: redirections dropped, read-only parts before the push, a plain
 `git push` with known options and refspecs resolving to HEAD, in this repository (payload `cwd`,
 `cd` and `-C` resolved by git). Anything else asks, traced `compound` (a part before the push)
@@ -400,6 +406,13 @@ resolve now; and the pre-flip `/audit-history full` is recorded under *Next*, *P
 2026-09-09*.
 
 ## Next
+
+- **Epic #28, in this order:** #33 (carrier push passes; removes 2 of the 3 prompts per PR) →
+  #32 (+ the three older gaps in its 2026-09-28 comment) → #31 (archive the ADR log) → wave 2:
+  #34 (a) then (b) → #35, #36 (D3 declined: lean), #37, #38 → wave 3: #39 → #40, #41, #42 →
+  #43 (v1.0.0 and anything published: ask first). Each issue's body is its spec; re-read its
+  comments before starting. Per PR: reviewer subagent on guard changes, ship ritual, PR, CI,
+  hand over the merge, tag after merge. Everything below is older and predates the epic.
 
 - **From the full gate on the kit-0.12.0 branch (`gate-20260924-090400-f5134a9`) — the nits,
   unfixed on purpose.** Its seven minors were closed before the push, while ADR-0073 could still
