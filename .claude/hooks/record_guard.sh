@@ -35,6 +35,6 @@ SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || true)"
 
 D=ask; [ "${ATTEST_GUARD:-}" != deny ] || D=deny
 printf '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"%s","permissionDecisionReason":"%s"}}\n' "$D" \
-  "attest record guard: RECORD WRITE — writes a ship record ($SAFE). Approve only if /audit-history ran and this is its verdict: approving is the attestation."
+  "attest record guard: RECORD WRITE — writes a ship record ($SAFE). Approve only if /gate ran and this is its verdict: approving is the attestation."
 
 exit 0

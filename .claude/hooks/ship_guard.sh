@@ -105,7 +105,7 @@ if [ "${KIND:-}" = mcp ]; then
   exit 0
 fi
 if [ "${KIND:-}" = record ]; then
-  trace record; ask "attest record guard: RECORD WRITE — $ACT ($SAFE). Approve only if /audit-history ran and this is its verdict: approving is the attestation."
+  trace record; ask "attest record guard: RECORD WRITE — $ACT ($SAFE). Approve only if /gate ran and this is its verdict: approving is the attestation."
   exit 0
 fi
 
@@ -270,15 +270,15 @@ if [ -n "$FULL" ]; then
     clean) if [ -z "$SHAPE" ] && [ "$SCAN" != leak ] && [ "$SCAN" != error ]; then trace "pass${AUDITED:+-carrier}"; exit 0; fi
       CLEAN_RECORD=1 ;;
     blocked*) DEC=blocked; V=BLOCKED; WHY="Record $(san "${RECORDS#blocked }") for HEAD $SHA reports a blocker, or has no readable header"
-      NEXT="Fix it and re-run /audit-history; do not approve past it." ;;
-    *) V="NO RECORD"; WHY="No clean /audit-history record names HEAD $SHA"
-      NEXT="Run /audit-history, commit its record on its own, then push; or approve anyway." ;;
+      NEXT="Fix it and re-run /gate; do not approve past it." ;;
+    *) V="NO RECORD"; WHY="No clean /gate record names HEAD $SHA"
+      NEXT="Run /gate, which commits its record, then push; or approve anyway." ;;
   esac
 elif git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  V="NO HEAD"; WHY="This repository has no commit yet, so no record can name HEAD"; NEXT="Commit, run /audit-history, then retry; or approve."
+  V="NO HEAD"; WHY="This repository has no commit yet, so no record can name HEAD"; NEXT="Commit, run /gate, then retry; or approve."
 else
   V="NO HEAD"; WHY="git found no repository here, or refused to read one"
-  NEXT="Fix safe.directory and run /audit-history, or approve only if you mean this."
+  NEXT="Fix safe.directory and run /gate, or approve only if you mean this."
 fi
 # The decision word says what the record did; the scan column, what the scanner did.
 if [ "$CLEAN_RECORD" = 1 ]; then

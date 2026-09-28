@@ -8,8 +8,8 @@
 
 <!--
 How to use this file:
-  - Run `/decision` to record a decision just made. Run `/decision audit` to find decisions
-    made in code but never written here (read-only).
+  - Run `/decision` to record a decision just made. `/gate` flags a decision made in code
+    but never written here.
   - Record ONLY choices with lasting rationale AND discarded alternatives — a dependency, an
     architectural pattern, a threshold. A routine change is a commit, not an ADR. The
     Options/Why lines are the reason this file exists (git does not preserve the roads not taken).

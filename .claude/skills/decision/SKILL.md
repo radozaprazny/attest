@@ -1,16 +1,13 @@
 ---
 name: decision
 description: >-
-  Records and audits DECISIONS.md — the project's append-only ADR-lite decision log (why we
-  chose X over Y, the alternatives weighed, the trade-offs accepted). Two modes: record
-  (append one entry for a decision just made) and `audit` (find decisions made in code but
-  never written down — a new dependency, a swapped library, a new architectural pattern;
-  read-only). Record ONLY choices with lasting rationale and discarded alternatives — a
-  routine change is a git commit, not an ADR. Generic — usable in any project. Do NOT use it
-  for live status (PROGRESS.md), rules/conventions (CLAUDE.md), product non-goals
-  (BUSINESS.md) or regulatory obligations (COMPLIANCE.md).
+  Records DECISIONS.md — the project's append-only ADR-lite decision log (why we
+  chose X over Y, the alternatives weighed, the trade-offs accepted): it appends one entry
+  for a decision just made. Record ONLY choices with lasting rationale and discarded
+  alternatives — a routine change is a git commit, not an ADR. Generic — usable in any
+  project. Do NOT use it for live status (PROGRESS.md), rules/conventions (CLAUDE.md),
+  product non-goals (BUSINESS.md) or regulatory obligations (COMPLIANCE.md).
 disable-model-invocation: true
-argument-hint: "[audit]"
 ---
 
 # /decision — why we chose X over Y (DECISIONS.md)
@@ -97,7 +94,7 @@ the other?"* If yes, record it; if no, leave it to the commit.
   **never** rewrite its rationale.
 - **"Past" starts at the push, not the commit** (attest ADR-0057): an entry is immutable once
   the commit carrying it has left the machine. Until then it is a draft — correct it in place,
-  which is what the commit-time gate is *for*. It is the same boundary the ship gate defends,
+  which is what `/gate` before a push is *for*. It is the same boundary the ship guard defends,
   and it is checkable from the checkout, which "once the branch merges" is not.
 - **Six relations, in two kinds, all of them fields of the *new* entry**, so none of them costs
   an exception to the rule above. **They change how far the older entry reaches:**
@@ -112,15 +109,16 @@ the other?"* If yes, record it; if no, leave it to the commit.
   move hides the move. All six share a limit worth knowing: the field is on the **new** entry, so
   landing on the old one shows nothing — finding a relation means searching the log for that id.
 
-## Two modes
+## Record (a decision was just made)
+
+The argument `audit` is retired: say `/gate` checks for unrecorded decisions before a push,
+and stop.
 
 > **A `DECISIONS.md` with no real entries — the shipped template's header and commented
 > example only — counts as empty.** The kit ships it as a skeleton: the entry shape lives in
 > an HTML comment, never as a visible entry. The first real entry is `ADR-0001`; never treat
 > the commented example as prior state, and if the file is absent, create it (header rules
 > included) before appending.
-
-### Mode 1 — record (a decision was just made)
 
 1. **Confirm it clears the threshold** above. If it is really a non-goal / a rule / an
    obligation, route it to the right doc instead and say so.
@@ -134,57 +132,8 @@ the other?"* If yes, record it; if no, leave it to the commit.
 4. If this decision **reverses** an earlier one, append with `Supersedes: ADR-000N` and flip
    that entry's `Status` line only.
 
-### Mode 2 — `audit` (decisions made in code but never recorded)
-
-Invoked as **`/decision audit`**. Read-only — it **reports**, it does not write entries. It
-**owns** the "undocumented decision" finding, so a new dependency is flagged here and not by
-`/business audit`, whose ground is non-goals and scope — one hunk is flagged once.
-
-> **In `/gate`'s light mode you are launched only on a trigger hit** (attest ADR-0067): a
-> dependency manifest, a lockfile, a container or infra file, a workflow, a hook, the settings
-> that wire them, or an added import line. You receive `$M/trigger-decision.txt` — the
-> `file:line` hits — as a starting point, **not** a boundary: a decision can land in a hunk no
-> keyword names, and the pass is still the whole diff. Note what the trigger cannot see and
-> `/gate full` can: a pattern chosen in ordinary code, a threshold typed into a config the list
-> does not know. An empty `DECISIONS.md` never suppresses this pass — a young project is
-> exactly where unrecorded decisions live (ADR-0065, ADR-0066).
-
-**The one exception is the `/decision` ↔ `/compliance` edge** (`_shared/audit-ladder.md`): a
-choice that lands on **regulated ground** — personal data, a model or automated decision, a
-new data source/transfer, an Art 5 practice — belongs to `/compliance audit`, which names the
-missing ADR inside its own finding. Everything else that is a decision is yours.
-
-**Unless `/compliance` is not installed** (`.claude/skills/compliance/` absent — the project
-opted out, attest ADR-0030). Then that ground is **re-assigned** by the ladder's table rather
-than dropped, and its first row is yours: a regulated-ground hunk with a **choice** behind it
-comes back to you (the rest goes to `/audit-history` if it is bytes, otherwise to `/business
-audit`). **Take the severity from the ladder, not from your rung list below** — its floor is
-absolute: special-category or national-ID personal data, or an Art 5 practice, is a **blocker**
-even when it reaches you as an inherited choice. Report yours once, with a clause naming what
-it would have been — *"regulated ground; /compliance
-is not installed in this project"*. Deferring to an audit that does not exist is how a finding
-disappears, and the contract forbids silence, not just double-reporting.
-
-1. **Read `DECISIONS.md`** — what has already been recorded (respect supersede chains; the
-   shipped template's commented example is not a recorded decision).
-2. **Survey reality** — `git log` / recent commits, the working diff, and especially the
-   **dependency manifest** and **structural changes**: a newly added or swapped dependency, a
-   new architectural pattern or protocol, a notable new threshold/default.
-3. **Match against the log** — for each decision visible in the code that clears the threshold
-   but has **no** entry, that is a finding. A choice already recorded (even if later
-   superseded) is **not** a finding.
-4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
-   one-line description, **evidence** (file / commit / diff hunk), and a severity —
-   - **blocker** — a decision that contradicts a recorded ADR or a stated rule;
-   - **major** — a threshold-clearing choice with no entry;
-   - **minor** — a recorded entry gone stale, or a missing cross-reference.
-   End with a recommended `DECISIONS.md` entry (title + the gap it fills) — but **do not**
-   write it (recording is a human call, Mode 1). If nothing is undocumented, say so in one
-   line. **The audit writes nothing.**
-
 ## After editing
 
-- **Record mode:** append only — never edit or delete a past entry (except the sanctioned
+- Append only — never edit or delete a past entry (except the sanctioned
   one-line `Status` flip). Do **not** commit automatically — leave the commit to me (`docs:`).
   Change nothing other than `DECISIONS.md`. Briefly summarize the entry you appended.
-- **Audit mode:** read-only — report the verdict, change nothing at all.

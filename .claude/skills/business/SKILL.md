@@ -1,20 +1,16 @@
 ---
 name: business
 description: >-
-  Creates, maintains and audits BUSINESS.md — the project's business context (why
+  Creates and maintains BUSINESS.md — the project's business context (why
   it exists, for whom, its value, scope and non-goals). Works like /init, but for
   BUSINESS.md: it first establishes the project's ARCHETYPE (library / CLI / service
   / data-pipeline / AI-system / local-app), which selects a tailored template and a focused
-  question set. Three modes: bootstrap (write the file in a new project),
-  update (reconcile it against the project's state), and `audit` (check reality —
-  code, commits, diff — against the declared non-goals and scope, read-only; in a project
-  that did not install /compliance it also inherits the shared ladder's fallback row for
-  regulated ground). Bootstrap and update end by making the compliance call — whether this
-  project needs COMPLIANCE.md at all.
+  question set. Two modes: bootstrap (write the file in a new project) and
+  update (reconcile it against the project's state). Both end by making the compliance
+  call — whether this project needs COMPLIANCE.md at all.
   Generic — usable in any project. Do NOT use it for live status (that belongs in
   PROGRESS.md) or for rules/conventions (they belong in CLAUDE.md).
 disable-model-invocation: true
-argument-hint: "[audit]"
 ---
 
 # /business — business context + archetype (BUSINESS.md)
@@ -112,11 +108,11 @@ already answers; fill those in directly.
 - **local-app** — what does it store on the device, and does **any** of it leave (sync,
   telemetry, crash reports)? what must never require an account or the network?
 
-## Three modes
+## Two modes
 
-**Dispatch — pick the mode first:**
+**Dispatch — pick the mode first.** The argument `audit` is retired: say `/gate` checks the
+non-goals before a push, and stop. Otherwise:
 
-- invoked as **`/business audit`** → **Mode 3**;
 - `BUSINESS.md` absent, or with **no user-written content** (every section still the shipped
   `<placeholder>` text) → **Mode 1**;
 - anything else → **Mode 2**. A **half-filled** file is Mode 2, not Mode 1: sections a person
@@ -149,14 +145,6 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
    the derived facts with my answers. Where something is missing, mark it as open with an
    `Open:` bullet rather than guessing — never with `<angle-bracket>` text, which the
    dispatch above reads as "still the shipped skeleton".
-5. **Offer the watch list, once, and only if the non-goals suggest one.** Directly under the
-   *Non-goals* heading, one HTML comment — `gate-watch: <word>, <word>` — names the words that
-   should make a diff worth this audit in **this** project: the library a non-goal forbids, the
-   directory that must stay empty, the call that would cross the line. `/gate`'s stage 0 reads
-   it; absent, a generic network/telemetry/upload set applies (attest ADR-0067). Derive the
-   candidates from the non-goals you just wrote, show them, and let me cut. **Never invent
-   words to look thorough**: a list that fires on everything is the four-subagent cost the
-   trigger stage exists to remove, and a list nobody trusts gets deleted.
 
 ### Mode 2 — BUSINESS.md exists and is filled in (update)
 
@@ -172,97 +160,6 @@ Proceed like `/init` — **explore, determine the archetype, then ask, then writ
    service is no longer a library).
 5. If you are unsure about a change of direction, **ask** — do not guess.
 
-### Mode 3 — `audit` (check reality against the declared intent)
-
-Invoked as **`/business audit`**. This is one of the kit's **commit-time gate** checks (the
-ship gate is `/audit-history`): it does
-not touch the document, it **reports** whether what the repo is *doing* still matches what
-`BUSINESS.md` *declares*.
-
-> **In `/gate`'s light mode you are launched only on a trigger hit** (attest ADR-0067): a word
-> from the project's `gate-watch` list or the generic set on an added line, a new top-level
-> directory, or `BUSINESS.md` itself changing. You receive `$M/trigger-business.txt` — the
-> `file:line` hits — as a starting point, not a boundary; the pass is still the whole diff
-> against the declared non-goals. A skeleton never launches you at all, because a stage that
-> can read placeholders in shell should not spend a context to say *nothing declared*
-> (ADR-0066). In `/gate full`, and when the skill is run on its own, no trigger applies.
-
-It owns **non-goal / scope** drift only — an undocumented decision
-(a new dependency, a new pattern) is `/decision audit`'s finding and regulated ground is
-`/compliance audit`'s, so one hunk is flagged once.
-
-> **Unless `/compliance` is not installed** (`.claude/skills/compliance/` absent — the project
-> opted out, attest ADR-0030). Then its ground is re-assigned by the ladder's table and its
-> last row is **yours**: regulated ground with no choice and no bytes behind it is a finding
-> *here*, because what is missing is a **declaration**. That covers the whole of the row —
-> a bare new personal-data field, a model or automated decision wired in with nothing to
-> weigh, a new data source / export / transfer, a feature on prohibited (Art 5) ground.
-> Report it **once**, with the clause *"regulated ground; /compliance is not installed in this
-> project."*
->
-> **Take the severity from the ladder, not from this paragraph.** Its floor stands in every
-> audit: special-category or national-ID personal data, or an Art 5 practice, is a
-> **blocker** — inheriting a ground must never be able to lower what it would have scored.
-> Everything else on the row is **major**. This is the only thing that makes you fire on
-> something other than a non-goal, and only while that skill is absent.
-
-You own what the code **does**;
-`/audit-history` owns what the repo **ships** (bytes in the tree or history) — so a violated
-*behaviour* non-goal ("no network access") is yours, even if it looks like a leak risk.
-
-1. **Read `BUSINESS.md`** — focus on **Non-goals** and **Scope**; note the archetype. **If
-   everything outside its HTML comments and `<angle-bracketed>` placeholders is empty, the file
-   is still the shipped skeleton: stop here.** Return one line — *"nothing declared — run
-   `/business`"* — and no findings. An audit of a skeleton has no ground to stand on, and
-   reporting it as a half-audit spends a whole pass to say what the first read already said
-   (attest ADR-0066).
-2. **Survey reality** — the working diff (`git diff` and `git diff --staged`), the commits
-   since the last audit or the last `BUSINESS.md` edit (not the whole history — repeated
-   gate runs must not re-flag the same old drift), and the code/dependency structure. For an
-   AI-system also note new models/automated decisions; for a service/pipeline note new data
-   flows or sources.
-   *Run as a `/gate` pass you have no git at all* — scope from the material handed to you
-   instead: `diff.patch` is the change under audit, `log-docs.txt` dates the last
-   `BUSINESS.md` edit, and the names in `gate-records.txt` carry the shas they gated — match on
-   the sha, not on the order (a record may be written late, so name order is write order;
-   attest ADR-0032). Take the later of those two as the window's start. If neither file reached
-   you, audit the diff alone and **say so in the verdict** — an unscoped pass may re-flag
-   drift a previous run already reported.
-3. **Check each declared non-goal** — is the repo now doing the thing it said it would not?
-   **Check scope** — is work landing *outside* the stated scope (creep), and are any
-   "Later:" items now actually done (stale plan)? Sanity-check the **archetype** still fits.
-4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
-   one-line description, **evidence** (file / commit / diff hunk), and a severity —
-   - **blocker** — a stated non-goal is being violated;
-   - **major** — real work outside the declared scope, or the archetype no
-     longer fits;
-   - **minor** — a stale "Later:" item, or wording that has drifted.
-
-   **Mark every blocker `repair: code` or `repair: person`.** `code` when the violation can go
-   without what the change is for going with it — a value a non-goal keeps off the screen, masked;
-   `person` when the violation *is* what the change is for — a sync feature opening the socket a
-   *"no network"* non-goal forbids, where choosing between the feature and the non-goal is
-   intent. Unsure → `person`. **A blocker you report on regulated ground in `/compliance`'s
-   absence is always `person`**: no non-goal states it, and what a code change achieves there
-   is a legal reading, not a test result. The mark is what closing it takes, not who owns it —
-   the finding stays yours either way; `code` only lets `/gate fix` repair it under a test it
-   writes first (attest ADR-0071).
-
-   End with a recommended update — for a `code` blocker the code change, because the document
-   is right and the code is what drifted; for everything else the `BUSINESS.md` change (which
-   section, roughly what) — but **do not make it**. If nothing drifted, say so in one line.
-   **The audit writes nothing.**
-5. **One extra verdict line, only when it applies.** If `/compliance` is **not installed** and
-   this diff (or the archetype no longer fitting) plainly triggers regulated scope, add:
-   *"the compliance call may need re-making: &lt;the trigger&gt;; re-run `install.sh --compliance`."*
-   A pointer, not a finding: it never moves the verdict line. Without it the call made at
-   bootstrap is never revisited, and the trigger is an event that arrives later (attest
-   ADR-0030).
-
-**Audit writes nothing.** If I agree with a finding, I re-run the skill in update mode
-(Mode 2) to change the document — unless it is a `repair: code` blocker, where the document is
-right and the code changes instead, by hand or by `/gate fix`.
-
 ## The compliance call — make it here, once, after the archetype
 
 `/compliance` and `COMPLIANCE.md` are **opt-in**: `install.sh` does not land them, because at
@@ -271,7 +168,7 @@ install time nobody yet knows whether the project is in regulated scope, and an 
 while declaring nothing (attest ADR-0030). The archetype you just established is the first
 moment the question can actually be answered, so answer it here.
 
-After bootstrap or update (**not** in `audit` mode), check whether `.claude/skills/compliance/`
+After bootstrap or update, check whether `.claude/skills/compliance/`
 exists, and weigh what you just recorded — the archetype, the target user, whether personal
 data or a model-driven decision is anywhere in scope.
 
@@ -287,23 +184,17 @@ below. **If it is absent**, say **one** of two things, in one or two lines:
   automated decision, an EU market placement, a regulated sector) and tell me to re-run the
   installer with `--compliance`, then `/compliance`. Uncertainty resolves toward installing
   it: the cost of the skill sitting unused is a directory, the cost of a missing posture is
-  a finding nobody owns.
+  a boundary nobody checks.
 - **Out of scope** — say so plainly with the reason in one clause, and recommend I record
   that single sentence somewhere durable (a line in `BUSINESS.md`'s non-goals is the usual
   home: *"no personal data, no EU market placement — regulatory posture out of scope"*).
   A recorded "out of scope, because …" is a real declaration; an absent file is not.
-
-**In `audit` mode the call is not re-opened here.** Mode 3 step 5 carries the one exception —
-a single pointer line when a later change triggers regulated scope — and it is written there
-rather than restated here because Mode 3 is the section `/gate` hands to the subagent. Two
-copies of one rule drift apart; this one did.
 
 Never create `COMPLIANCE.md` yourself, and never guess a legal tier — the archetype is a
 trigger, not a classification (attest ADR-0001).
 
 ## After editing
 
-- **Bootstrap / update:** do **not** commit automatically — leave the commit to me (`docs:`).
+- Do **not** commit automatically — leave the commit to me (`docs:`).
   Briefly summarize which sections you changed/created and why. Change nothing other than
   `BUSINESS.md`.
-- **Audit:** read-only — report the verdict, change nothing at all.

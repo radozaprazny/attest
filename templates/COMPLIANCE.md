@@ -8,10 +8,9 @@
 
 <!--
 How to use this file:
-  - Run /compliance to bootstrap/update this posture. Run /compliance audit to check whether
-    a diff touches regulated ground against it (read-only). The audit fires ONLY on regulated
-    ground (new personal-data field, new model/automated decision, new data source) — not on
-    every diff.
+  - Run /compliance to bootstrap/update this posture. `/gate` checks whether a push touches
+    regulated ground (a new personal-data field, model/automated decision or data source)
+    against it.
   - Reads BUSINESS.md §Archetype as a TRIGGER only ("the AI Act MAY apply — run the real
     classification"), never as the tier itself. A non-ai-system archetype (a service, a
     data-pipeline, even a library) can still be in scope.

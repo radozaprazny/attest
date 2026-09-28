@@ -8,20 +8,12 @@
 How to use this file:
   - Run `/business` to bootstrap this file (it decides the project's archetype, explores
     the repo, asks what the code cannot show, then writes) or to update it against the
-    current state of the project. Run `/business audit` to check reality against the
-    non-goals/scope below without changing the file.
+    current state of the project. `/gate` checks what the next push sends against the
+    non-goals below.
   - Anti-duplication: no status here ("done", "12 tests green" -> PROGRESS.md), no
     technical rules (language version, commit style -> CLAUDE.md).
   - The Non-goals section is the valuable one — it is the boundary you check new ideas
     against so scope does not creep.
-  - Optional, and read by /gate's stage 0: ONE html comment line whose body reads
-    `gate-watch: word, word, word` — put it under the Non-goals heading, where it belongs and
-    where a reader will look; the stage takes the first one in the file. The words are those
-    that make a
-    diff worth a /business audit in THIS project (a library your non-goals forbid, a directory,
-    a call). Leave it out and a generic set applies: the network, telemetry and upload shapes
-    that cross a boundary in most projects. It is a trigger, never a definition of the
-    boundary — the words decide when the pass RUNS, your non-goals decide what it finds.
 -->
 
 ## Purpose
