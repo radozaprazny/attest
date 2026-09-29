@@ -70,9 +70,8 @@ prompt is the record write.
 and tag. It only adds a question: `LEAK` on a finding, `SCAN FAILED` on an error or
 timeout.
 
-**Dry run and MCP.** A `--dry-run` passes only with no chaining, command substitution, comment
-or quote; a process substitution still passes ([#56][i56]). The MCP tools always ask: no record
-covers bytes chosen in the call.
+**Dry run and MCP.** A `--dry-run` passes only with no chaining, substitution, variable, comment
+or quote. The MCP tools always ask: no record covers bytes chosen in the call.
 
 **Trace.** Each matched command appends a line to `.attest/tmp/ship-guard.log`. Its columns
 are UTC time, word, short sha, permission mode, scan and subject, with credentials masked. The
@@ -220,7 +219,8 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - These are outside the guard: commands that do not go through Claude Code's tools (a
   terminal, an IDE, another tool), scripts (`make deploy`, your own deploy script), submodule
   pushes, and git aliases such as `git p`.
-- A backslash or `$'…'` inside the word `push` hides the push ([#56][i56]).
+- A ship command spelled with a backslash or `$'…'`, or `git` run with a variable or
+  substitution as its subcommand, always asks, clean record or not. `eval "$X"` is not read.
 - The ship list is literal. A command not on it, such as `mvn deploy`, passes unseen until you
   add it to `ship_act()`.
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
@@ -257,6 +257,4 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 [ms]: https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly
 [hsh]: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
 [sp]: https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization
-[ph]: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks
-[i56]: https://github.com/radozaprazny/attest/issues/56
-[pr54]: https://github.com/radozaprazny/attest/pull/54
+[ph]: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks[pr54]: https://github.com/radozaprazny/attest/pull/54

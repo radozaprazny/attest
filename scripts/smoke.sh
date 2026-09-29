@@ -699,10 +699,18 @@ e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin mai
   CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
 says     "a push from a repository with no commits asks"  "$e0_out" 'permissionDecision":"ask'
 says     "…says it has no commits yet"                    "$e0_out" 'NO HEAD — .*no commit yet'
+says     "…and blames the repository"                     "$e0_out" 'This repository has no commit'
 says_not "…never names an empty HEAD"                     "$e0_out" 'HEAD ()'
 says_not "…and does not tell it to audit a HEAD it lacks" "$e0_out" 'for this HEAD'
 says     "…and runs no scan over commits that do not exist" \
   "$(awk '{print $5}' "$E0/.attest/tmp/ship-guard.log" 2>/dev/null)" '^-$'
+# An orphan branch in a repository with commits has no HEAD either, but the repository is not
+# empty, so the prompt blames the branch (#58).
+O0="$WORK/orphan-branch"; git init -q "$O0"; git -C "$O0" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
+git -C "$O0" checkout -q --orphan fresh
+o0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin fresh"}}' | CLAUDE_PROJECT_DIR="$O0" sh "$GUARD")"
+says "a push from an orphan branch asks NO HEAD"            "$o0_out" 'NO HEAD — '
+says "…and blames the branch, not the repository"           "$o0_out" 'This branch has no commit yet'
 N0="$WORK/not-a-repo"; mkdir -p "$N0"
 n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
   CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
@@ -1500,6 +1508,41 @@ U2="$WORK/upgrade-dirty"; mkdir -p "$U2/.claude/skills/audit-history"; echo old 
 gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
+
+# --- 10. a ship command spelled to hide it still asks, clean record or not (#56) ---------------
+# Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash).
+HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
+hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
+# shellcheck disable=SC2016  # the rows are the literal characters a model would type
+HIDDEN_ROWS='ask@git pu\\sh origin main
+ask@git pu\\sh origin other
+ask@git $'"'"'push'"'"' origin main
+ask@git $\"push\" origin main
+ask@np\\m publish
+ask@npm pub\\lish
+ask@git $SUB origin main
+ask@git $(echo push) origin main
+ask@git `echo push` origin main
+ask@git -C . $SUB origin main
+ask@git push --dry-run origin HEAD >(npm publish)
+ask@git push --dry-run <(true)
+ask@git push --dry-run $X origin HEAD
+silent@git push --dry-run origin HEAD
+silent@git log --format=$FMT
+silent@grep -rn push docs/
+silent@echo $HOME'
+for _rec in none clean; do
+  if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
+    printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
+  while IFS='@' read -r _want _cmd; do
+    _out="$(hid "$_cmd")"
+    if [ "$_want" = ask ]; then says "record $_rec: $_cmd asks" "$_out" 'permissionDecision":"ask'
+    else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
+  done <<EOF
+$HIDDEN_ROWS
+EOF
+done
+says "…and with a clean record the hidden push is traced nothead" "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" '^13$'
 
 # --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
 _RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"

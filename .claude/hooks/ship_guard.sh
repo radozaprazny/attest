@@ -62,6 +62,17 @@ ship_act() { case "$1" in
   *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
+# A backslash or $'…' inside a word hides a ship command from the list, and so does a git
+# subcommand that is a variable or a substitution. Such a command always asks, record or not.
+HIDDEN=
+if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then
+  ACT="$(ship_act "$(norm "$(printf '%s' "$CMD" | sed "s/\\\\//g; s/[\$]\\([\"']\\)/\\1/g")")")"
+  if [ -z "$ACT" ] && printf '%s' "$NORM" | awk '{ for (i = 1; i < NF; i++) if ($i ~ /(^|\/)git$/) {
+      for (k = i + 1; k < NF && substr($k, 1, 1) == "-"; k++)
+        if ($k ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) k++
+      if ($k ~ /^[$`]/) f = 1 } } END { exit !f }'; then ACT="sends data off the machine"; fi
+  [ -z "$ACT" ] || HIDDEN=1
+fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
 NL='
@@ -112,7 +123,7 @@ fi
 # Only a plain dry run passes: anything compound can hide a real push behind it.
 # shellcheck disable=SC2016
 case "$CMD" in
-  *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
+  *';'*|*'&'*|*'|'*|*'$'*|*'<('*|*'>('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
   *) case " $NORM " in *" --no-d"*|*" -o --dry-run "*|*" --push-option --dry-run "*) ;; *" --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
 record_head_sha() {
@@ -261,6 +272,8 @@ EOF
     if [ "$_plain" = pr ]; then [ -n "$SHAPE" ] || CARRY=1; [ -n "$SHIPS" ] || SHAPE=; else CARRY=1; fi ;;
   esac
 fi
+if [ -n "$HIDDEN" ]; then CARRY=; SHAPEDEC=nothead
+  SHAPE="It spells a ship command with a backslash, \$'…' or a variable, which the guard cannot read"; fi
 
 if [ -n "$FULL" ]; then
   # Every record naming HEAD must be clean (a later blocker still holds). A carrier is looked for
@@ -277,7 +290,8 @@ if [ -n "$FULL" ]; then
       NEXT="Run /gate, which commits its record, then push; or approve anyway." ;;
   esac
 elif git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  V="NO HEAD"; WHY="This repository has no commit yet, so no record can name HEAD"; NEXT="Commit, run /gate, then retry; or approve."
+  _n="repository"; [ -z "$(git -C "$ROOT" rev-list -n 1 --all 2>/dev/null)" ] || _n="branch"
+  V="NO HEAD"; WHY="This $_n has no commit yet, so no record can name HEAD"; NEXT="Commit, run /gate, then retry; or approve."
 else
   V="NO HEAD"; WHY="git found no repository here, or refused to read one"
   NEXT="Fix safe.directory and run /gate, or approve only if you mean this."
