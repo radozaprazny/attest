@@ -49,7 +49,7 @@ Claude Code's own permission rules decide.
 
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
-| Ship commands | `git push` with any git options or quotes, `git send-email`. `gh` PRs, releases, gists, repository creation and visibility. Publishes by `npm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. `docker` pushes, Kaggle submits. Uploads by `scp` or `rsync` to a remote, `aws s3`, `gsutil cp`, `curl`. |
+| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, repository creation and visibility. Publishes by `npm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. `docker` pushes, Kaggle submits. Uploads by `scp` or `rsync` to a remote, `aws s3`, `gsutil cp`, `curl`. |
 | Record writes | A shell write to `.attest/ship-*.md`, such as `>`, `tee`, `cp` or `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
 | Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
@@ -58,7 +58,7 @@ Claude Code's own permission rules decide.
 **Pass.** A push passes when every record naming HEAD reports `0 blocker`, and it ships HEAD
 alone: a plain `git push` whose refspecs resolve to HEAD, with known options, in this repository.
 Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse` and
-simple read commands may run. After it, anything that is not itself a ship command may run.
+simple read commands may run. After it, anything but a ship command may run.
 Every other ship command, `gh pr create` included, passes on a clean record for HEAD alone.
 
 **Carrier.** With no record for HEAD, a push or `gh pr create` passes as `pass-carrier` when
@@ -70,8 +70,9 @@ prompt is the record write.
 and tag. It only adds a question: `LEAK` on a finding, `SCAN FAILED` on an error or
 timeout.
 
-**Dry run and MCP.** A `--dry-run` passes only with no chaining, substitution, variable, comment
-or quote. The MCP tools always ask: no record covers bytes chosen in the call.
+**Dry run and MCP.** A `--dry-run` passes only as a plain word: no chaining, expansion, backslash,
+comment, quote, `--repo` or `--dry-run=`. MCP tools always ask: no record covers bytes the
+call chose.
 
 **Trace.** Each matched command appends a line to `.attest/tmp/ship-guard.log`. Its columns
 are UTC time, word, short sha, permission mode, scan and subject, with credentials masked. The
@@ -219,8 +220,9 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - These are outside the guard: commands that do not go through Claude Code's tools (a
   terminal, an IDE, another tool), scripts (`make deploy`, your own deploy script), submodule
   pushes, and git aliases such as `git p`.
-- A ship command spelled with a backslash or `$'…'`, or `git` run with a variable or
-  substitution as its subcommand, always asks, clean record or not. `eval "$X"` is not read.
+- A ship command spelled with a backslash, `$'…'` or a line continuation always asks, clean
+  record or not. So does a ship tool whose subcommand is a variable, substitution, brace or glob.
+  Not read: a program name that is itself a variable (`$G push`), `eval "$X"` and `xargs`.
 - The ship list is literal. A command not on it, such as `mvn deploy`, passes unseen until you
   add it to `ship_act()`.
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
@@ -257,4 +259,5 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 [ms]: https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly
 [hsh]: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
 [sp]: https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization
-[ph]: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks[pr54]: https://github.com/radozaprazny/attest/pull/54
+[ph]: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks
+[pr54]: https://github.com/radozaprazny/attest/pull/54

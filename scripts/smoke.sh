@@ -1509,14 +1509,16 @@ gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
 
-# --- 10. a ship command spelled to hide it still asks, clean record or not (#56) ---------------
-# Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash).
+# --- 10. a ship command spelled to hide it still asks (#56) ------------------------------------
+# Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
+# newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
+# asks with no record and passes on a clean one. silent: never asks.
 HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
 hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
-# shellcheck disable=SC2016  # the rows are the literal characters a model would type
-HIDDEN_ROWS='ask@git pu\\sh origin main
+hidden_rows() { cat <<'ROWS'
+ask@git pu\\sh origin main
 ask@git pu\\sh origin other
-ask@git $'"'"'push'"'"' origin main
+ask@git $'push' origin main
 ask@git $\"push\" origin main
 ask@np\\m publish
 ask@npm pub\\lish
@@ -1527,22 +1529,68 @@ ask@git -C . $SUB origin main
 ask@git push --dry-run origin HEAD >(npm publish)
 ask@git push --dry-run <(true)
 ask@git push --dry-run $X origin HEAD
+ask@git \"$SUB\" origin main
+ask@git \"${SUB}\" origin main
+ask@git -C . \"$SUB\" origin main
+ask@true;git $SUB origin main
+ask@(git $SUB origin main)
+ask@cd /tmp\ngit $SUB origin main
+ask@git pu$X origin main
+ask@git pu${X} origin main
+ask@git pu$(echo sh) origin main
+ask@git pu$'\\x73'h origin main
+ask@git pu$'\\163'h origin main
+ask@npm $'pub\\x6cish'
+ask@np$'\\x6d' publish
+ask@npm \"$P\"
+ask@npm $P
+ask@gh pr $C
+ask@cargo $X
+ask@docker $X img
+ask@git \\\n  push origin main
+ask@git pu\\\nsh origin main
+ask@npm \\\n  publish
+ask@git\tpush origin main
+ask@git {push,} origin main
+ask@git pus? origin main
+ask@git -c alias.x=push x origin main
+norec@git lfs push origin main
+norec@git subtree push --prefix d origin main
+ask@git push --dry-run origin main --n\\o-dry-run
+ask@git push --dry-run origin {--no-dry-run,main}
+ask@git push --repo --dry-run origin main
+norec@npm publish --dry-run false
+norec@npm publish --dry-run --dry-run=false
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
-silent@echo $HOME'
+silent@echo $HOME
+silent@git -C \"$DIR\" status
+silent@git diff \"$BASE\"...HEAD
+silent@git log $(git merge-base HEAD main)..HEAD
+silent@git stash push -m wip
+silent@printf '%s\\n' a b
+silent@IFS=$'\\n' read -r x
+silent@gh api repos/$REPO/pulls
+silent@npm run $SCRIPT
+silent@uv run pytest $ARGS
+silent@git commit -m \"fix: a typo\"
+silent@echo x > C:\\\\repo\\\\notes.md
+ROWS
+}
 for _rec in none clean; do
   if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
     printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
   while IFS='@' read -r _want _cmd; do
+    [ "$_want" != norec ] || { [ "$_rec" = none ] && _want=ask || _want=silent; }
     _out="$(hid "$_cmd")"
     if [ "$_want" = ask ]; then says "record $_rec: $_cmd asks" "$_out" 'permissionDecision":"ask'
     else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
-  done <<EOF
-$HIDDEN_ROWS
-EOF
+  done < <(hidden_rows)
 done
-says "…and with a clean record the hidden push is traced nothead" "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" '^13$'
+_asks=$(hidden_rows | grep -c '^ask@')
+says "…and with a clean record each hidden form is traced nothead ($_asks)" \
+  "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
 
 # --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
 _RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"
