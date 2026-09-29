@@ -4,30 +4,28 @@
 # Never clobbers. Every file is copy-if-absent; anything already present is left exactly as
 # it is and reported for you to merge by hand. Nothing here is attest's identity: README.md,
 # LICENSE and the root documents describe *attest* and are deliberately not installed; the
-# documents it installs are the templates in templates/.
+# one document it installs is the template templates/CLAUDE.md.
 #
 # The report is grouped by CAPABILITY, not by path (attest ADR-0031): what you can now do,
 # what stayed yours, what did not land and why. The per-file detail prints only when there is
 # something a human actually has to act on.
 #
-#   ./install.sh [--compliance] <path-to-your-project>
+#   ./install.sh <path-to-your-project>
 
 set -Eeuo pipefail   # -E: the ERR trap below must fire from inside functions too
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 TARGET=""
-WANT_COMPLIANCE=0
 
 usage() {   # usage [exit-code] — a requested --help is not an error, so it exits 0 on stdout
   local code="${1:-2}"
-  if [ "$code" = 0 ]; then echo "usage: ./install.sh [--compliance] <path-to-your-project>"
-  else echo "usage: ./install.sh [--compliance] <path-to-your-project>" >&2; fi
+  if [ "$code" = 0 ]; then echo "usage: ./install.sh <path-to-your-project>"
+  else echo "usage: ./install.sh <path-to-your-project>" >&2; fi
   exit "$code"
 }
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --compliance) WANT_COMPLIANCE=1 ;;
     -h|--help)    usage 0 ;;
     -*)           echo "install.sh: unknown option: $1" >&2; usage ;;
     *)            [ -z "$TARGET" ] || { echo "install.sh: more than one target given" >&2; usage; }
@@ -239,36 +237,29 @@ echo "attest${KIT_VERSION:+ $KIT_VERSION}  →  $TARGET"
 echo
 
 # --- documents ------------------------------------------------------------------------
-# COMPLIANCE.md is NOT here: it is opt-in, decided after /business knows the archetype
-# (ADR-0030). An empty posture file reads as "declared" to every later audit. The templates
-# sit in templates/, because the kit's root holds attest's own documents.
+# BUSINESS.md is not here: /business writes it from the repo and at most three questions, so
+# no skeleton ships for it (#35). Nor is COMPLIANCE.md: /compliance carries its template and
+# writes the file only when run, since an empty posture file reads as "declared" (#38). Nor is
+# DECISIONS.md: /decision creates it with its first entry (#37). Nor is PROGRESS.md:
+# /checkpoint creates it on first use (#36). The template sits in templates/, because the
+# kit's root holds attest's own documents.
 CLAUDE_INSTALLED=0
 { [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
 group_reset
-for doc in CLAUDE.md PROGRESS.md BUSINESS.md DECISIONS.md; do
-  copy_if_absent "$doc" "document" "templates/$doc"
-  [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
-done
-DOC_LIST="CLAUDE · PROGRESS · BUSINESS · DECISIONS"
-if [ "$WANT_COMPLIANCE" = 1 ]; then
-  copy_if_absent "COMPLIANCE.md" "document" "templates/COMPLIANCE.md"
-  [ "$LAST" = "new" ] && G_NEW=$((G_NEW + 1))
-  DOC_LIST="$DOC_LIST · COMPLIANCE"
-fi
-say "$(group_icon)" "Documents" "$DOC_LIST — templates, you fill them in"
+copy_if_absent "CLAUDE.md" "document" "templates/CLAUDE.md"
+if [ "$LAST" = "new" ]; then G_NEW=$((G_NEW + 1)); fi
+say "$(group_icon)" "Documents" "CLAUDE.md — a template, you fill it in"
 
 # --- skills ------------------------------------------------------------------------------
 # Enumerate the kit's skills rather than listing them: a hardcoded list means a skill added
 # upstream installs nowhere and nobody finds out (the same failure ADR-0018 exists to prevent).
-# `compliance` is the one opt-in member — every other directory ships (ADR-0030).
+# Every directory ships, /compliance included: it is user-invoked only, so it costs no context
+# until run (#38).
 group_reset
 CMDS=""
 for dir in "$KIT"/.claude/skills/*/; do
   [ -d "$dir" ] || continue
   sk="$(basename "$dir")"
-  if [ "$sk" = "compliance" ] && [ "$WANT_COMPLIANCE" = 0 ]; then
-    continue
-  fi
   copy_tree_if_absent ".claude/skills/$sk"
   CMDS="$CMDS /$sk"
 done
@@ -396,9 +387,6 @@ if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
 fi
 
 # --- what deliberately did not land --------------------------------------------------------
-if [ "$WANT_COMPLIANCE" = 0 ]; then
-  say "·" "Opt-in" "compliance — not installed; /business tells you whether you need it"
-fi
 say "·" "Not ours" "README.md · LICENSE — they describe attest, not your project"
 
 # --- the report ------------------------------------------------------------------------------
@@ -449,13 +437,15 @@ if [ "$CLAUDE_INSTALLED" = 1 ]; then
   printf '  %d  %-24s %s\n' "$n" "Fill CLAUDE.md" "loaded every turn, ships with <placeholders>; /init is quickest"
   n=$((n + 1))
 fi
-printf '  %d  %-24s %s\n' "$n" "/business" "purpose, archetype, non-goals — the hooks read these"
+printf '  %d  %-24s %s\n' "$n" "/business" "writes BUSINESS.md; its non-goals reach every session and /gate"
 n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "/decision" "one entry per choice, as it lands — not a backlog"
+printf '  %d  %-24s %s\n' "$n" "/decision" "writes DECISIONS.md: one entry per choice, as it lands"
+n=$((n + 1))
+printf '  %d  %-24s %s\n' "$n" "/checkpoint" "writes PROGRESS.md before /clear; the next session reads it"
 n=$((n + 1))
 printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
 echo
-echo "  Day one is CLAUDE.md and your non-goals. An empty DECISIONS.md is the correct"
-echo "  state until a choice lands, and the gate is worth most on your first real"
-echo "  change: over documents alone it has only prose to judge."
+echo "  Day one is CLAUDE.md and your non-goals. DECISIONS.md waits for the first choice"
+echo "  that lands, and the gate is worth most on your first real change: over"
+echo "  documents alone it has only prose to judge."
 echo

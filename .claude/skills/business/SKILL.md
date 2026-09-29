@@ -1,200 +1,65 @@
 ---
 name: business
 description: >-
-  Creates and maintains BUSINESS.md — the project's business context (why
-  it exists, for whom, its value, scope and non-goals). Works like /init, but for
-  BUSINESS.md: it first establishes the project's ARCHETYPE (library / CLI / service
-  / data-pipeline / AI-system / local-app), which selects a tailored template and a focused
-  question set. Two modes: bootstrap (write the file in a new project) and
-  update (reconcile it against the project's state). Both end by making the compliance
-  call — whether this project needs COMPLIANCE.md at all.
-  Generic — usable in any project. Do NOT use it for live status (that belongs in
-  PROGRESS.md) or for rules/conventions (they belong in CLAUDE.md).
+  Writes or updates BUSINESS.md: Purpose, Non-goals, Regulated. Reads the repo, then asks at
+  most three questions in one message, each with a proposed answer; unknowns become Open:
+  bullets. The session hook and /gate read the non-goals.
 disable-model-invocation: true
 ---
 
-# /business — business context + archetype (BUSINESS.md)
+# /business — why the project exists (BUSINESS.md)
 
-This skill maintains **`BUSINESS.md`** — the document about **why the project exists**. It
-changes rarely. It works much like `/init` (which creates `CLAUDE.md`), but focuses purely
-on business context, and it opens by establishing the project's **archetype** so the
-questions it asks and the template it writes fit the *kind* of software in front of it.
+The argument `audit` is retired: say `/gate` checks the non-goals before a push, and stop.
 
-The skill is **generic** — work with what you actually find in the repo, and assume nothing
-about the specific project.
+Only why the project exists goes here: status → `PROGRESS.md` · rules → `CLAUDE.md` · why X
+over Y → `DECISIONS.md` · posture → `COMPLIANCE.md`.
 
-## The control documents — keep them separate
+## 1. Read, silently
 
-**Anti-duplication:** status → `PROGRESS.md` · rules → `CLAUDE.md` · why-it-exists →
-`BUSINESS.md` · why-we-chose-X-over-Y → `DECISIONS.md` · under-what-rules → `COMPLIANCE.md`.
-Write each fact in exactly one place. (full table: GUIDE PART 1)
+Read the README, the manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, …),
+the top-level directories and `BUSINESS.md` if present. Narrate nothing.
 
-> This skill only maintains `BUSINESS.md`; treat the others as sources of context if they
-> exist. If you catch yourself writing current status ("done", "running", "6 tests green") or
-> a technical rule (language version, commit style) into `BUSINESS.md` — it belongs elsewhere,
-> leave it out. A specific choice and *why it beat the alternative* is a `DECISIONS.md` entry,
-> not a non-goal.
+## 2. Ask once
 
-## The archetype
+Send ONE message with at most three questions, each with its proposed answer filled in — from
+the repo, or on an existing file from its current text — so a reply of "yes" or one
+correction is enough:
 
-Before writing anything, decide **what kind of software this is**. The archetype is a
-lightweight label — not a legal judgement. It does two jobs: it picks the right questions
-and template below, and it is recorded as one line in `BUSINESS.md` as a **trigger** for a
-later `/compliance` pass — it signals the EU AI-Act / GDPR *may* apply; `/compliance` then
-runs the real classification. It does **not** determine the legal tier: a non-`ai-system`
-archetype (a service, a data-pipeline, even a library) can still be in scope. Keep the
-*legal* classification out of `BUSINESS.md` (that is `COMPLIANCE.md`'s job) — here you
-record only the archetype.
+1. **Purpose**: what it is and does, in 1–3 sentences.
+2. **Non-goals**: 3–6 things it deliberately does not do, each drawn from the repo (a
+   dependency it avoids, a boundary the README draws, a surface it lacks).
+3. **Regulated**: yes or no. Does it process personal data, make automated decisions about
+   people, or place an AI system on the market?
 
-| Archetype          | What it is                              | Template emphasis / sharpest non-goals to probe |
-|--------------------|-----------------------------------------|--------------------------------------------------|
-| **library**        | reusable code, no runtime users/data    | non-goals usually: *no* app, *no* persistence, *no* network. Value = API surface, stability. |
-| **cli**            | tool run on the user's own machine      | watch: destructive operations, handling of local files/secrets. Value = speed, offline use. |
-| **service**        | network-facing app / web / API          | personal-data & auth surface. Non-goals often bound *whose* data and *how long*. |
-| **data-pipeline**  | ingests / stores data at scale          | source legality (robots/ToS), consent, retention, PII minimisation. Non-goals bound sources & scope. |
-| **ai-system**      | model-driven outputs or decisions       | automated-decision surface. Non-goals bound what stays under human control. |
-| **local-app**      | GUI/desktop/mobile app on the user's own device | local personal data & files; watch what **leaves** the device (telemetry, sync, crash reports). Value = privacy, offline-first. |
+Never a second round.
 
-Pick the closest single archetype (a repo can be a CLI *and* handle data — choose the one
-that carries the sharpest non-goals). If nothing fits, use a plain label of your own and say
-so. **Derive it from the repo** when you can (manifest, entry points, dependencies,
-network/DB/model usage); only ask if the repo is genuinely ambiguous.
+## 3. Write
 
-## Structure of BUSINESS.md
+Whatever the reply leaves unknown becomes an `Open:` bullet (`- Open: who may call the API?`),
+never a guess and never `<placeholder>` text.
 
-Keep this section order:
+No `BUSINESS.md`, or only the kit's old `<placeholder>` skeleton: write this, at most 20
+lines, no HTML comments.
 
-1. **Purpose** — what it is and what it does, in 2–4 sentences.
-2. **Archetype** — one line: the label above (`library | cli | service | data-pipeline |
-   ai-system | local-app`, or your own), plus a few words of why.
-3. **Target user** — who it is for.
-4. **Value** — why it is worth it (speed, privacy, accuracy, cost, ...).
-5. **Scope (in-scope)** — what the project covers, including "Later:" items.
-6. **Non-goals** — what it deliberately does NOT cover (the project's boundaries).
-7. **What success looks like** — what done / good looks like.
+```markdown
+# BUSINESS.md — <project>
 
-Put a short blockquote at the top of the file with the doc router (status → `PROGRESS.md` ·
-rules → `CLAUDE.md` · why-we-chose-X → `DECISIONS.md` · posture → `COMPLIANCE.md`), matching
-the shipped `BUSINESS.md` header. When bootstrapping over the shipped skeleton, keep its
-router blockquote, its archetype trigger-note blockquote and its how-to HTML comment —
-replace only the section bodies. If the repo already has a `BUSINESS.md` or another doc,
-adopt its tone and format; otherwise: short bullets, **bold** keywords, and the same language
-as the rest of the repo (documentation, comments).
+## Purpose
+<1–3 sentences>
 
-## Question bank
+## Non-goals
+- <one boundary per bullet>
 
-Ask **2–4 questions** when the repo pre-answers part of the base set; on a bare repo where
-nothing is derivable, up to **5**. When trimming, **non-goals and success are never
-dropped** — they are the two the repo can never answer. If the archetype itself had to be
-asked, its extension questions follow in a second, shorter round. Never ask what the repo
-already answers; fill those in directly.
+## Regulated
+<Yes | No> — <one clause: personal data, automated decisions about people, or an AI system placed on the market>
+```
 
-**Base (every project):**
-- Purpose / value — what pain does it solve, why is it worth doing?
-- Target user — who is it for?
-- Non-goals — what is explicitly **out of scope**? (the most valuable answer)
-- Success — what does "done / good" look like?
+An existing file: replace the bodies of `## Purpose`, `## Non-goals` and `## Regulated` in
+place (add `## Regulated` after Non-goals if missing) and leave every other heading and line
+exactly as it is, so an older seven-section file keeps working.
 
-**Archetype extension — add the sharpest 1–2:**
-- **library** — what must the public API *never* do (no I/O, no global state, ...)? what
-  breaks if it grows an app around itself?
-- **cli** — does it ever mutate/delete the user's files? does it touch secrets or the network?
-- **service** — whose personal data does it hold, and for how long? what is out of bounds for
-  that data (selling, profiling, sharing)?
-- **data-pipeline** — which sources are in/out of bounds (ToS, robots, licences)? what is the
-  retention/consent boundary?
-- **ai-system** — what is the **intended purpose**, and what decisions must a human keep? what
-  automated use is explicitly a non-goal?
-- **local-app** — what does it store on the device, and does **any** of it leave (sync,
-  telemetry, crash reports)? what must never require an account or the network?
+## 4. Close
 
-## Two modes
-
-**Dispatch — pick the mode first.** The argument `audit` is retired: say `/gate` checks the
-non-goals before a push, and stop. Otherwise:
-
-- `BUSINESS.md` absent, or with **no user-written content** (every section still the shipped
-  `<placeholder>` text) → **Mode 1**;
-- anything else → **Mode 2**. A **half-filled** file is Mode 2, not Mode 1: sections a person
-  wrote are never rewritten wholesale; only sections still holding `<placeholder>` text are
-  filled in, with Mode 1's explore-then-ask care. "Bootstrap over it" licenses overwriting
-  the shipped skeleton — never hand-written text.
-
-### Mode 1 — BUSINESS.md is absent, or still the shipped template (bootstrap)
-
-> **A file whose sections are still `<placeholder>` text counts as absent.** The kit ships
-> `BUSINESS.md` as a skeleton, so a fresh project *has* the file without having any content —
-> bootstrap over it, do not diff against it. Unfilled placeholders are the signal. (A file
-> where only *some* sections are placeholders is Mode 2 — see the dispatch above.)
-
-Proceed like `/init` — **explore, determine the archetype, then ask, then write**:
-
-1. **Explore the repo** and derive whatever you can without asking:
-   - `README*`, `docs/`, any web page or project description;
-   - `CLAUDE.md` / `AGENTS.md` / `PROGRESS.md`, if they exist;
-   - the package manifest (`package.json`, `pyproject.toml`, `Cargo.toml`, `go.mod`, ...)
-     — name, description, entry points, dependencies;
-   - the structure of `src/` and the main modules / commands;
-   - `git log` — what is actually being built, and in which direction.
-2. **Determine the archetype** from what you found (see the table). If the repo is
-   genuinely ambiguous, make it one of your questions.
-3. **Ask me the questions the bank yields** — 2–4 when the repo pre-answers part of the
-   base set, up to 5 on a bare repo, per the bank's trimming and second-round rules. Do
-   not ask about things already readable from the repo.
-4. **Write `BUSINESS.md`** following the structure above (archetype line included): combine
-   the derived facts with my answers. Where something is missing, mark it as open with an
-   `Open:` bullet rather than guessing — never with `<angle-bracket>` text, which the
-   dispatch above reads as "still the shipped skeleton".
-
-### Mode 2 — BUSINESS.md exists and is filled in (update)
-
-1. **Read** the whole `BUSINESS.md` first. If its sections are still `<placeholders>`, this is
-   a fresh install — go to Mode 1 instead.
-2. **Compare it against the state of the project** — go through the README, the code,
-   `PROGRESS.md` and recent commits, and note what was added or changed relative to what is
-   written.
-3. **Only edit the affected sections** — do not touch unchanged parts.
-4. **Check consistency:** move completed "Later:" items from the plan into the real scope
-   (in-scope); verify the non-goals still hold (what was once out of scope may have become a
-   goal — or the reverse); **re-check the archetype still fits** (a library that grew a
-   service is no longer a library).
-5. If you are unsure about a change of direction, **ask** — do not guess.
-
-## The compliance call — make it here, once, after the archetype
-
-`/compliance` and `COMPLIANCE.md` are **opt-in**: `install.sh` does not land them, because at
-install time nobody yet knows whether the project is in regulated scope, and an empty
-`COMPLIANCE.md` is worse than none — it reads as *"posture declared"* to every later audit
-while declaring nothing (attest ADR-0030). The archetype you just established is the first
-moment the question can actually be answered, so answer it here.
-
-After bootstrap or update, check whether `.claude/skills/compliance/`
-exists, and weigh what you just recorded — the archetype, the target user, whether personal
-data or a model-driven decision is anywhere in scope.
-
-**If the skill is present and the project is plainly in scope**, check whether `COMPLIANCE.md`
-actually says anything: if its sections are still `<placeholder>`, say so and point at
-`/compliance` — a present-but-empty posture file is the state ADR-0030 calls worse than none.
-If it is filled, say nothing; it is where it belongs. **If it is present and the project is
-plainly out of scope**, say so and recommend deleting
-`COMPLIANCE.md` and `.claude/skills/compliance/`, plus recording the one-sentence reason as
-below. **If it is absent**, say **one** of two things, in one or two lines:
-
-- **In scope, or genuinely uncertain** — name the trigger you saw (personal data, an
-  automated decision, an EU market placement, a regulated sector) and tell me to re-run the
-  installer with `--compliance`, then `/compliance`. Uncertainty resolves toward installing
-  it: the cost of the skill sitting unused is a directory, the cost of a missing posture is
-  a boundary nobody checks.
-- **Out of scope** — say so plainly with the reason in one clause, and recommend I record
-  that single sentence somewhere durable (a line in `BUSINESS.md`'s non-goals is the usual
-  home: *"no personal data, no EU market placement — regulatory posture out of scope"*).
-  A recorded "out of scope, because …" is a real declaration; an absent file is not.
-
-Never create `COMPLIANCE.md` yourself, and never guess a legal tier — the archetype is a
-trigger, not a classification (attest ADR-0001).
-
-## After editing
-
-- Do **not** commit automatically — leave the commit to me (`docs:`).
-  Briefly summarize which sections you changed/created and why. Change nothing other than
-  `BUSINESS.md`.
+- Regulated **no**: the clause says why ("No — it stores nothing about people").
+- Regulated **yes**: end your reply with "run /compliance".
+- Do not commit. Say which sections changed, and touch no file but `BUSINESS.md`.
