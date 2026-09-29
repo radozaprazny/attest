@@ -53,7 +53,7 @@ case "$TOOL" in
   mcp__*) KIND=mcp; ACT="sends data off the machine" ;;
 esac
 ship_act() { case "$1" in
-  *"git push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
+  *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
@@ -62,16 +62,46 @@ ship_act() { case "$1" in
   *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
-# A backslash or $'…' inside a word hides a ship command from the list, and so does a git
-# subcommand that is a variable or a substitution. Such a command always asks, record or not.
+# A second reading for a command spelled to hide a ship command: line continuations joined,
+# $'…' escapes decoded, other backslashes dropped (the text is still JSON-escaped here).
+unhide() { awk 'BEGIN { h = "0123456789abcdef" }
+  { s = $0; o = ""; a = 0; n = length(s)
+    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
+      if (c == "$" && substr(s, i + 1, 1) == "\047") { a = 1; i++; continue }
+      if (a && c == "\047") { a = 0; continue }
+      if (c != "\\") { o = o c; continue }
+      d = substr(s, ++i, 1)
+      if (d == "n") { o = o ";"; continue }
+      if (d == "t") { o = o " "; continue }
+      if (d != "\\") { o = o d; continue }
+      if (substr(s, i + 1, 2) == "\\n") { i += 2; continue }
+      e = tolower(substr(s, i + 1, 1)); v = 0; k = 0
+      if (a && e == "x") { while (k < 2 && (x = index(h, tolower(substr(s, i + 2 + k, 1))))) { v = v * 16 + x - 1; k++ }
+        if (k) { o = o sprintf("%c", v); i += 1 + k } continue }
+      if (a && e ~ /[0-7]/) { while (k < 3 && substr(s, i + 1 + k, 1) ~ /[0-7]/) { v = v * 8 + substr(s, i + 1 + k, 1); k++ }
+        o = o sprintf("%c", v); i += k } }
+    gsub(/[$]"/, "\"", o); print o }'; }
+# A ship tool whose subcommand the shell would expand (a variable, substitution, brace or glob),
+# or a git alias set in the command, cannot be read at all.
+# shellcheck disable=SC2020  # each separator becomes a newline
+expands() { tr ';|&()' '\n\n\n\n\n' | awk '
+  { for (i = 1; i <= NF; i++) { w = $i; gsub(/["\047]/, "", w)
+      if (w !~ /(^|\/)(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle)(\.exe)?$/) continue
+      t = w; sub(/.*\//, "", t); sub(/\.exe$/, "", t); k = i + 1
+      if (t == "git") for (; k < NF && substr($k, 1, 1) == "-"; k++) {
+        if ($k == "-c" && $(k + 1) ~ /^["\047]?alias\./) f = 1
+        if ($k ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) k++ }
+      if ($k ~ /[$`{*?[]/) f = 1
+      if (t == "gh" && $k ~ /^(pr|release|gist|repo)$/ && $(k + 1) ~ /[$`{*?[]/) f = 1 } }
+  END { exit !f }'; }
+# A ship command seen only in the second reading always asks, record or not. A command with none
+# of the characters that can hide one skips it.
 HIDDEN=
-if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then
-  ACT="$(ship_act "$(norm "$(printf '%s' "$CMD" | sed "s/\\\\//g; s/[\$]\\([\"']\\)/\\1/g")")")"
-  if [ -z "$ACT" ] && printf '%s' "$NORM" | awk '{ for (i = 1; i < NF; i++) if ($i ~ /(^|\/)git$/) {
-      for (k = i + 1; k < NF && substr($k, 1, 1) == "-"; k++)
-        if ($k ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) k++
-      if ($k ~ /^[$`]/) f = 1 } } END { exit !f }'; then ACT="sends data off the machine"; fi
-  [ -z "$ACT" ] || HIDDEN=1
+if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in *\\*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'alias.'*)
+  _x="$(printf '%s' "$CMD" | unhide)"
+  ACT="$(ship_act "$(norm "$_x")")"
+  if [ -z "$ACT" ] && printf '%s' "$_x" | expands; then ACT="sends data off the machine"; fi
+  [ -z "$ACT" ] || HIDDEN=1 ;; esac
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
@@ -123,7 +153,8 @@ fi
 # Only a plain dry run passes: anything compound can hide a real push behind it.
 # shellcheck disable=SC2016
 case "$CMD" in
-  *';'*|*'&'*|*'|'*|*'$'*|*'<('*|*'>('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
+  *';'*|*'&'*|*'|'*|*'$'*|*'<('*|*'>('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*\\*|*'{'*|*'*'*|*'?'*|*'['*) ;;
+  *' --repo'*|*' --exec'*|*' --receive-pack'*|*' --dry-run='*|*' --dry-run false'*) ;;
   *) case " $NORM " in *" --no-d"*|*" -o --dry-run "*|*" --push-option --dry-run "*) ;; *" --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
 record_head_sha() {
