@@ -273,7 +273,7 @@ if [ -n "$FULL" ]; then
       CLEAN_RECORD=1 ;;
     blocked*) DEC=blocked; V=BLOCKED; WHY="Record $(san "${RECORDS#blocked }") reports a blocker, or has no readable header"
       NEXT="Fix the blocker and re-run /gate; do not approve past it." ;;
-    *) V="NO RECORD"; WHY="No clean /gate record names HEAD $SHA"
+    *) V="NO RECORD"; WHY="No clean ship record names HEAD $SHA"
       NEXT="Run /gate, which commits its record, then push; or approve anyway." ;;
   esac
 elif git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
