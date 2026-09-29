@@ -41,19 +41,14 @@ reads on every single turn; the rest are read on demand.
 The non-goals section is the one that earns its keep. It is the only place a repository states
 what a change is allowed to be measured against.
 
-## Two gates, two cadences
+## One gate, before anything leaves
 
-**At commit time** — before the change is recorded: does it violate a declared boundary, does
-it contain a decision nobody wrote down, does it touch regulated ground the declared posture
-does not cover, and does it hold up as code. Make this one **cheap or it will not be run**:
-decide which of those questions a diff actually raises with a mechanism that costs nothing —
-the file names and words it touched — and ask only those. Then say in the record which
-questions were skipped, or a gate that asked one of four will later read as one that asked all
-four and found nothing.
-
-**At ship time** — before anything leaves the machine: does the history carry a secret,
-personal data, a client's name, an internal hostname. This is a different question on a
-different clock, and merging the two is how one of them gets skipped.
+**Before a push, a publish or an upload**, ask every question once, over exactly what would
+leave. Does it carry a secret, personal data or a client's name? Does it violate a declared
+boundary, contain a decision nobody wrote down, or touch regulated ground the declared posture
+does not cover? Leaving is the one point every change passes, and the last one
+at which a mistake is still private. The gate can run at any other time too; it asks the same
+questions. Whether the code is good is a different question, and code review owns it.
 
 ## What makes it work
 
@@ -72,9 +67,9 @@ consults.
    *unable* to modify the repo — no write, no shell — rather than asked not to. Where a host
    cannot enforce that, the guarantee is weaker, and saying so is part of the method.
 
-4. **One finding, one owner.** When several checks look at one change, each reports only its
-   own aspect and names the others' ground instead of repeating it. Triple-reported findings
-   train people to skim.
+4. **One auditor, one list.** One reader answers every question over the same material and
+   returns one list, each finding once, with its evidence. Several checks over one change report
+   the same hunk several times, and triple-reported findings train people to skim.
 
 5. **A gate leaves evidence.** Every run appends a dated record naming the exact commit, what
    ran, and the verdict — so *"this state was audited"* is a fact in the repository rather than
@@ -114,19 +109,18 @@ follow it, with a weaker guarantee that should be named rather than glossed over
 | Read a document on demand | keeping the always-loaded surface small |
 
 Missing the first, the declaration becomes a file the agent might read. Missing the second, the
-ship gate becomes a thing you remember on a good day. Missing the third, the reviewer is
-trusted rather than constrained. None of that makes the method worthless — a team can run all
+gate becomes a thing you remember on a good day. Missing the third, the auditor is trusted
+rather than constrained. None of that makes the method worthless — a team can run all
 of it by hand — but the difference between *enforced* and *encouraged* is exactly the
 difference an auditor will ask about, so state which one you have.
 
 ## What it costs, and where it is thin
 
 The documents have to be maintained; a stale declaration audits worse than none, because it
-launders drift as approval. The commit-time gate costs one model run per question the diff
-actually raises — on the kit that implements this, about a third of what asking every question
-every time would cost — plus one complete pass over the branch before a push.
-The judgment passes vary on secondary findings across runs — treat a blocker as reliable and a
-minor as advisory.
+launders drift as approval. The gate costs one audit per push: on the kit that implements this,
+1,296 words of instructions at kit 0.20.0, and 71 seconds for the auditor in one timed run. The
+auditor's reading varies on secondary findings across runs — treat a blocker as reliable and a
+note as advisory.
 
 The method also has a seam that property 3 does not close. Evidence (property 5) is a file, and a
 file is written by something — so a host that cannot restrain *writing* leaves the attestation
@@ -135,11 +129,12 @@ to make writing the evidence a decision a human sees, and to say plainly that wh
 defends against forgetting rather than against forgery. Claiming otherwise would fail the method
 at its own first property: declare what is true, then check reality against the declaration.
 
-And the evidence base is small: the reference implementation was dogfooded on **two sandboxes
-seeded with six known planted faults — 6/6 caught at the right severity, 0 false positives**
-([the record](docs/archive/attest-devlog.md)). Six faults, two sandboxes. That is a clean sweep, not a
-benchmark, and it is quoted here with the sample size attached for the same reason the method
-exists at all.
+And the evidence base is small. In July 2026 an unversioned build of the reference
+implementation, older than 0.1.0 and no longer re-runnable, was dogfooded on two sandboxes with
+planted faults: four planted fault classes were caught and two true negatives held
+([the devlog's account](docs/archive/attest-devlog.md#what-the-dogfood-proved)). A planted
+fixture run on kit 0.20.0 is in the README. Both are quoted with their sample size for the same
+reason the method exists at all.
 
 ## The reference implementation
 

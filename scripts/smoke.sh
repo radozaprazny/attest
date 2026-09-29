@@ -1501,6 +1501,21 @@ gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
 
+# --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
+_RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"
+_V="${_RQ#attest ship guard: }"; _V="${_V%% — *}"; _A="${_RQ#* — }"; _A="${_A%% (*}"
+_W="${_RQ#*). }"; _W="${_W%% HEAD *}"; _N="${_RQ##* HEAD }"; _N="${_N#* }"
+quoted_prompt() { # $SHA is the hook's own variable, matched literally
+  grep -qF "V=\"$_V\"" "$GUARD" && grep -qF "\"$_A\"" "$GUARD" &&
+    grep -qF "WHY=\"$_W HEAD \$SHA\"" "$GUARD" && grep -qF "NEXT=\"$_N\"" "$GUARD"; }
+quoted_record() { # the backticks are README's fence, matched literally
+  # shellcheck disable=SC2016
+  [ -n "$_RF" ] && sed -n '/^```markdown$/,/^```$/p' "$KIT/README.md" | sed '1d;$d' | cmp -s - "$KIT/$_RF"; }
+_RF="$(grep -oE '\.attest/ship-[0-9]{8}-[0-9]{6}-[0-9a-f]+\.md' "$KIT/README.md" | head -1 || true)"
+check "README quotes a ship guard prompt" test -n "$_RQ"
+check "…whose verdict, action, reason and next step are still the hook's" quoted_prompt
+check "README's ship record block is the record it links, byte for byte" quoted_record
+
 # --- verdict ---------------------------------------------------------------------------
 echo
 echo "smoke: $PASS passed, $FAIL failed"
