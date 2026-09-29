@@ -32,60 +32,62 @@ MADR's status field and sits on the new entry, because old entries stay untouche
 
 ## Hooks
 
-Three hooks, wired in `.claude/settings.json`. All three are POSIX `sh` and need only `git`.
-The two guards answer with a PreToolUse `permissionDecision`: `ask`, or `deny` under
-`ATTEST_GUARD=deny`. A pass prints nothing, so Claude Code's own permission rules still decide.
+Three POSIX `sh` hooks, wired in `.claude/settings.json`; they need `git` and the POSIX tools.
+The two guards answer `ask`, or `deny` under `ATTEST_GUARD=deny`. A pass prints nothing, so
+Claude Code's own permission rules decide.
 
 ### Session hook
 
 | Matches | `SessionStart` |
 |---|---|
 | Says | BUSINESS.md's `## Non-goals` (up to 24 lines) and PROGRESS.md's `## Current state` and `## Next` (up to 8 each), inside `<project-declaration>`. A trimmed section says so. |
-| No non-goals | One line: `attest: no non-goals found in BUSINESS.md — …` |
-| Knobs | `ATTEST_NONGOALS_HEADING`, `ATTEST_STATE_HEADING`, `ATTEST_NEXT_HEADING`: an awk regex for each `## ` heading, for documents in another language |
+| No non-goals | One line, `attest: no non-goals found in BUSINESS.md — …`, then the state if any |
+| Knobs | `ATTEST_NONGOALS_HEADING`, `ATTEST_STATE_HEADING`, `ATTEST_NEXT_HEADING`: awk regexes for headings in another language |
 | Trace words | None |
 
 ### Ship guard
 
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
-| Ship commands | `git push` in any spelling, `git send-email`, `gh` pull requests, releases, gists and repository creation or visibility. Registry publishes (`npm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`), `docker` pushes and Kaggle submits. `scp` or `rsync` to a remote, `aws s3`, `gsutil cp` and `curl` uploads. |
+| Ship commands | `git push` with any git options or quotes, `git send-email`. `gh` PRs, releases, gists, repository creation and visibility. Publishes by `npm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. `docker` pushes, Kaggle submits. Uploads by `scp` or `rsync` to a remote, `aws s3`, `gsutil cp`, `curl`. |
 | Record writes | A shell write to `.attest/ship-*.md`, such as `>`, `tee`, `cp` or `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
-| Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD`. A record write speaks as the record guard. |
-| Knobs | `ATTEST_GUARD=deny`, `ATTEST_LEAK_SCAN=off`, `ATTEST_LEAK_SCAN_SECONDS` (1 to 540, default 30), set in `settings.json`'s `env` block or the environment. Fingerprints in `.betterleaksignore`. |
-| Trace words | The eleven under **Trace** below |
+| Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
+| Knobs | `ATTEST_GUARD=deny`, `ATTEST_LEAK_SCAN=off`, `ATTEST_LEAK_SCAN_SECONDS` (1 to 540, default 30), in `settings.json`'s `env` or the shell. Fingerprints in `.betterleaksignore`. |
 
-**Pass.** A push passes when every record naming HEAD reports `0 blocker`, and the push ships
-HEAD alone. That is an allow-list: a plain `git push` whose refspecs resolve to HEAD, with known
-options, in this repository. Read-only commands may come before it, and a filter after it.
-Anything else asks.
+**Pass.** A push passes when every record naming HEAD reports `0 blocker`, and it ships HEAD
+alone: a plain `git push` whose refspecs resolve to HEAD, with known options, in this repository.
+Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse` and
+simple read commands may run. After it, anything that is not itself a ship command may run.
+Every other ship command, `gh pr create` included, passes on a clean record for HEAD alone.
 
 **Carrier.** With no record for HEAD, a push or `gh pr create` passes as `pass-carrier` when
 HEAD only adds non-merge commits of `.attest/ship-*.md` files. The commit below them must be
-cleared by one of the 10 newest records. A blocker there asks `BLOCKED`. So `/gate` commits its
-record, then you push, then open the PR with `--body-file`. The one prompt is the record write.
+cleared by one of the last 10 records in name order. A blocker there asks `BLOCKED`. The one
+prompt is the record write.
 
 **Leak scan.** With `betterleaks` on the PATH, each `git push` also scans every unpushed branch
-and tag. The scan only adds a question: `LEAK` on a finding, `SCAN FAILED` on an error or
+and tag. It only adds a question: `LEAK` on a finding, `SCAN FAILED` on an error or
 timeout.
 
-**Dry run and MCP.** A `--dry-run` passes only in a plain command: no chaining, substitution,
-comment or quote. The MCP tools always ask: no record covers bytes chosen in the call.
+**Dry run and MCP.** A `--dry-run` passes only with no chaining, command substitution, comment
+or quote; a process substitution still passes ([#56][i56]). The MCP tools always ask: no record
+covers bytes chosen in the call.
 
-**Trace.** Each matched command appends a line to `.attest/tmp/ship-guard.log`. Its columns are UTC time, word, short sha, permission mode, scan and subject, with
-credentials masked. The scan column reads `-`, `off`, `absent`, `clean`, `leak` or `error`.
+**Trace.** Each matched command appends a line to `.attest/tmp/ship-guard.log`. Its columns
+are UTC time, word, short sha, permission mode, scan and subject, with credentials masked. The
+scan column reads `-`, `off`, `absent`, `clean`, `leak` or `error`.
 
 | Word | Meaning |
 |---|---|
 | `pass` | A clean record names HEAD; the push ships HEAD alone |
 | `pass-carrier` | HEAD only adds records; a clean record names the commit below them |
-| `blocked` | A record for HEAD, or a carried record, reports a blocker |
+| `blocked` | A record for HEAD, or a carried one, reports a blocker or lacks `- findings:` |
 | `ask` | No clean record, or no HEAD |
 | `compound` | Clean record; something runs before the push |
 | `nothead` | Clean record; the push may ship more than HEAD |
-| `leak` | Clean record; betterleaks found a secret |
-| `scanerr` | Clean record; betterleaks failed or timed out |
+| `leak` | Clean record, HEAD alone; betterleaks found a secret |
+| `scanerr` | Clean record, HEAD alone; betterleaks failed or timed out |
 | `dryrun` | A plain dry run |
 | `mcp` | An MCP publish tool |
 | `record` | A ship record write, from either guard |
@@ -102,22 +104,21 @@ It cannot stop a forged record. It asks while you still know whether `/gate` ran
 
 ### Permission modes
 
-What the guards' `ask` becomes in each mode. Sources are the Claude Code docs, read 2026-09-29,
-or a measured run.
+What a guard's `ask` becomes. Every row rests on [hooks][h], plus the source
+named; docs read 2026-09-29.
 
 | Mode | The guards' `ask` becomes | With `ATTEST_GUARD=deny` | Source |
 |---|---|---|---|
 | `default` | A prompt | A deny | [hooks][h] |
 | `acceptEdits` | A prompt | A deny | [hooks][h] |
-| `plan` | A prompt; not measured in a terminal session with bypass available | A deny | [hooks][h], [plan][pl] |
-| `auto` | A prompt; the classifier can deny it, never approve it | A deny | [hooks][h]; measured on a record write, Claude Code 2.1.268, 2026-09-29 ([PR #54][pr54]) |
-| `dontAsk` | A deny | A deny | [dontAsk][da], [hooks][h] |
-| `bypassPermissions` | Not measured; the docs do not settle it | A deny | [bypass][bp], [hooks][h] |
-| `claude -p` | A deny with no permission host; with one, the host answers | A deny | [headless][hl], [hooks][h] |
-| A cloud session | As in its mode: default, plan or auto; bypass is not offered | A deny | [modes][cm], [hooks][h] |
+| `plan` | Not settled by the docs; plan mode itself blocks Write and Edit | A deny | [plan][pl] |
+| `auto` | A prompt; the classifier can deny it, never approve it | A deny | A record write, measured ([PR #54][pr54]) |
+| `dontAsk` | A deny | A deny | [dontAsk][da] |
+| `bypassPermissions` | Not measured; the docs do not settle it | A deny | [bypass][bp], [permissions][ph] |
+| `claude -p` | A deny without a permission host or with `--permission-prompts none`, unless a `PermissionRequest` hook allows it; else the host answers | A deny | [headless][hl] |
+| A cloud session | As in its mode: default, plan or auto; bypass is not offered | A deny | [modes][cm] |
 
-Where nobody answers, set `ATTEST_GUARD=deny`. It also denies a command that only mentions a
-push.
+Where nobody answers, set `ATTEST_GUARD=deny`; it also denies a mere mention of a push.
 
 ## Commands
 
@@ -133,7 +134,7 @@ job.
 **The auditor** has Read, Grep and Glob only. It checks four grounds:
 
 - must-not-ship bytes: secrets, special-category and national-ID data, third-party personal
-  data, client names, internal hosts, stray data files;
+  data, client names, internal hosts, absolute machine paths, stray data files;
 - the non-goals in BUSINESS.md;
 - decisions with no DECISIONS.md entry;
 - regulated ground, when COMPLIANCE.md exists.
@@ -156,7 +157,8 @@ and the GDPR and cites provisions by ID. It gives no legal verdict and no legal 
 **`/checkpoint`** rewrites Current state and Next in PROGRESS.md from git and the session. Run
 it before `/clear`. Write what the merge leaves true: "PR #7 opened", not "PR #7 is open".
 
-The four document skills never commit. Their old `audit` argument now points at `/gate`.
+The four document skills never commit. A stray `audit` argument to `/business`, `/decision` or
+`/compliance` points at `/gate`.
 
 ## The ship record
 
@@ -175,13 +177,14 @@ The four document skills never commit. Their old `audit` argument now points at 
 
 The ship guard parses two lines, and they are a contract:
 
-- `- HEAD:` — the first such line. Its first 7 or more hex characters must be a prefix of HEAD's sha.
+- `- HEAD:` — the first line starting so. The hex run after it, 7 or more characters, must be a
+  prefix of HEAD's full sha.
 - `- findings:` — the first such line. It clears only if its first number is the `0` of
   `0 blocker`.
 
-The guard reads every `.attest/ship-*.md`, but not the sha in its name, and ignores carriage
-returns. Every record naming HEAD must clear, so one
-blocker holds the push. A record names a finding's class and path, never its value, line or
+The guard reads every `.attest/ship-*.md` on disk, committed or not, but not the sha in its
+name, and ignores carriage returns. Every record naming HEAD must clear, so one blocker holds
+the push. A record names a finding's class and path, never its value, line or
 excerpt: it is committed and published. Never edit a record; run `/gate` again.
 
 ## Install and upgrade
@@ -212,13 +215,17 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - A record attests HEAD. The leak scan covers every unpushed branch and tag of this repository.
   A push that ships anything else asks.
 - The push-config check models `push.default`, `remote.*.push`, `remote.*.mirror`,
-  `push.recurseSubmodules` and `submodule.recurse`, from git config, `-c` or `GIT_CONFIG_*`. It models nothing else.
-- These are outside the guard: commands that do not go through Claude Code's tools (a terminal, an IDE, another tool), scripts (`make deploy`, your own deploy script), submodule pushes, and git aliases such as `git p`.
+  `push.recurseSubmodules` and `submodule.recurse`, from git config, `-c` or `GIT_CONFIG_*`. It
+  models nothing else.
+- These are outside the guard: commands that do not go through Claude Code's tools (a
+  terminal, an IDE, another tool), scripts (`make deploy`, your own deploy script), submodule
+  pushes, and git aliases such as `git p`.
+- A backslash or `$'…'` inside the word `push` hides the push ([#56][i56]).
 - The ship list is literal. A command not on it, such as `mvn deploy`, passes unseen until you
   add it to `ship_act()`.
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
-  hooks, and so does a cloud session opened on several repositories ([managed][ms], [cloud][ce]). Nothing
-  reports it. The check is the session hook: no attest output at session start means no guard.
+  hooks, and so does a cloud session opened on several repositories ([managed][ms],
+  [strict][sp], [cloud][ce]). Nothing reports it. The check is the session hook: no attest output at session start means no guard.
 - On Windows the hooks need Git Bash. Without it, Claude Code runs hook commands in PowerShell
   ([hooks][hsh]), which has no `sh`. Not measured on Windows.
 - A ship record defends against forgetting, not forgery. For integrity, sign commits and require
@@ -229,10 +236,11 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - **ship guard** — `ship_guard.sh`. It asks before a command or MCP tool sends data off the
   machine.
 - **record guard** — `record_guard.sh`, and the ship guard's shell arm that speaks as it. It asks
-  before a ship record is written.
+  before a ship record is written through Write, Edit or a common shell write.
 - **session hook** — `session_declaration.sh`. It prints the non-goals and the state at session
   start.
-- **ship record** — `.attest/ship-*.md`, the committed verdict of one `/gate` run on one HEAD.
+- **ship record** — `.attest/ship-*.md`, the verdict of one `/gate` run on one HEAD, committed
+  by `/gate`.
 - **/gate** — the one audit before a push. It writes the ship record.
 - **auditor** — the read-only subagent `/gate` runs.
 - **blocker** — a finding that holds the push.
@@ -248,4 +256,7 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 [ce]: https://code.claude.com/docs/en/cloud-environments#what-carries-over-from-your-setup
 [ms]: https://code.claude.com/docs/en/settings-reference#what-runs-under-allowmanagedhooksonly
 [hsh]: https://code.claude.com/docs/en/hooks#exec-form-and-shell-form
+[sp]: https://code.claude.com/docs/en/settings-reference#strictpluginonlycustomization
+[ph]: https://code.claude.com/docs/en/permissions#extend-permissions-with-hooks
+[i56]: https://github.com/radozaprazny/attest/issues/56
 [pr54]: https://github.com/radozaprazny/attest/pull/54
