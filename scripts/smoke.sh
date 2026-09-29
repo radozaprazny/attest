@@ -1636,6 +1636,19 @@ ask@setsid npm --silent publish
 ask@ionice -c3 npm --silent publish
 ask@xargs --max-args 1 npm --silent publish
 ask@stdbuf --output L npm --silent publish
+ask@git config --get alias.co
+ask@git config --get-regexp alias.
+ask@sudo -uroot git \"$P\"
+ask@sudo -uroot npm --silent publish
+ask@sudo -urunner git $V
+ask@xargs -Ipaths git \"$P\"
+ask@xargs --replace git \"$P\"
+ask@xargs --replace npm --silent publish
+ask@xargs --max-lines git \"$P\"
+ask@git config alias.p push # alias.x
+ask@git config alias.p push 2>/tmp/alias.err
+ask@git config alias.p push get
+ask@git config alias.p pu\"\"sh # alias.
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
@@ -1658,13 +1671,14 @@ silent@aws s3 ls $BUCKET
 silent@docker run $IMG
 silent@npm run build -- --flag=$X
 silent@rsync --dry-run -a src/ host:dst
-silent@git config --get alias.co
-silent@git config --get-regexp alias
 silent@x git; A=alias.b
 silent@sudo -u deploy npm test
 silent@timeout 60 npm run build
 silent@git config user.name push
 silent@git commit -m \"feat: x\n\nbody line\"
+silent@sudo apt install docker
+silent@time make test
+silent@sudo -Eu www-data ls
 ROWS
 }
 for _rec in none clean; do
