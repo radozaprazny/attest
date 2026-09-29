@@ -54,17 +54,94 @@ check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
 _agents="$(ls "$KIT/.claude/agents")"
 if [ "$_agents" = auditor.md ]; then ok "the kit ships one subagent, the auditor"; else fail "the kit ships one subagent, the auditor ($(printf '%s' "$_agents" | tr '\n' ' '))"; fi
 
-# --- 0a. the gate's word budgets (issue #34) --------------------------------------------
-# Every word of these two files is paid on every /gate run, in two contexts. The targets are
-# 800 and 500; a replay showing that more auditor text catches a miss outranks them (#34).
+# The hooks run as `sh <hook>`, so the `sh` on PATH is the shell under test. CI names the one it
+# wants in ATTEST_SMOKE_WANT_SH (dash on ubuntu); a runner image that changed it fails here.
+SH_REAL="$(readlink -f "$(command -v sh)" 2>/dev/null || command -v sh)"
+echo "smoke: hooks run under $SH_REAL"
+if [ -n "${ATTEST_SMOKE_WANT_SH:-}" ]; then
+  case "$SH_REAL" in */"$ATTEST_SMOKE_WANT_SH") ok "the hooks run under $ATTEST_SMOKE_WANT_SH" ;;
+    *) fail "the hooks run under $ATTEST_SMOKE_WANT_SH, not $SH_REAL" ;; esac
+fi
+
+# --- 0. budgets: one table, the one home of every size limit (#42) ----------------------------
+# Nothing failed when prose grew, so it grew. A row is <file> <unit> <limit>; the units:
+#   words    wc -w of the file            lines     wc -l          comments  lines starting #
+#   desc     words of the frontmatter description, 0 counted as over
+#   fenced   words in the first ```markdown block; unfenced: the rest of the file
+#   prose    Markdown words outside fenced blocks; long: sentences of prose over 40 words
+prose() { # prose <file> <words|long> — a sentence ends at . ! ? before a space, or at the end
+  awk -v W="$2" '                       # of a heading, list item, table cell or paragraph
+    function flush(   i, j, k, n, c, w, parts) {
+      if (buf == "") return
+      gsub(/([.!?])[)"*_`]*[ \t]+/, "&\001", buf); k = split(buf, parts, "\001")
+      for (i = 1; i <= k; i++) { n = split(parts[i], w, /[ \t]+/); c = 0
+        for (j = 1; j <= n; j++) if (w[j] ~ /[A-Za-z0-9]/) c++
+        words += c; if (c > 40) long++ }
+      buf = "" }
+    /^[ \t]*(```|~~~)/ { flush(); fence = !fence; next }
+    fence { next }
+    /^[ \t]*$/ { flush(); next }
+    /^[ \t]*\|/ { flush(); if ($0 ~ /^[ \t]*\|[-: |]+\|?[ \t]*$/) next
+      n = split($0, cells, "|"); for (i = 1; i <= n; i++) { buf = cells[i]; flush() }; next }
+    /^#+[ \t]/ { flush(); buf = $0; sub(/^#+[ \t]+/, "", buf); flush(); next }
+    /^[ \t]*([-*+]|[0-9]+\.)[ \t]/ { flush(); buf = $0; sub(/^[ \t]*([-*+]|[0-9]+\.)[ \t]+/, "", buf); next }
+    /^>[ \t]?/ { sub(/^>[ \t]?/, "") }
+    { buf = (buf == "" ? $0 : buf " " $0) }
+    END { flush(); print (W == "long" ? long + 0 : words + 0) }' "$1"; }
+fenced() { awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$1" | wc -w; }
+measure() { # measure <unit> <file>
+  case "$1" in
+    words)    wc -w < "$2" ;;
+    lines)    wc -l < "$2" ;;
+    comments) grep -cE '^[[:space:]]*#' "$2" ;;
+    desc)     _n=$(awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$2" | wc -w)
+              [ "$_n" -gt 0 ] && echo "$_n" || echo 9999 ;;
+    fenced)   fenced "$2" ;;
+    unfenced) echo $(( $(wc -w < "$2") - $(fenced "$2") )) ;;
+    prose)    prose "$2" words ;;
+    long)     prose "$2" long ;;
+  esac; }
+# budget_table <root>: one ok or fail per row, over the kit at <root>.
+budget_table() {
+  while read -r _f _u _max; do
+    case "$_f" in ''|'#'*) continue ;; esac
+    _n=$(measure "$_u" "$1/$_f" 2>/dev/null | tr -d ' '); _n=${_n:-9999}
+    if [ "$_n" -le "$_max" ]; then ok "$_f: $_u $_n, limit $_max"; else fail "$_f: $_u $_n, over its limit $_max"; fi
+  done <<'EOF'
+# the gate: paid on every /gate run, in two contexts (#34); the auditor at its #34 size
+.claude/skills/gate/SKILL.md          words     800
+.claude/agents/auditor.md             words     498
+.claude/agents/auditor.md             desc      40
+# the four document skills (#35–#38)
+.claude/skills/business/SKILL.md      words     400
+.claude/skills/business/SKILL.md      desc      40
+.claude/skills/decision/SKILL.md      words     300
+.claude/skills/decision/SKILL.md      desc      40
+.claude/skills/checkpoint/SKILL.md    words     300
+.claude/skills/checkpoint/SKILL.md    desc      40
+.claude/skills/compliance/SKILL.md    words     1200
+.claude/skills/compliance/SKILL.md    fenced    800
+.claude/skills/compliance/SKILL.md    unfenced  400
+# the hooks: each at its size when #42 landed
+.claude/hooks/ship_guard.sh           lines     314
+.claude/hooks/ship_guard.sh           comments  60
+.claude/hooks/record_guard.sh         lines     40
+.claude/hooks/session_declaration.sh  lines     64
+# the repository's own documents (#40, #41)
+README.md                             prose     700
+README.md                             long      0
+METHOD.md                             words     1500
+GUIDE.md                              words     2500
+GUIDE.md                              long      0
+EOF
+}
+echo "budgets:"
+budget_table "$KIT"
+
+# --- 0a. the gate (issue #34) ------------------------------------------------------------------
 echo "gate budgets:"
 GATE_MD="$KIT/.claude/skills/gate/SKILL.md"; AUDITOR_MD="$KIT/.claude/agents/auditor.md"
-gate_w=$(wc -w < "$GATE_MD"); auditor_w=$(wc -w 2>/dev/null < "$AUDITOR_MD" || echo 9999)
-if [ "$gate_w" -le 800 ]; then ok "gate/SKILL.md is within 800 words ($gate_w)"; else fail "gate/SKILL.md is within 800 words ($gate_w)"; fi
-if [ "$auditor_w" -le 500 ]; then ok "auditor.md is within 500 words ($auditor_w)"; else fail "auditor.md is within 500 words ($auditor_w)"; fi
 check "the auditor can read and nothing else" grep -qx 'tools: Read, Grep, Glob' "$AUDITOR_MD"
-desc_w=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$AUDITOR_MD" 2>/dev/null || true; } | wc -w)
-if [ "$desc_w" -ge 1 ] && [ "$desc_w" -le 40 ]; then ok "the auditor's description is 1-40 words ($desc_w)"; else fail "the auditor's description is 1-40 words ($desc_w)"; fi
 check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
 
 # --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
@@ -72,10 +149,6 @@ check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full
 # lives inside it, since no templates/BUSINESS.md ships, so its shape is checked here.
 echo "business budget:"
 BIZ_MD="$KIT/.claude/skills/business/SKILL.md"
-biz_w=$(wc -w 2>/dev/null < "$BIZ_MD" || echo 9999)
-if [ "$biz_w" -le 400 ]; then ok "business/SKILL.md is within 400 words ($biz_w)"; else fail "business/SKILL.md is within 400 words ($biz_w)"; fi
-biz_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$BIZ_MD" 2>/dev/null || true; } | wc -w)
-if [ "$biz_d" -ge 1 ] && [ "$biz_d" -le 40 ]; then ok "its description is 1-40 words ($biz_d)"; else fail "its description is 1-40 words ($biz_d)"; fi
 biz_adr=$(grep -c 'ADR-' "$BIZ_MD" 2>/dev/null || true)
 if [ "${biz_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($biz_adr)"; fi
 check "/business stays user-invoked" grep -qx 'disable-model-invocation: true' "$BIZ_MD"
@@ -99,13 +172,7 @@ check "no BUSINESS.md template ships" test ! -e "$KIT/templates/BUSINESS.md"
 # structure #38 checked against the consolidated text.
 echo "compliance budget and anchors:"
 COMP_MD="$KIT/.claude/skills/compliance/SKILL.md"
-comp_w=$(wc -w 2>/dev/null < "$COMP_MD" || echo 9999)
 comp_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$COMP_MD" 2>/dev/null || true)
-comp_tw=$(printf '%s\n' "$comp_sk" | wc -w)
-comp_iw=$((comp_w - comp_tw))
-if [ "$comp_w" -le 1200 ]; then ok "compliance/SKILL.md is within 1,200 words ($comp_w)"; else fail "compliance/SKILL.md is within 1,200 words ($comp_w)"; fi
-if [ "$comp_tw" -ge 1 ] && [ "$comp_tw" -le 800 ]; then ok "…its template is 1-800 words ($comp_tw)"; else fail "…its template is 1-800 words ($comp_tw)"; fi
-if [ "$comp_iw" -le 400 ]; then ok "…its instructions are within 400 ($comp_iw)"; else fail "…its instructions are within 400 ($comp_iw)"; fi
 comp_adr=$(grep -c 'ADR-' "$COMP_MD" 2>/dev/null || true)
 if [ "${comp_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($comp_adr)"; fi
 comp_date=$(grep -ciE 'shifting|20[0-9]{2}-[0-9]{2}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* 20[0-9]{2}' "$COMP_MD" 2>/dev/null || true)
@@ -158,10 +225,6 @@ fi
 # refusal sentences are METHOD property 6 for this skill, so each is pinned word for word.
 echo "decision budget and refusal:"
 DEC_MD="$KIT/.claude/skills/decision/SKILL.md"
-dec_w=$(wc -w 2>/dev/null < "$DEC_MD" || echo 9999)
-if [ "$dec_w" -le 300 ]; then ok "decision/SKILL.md is within 300 words ($dec_w)"; else fail "decision/SKILL.md is within 300 words ($dec_w)"; fi
-dec_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$DEC_MD" 2>/dev/null || true; } | wc -w)
-if [ "$dec_d" -ge 1 ] && [ "$dec_d" -le 40 ]; then ok "its description is 1-40 words ($dec_d)"; else fail "its description is 1-40 words ($dec_d)"; fi
 dec_adr=$(grep -c 'ADR-' "$DEC_MD" 2>/dev/null || true)
 if [ "${dec_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($dec_adr)"; fi
 dec_rel=$(grep -cE 'Supersedes in part|Narrows|Widens|Extends|Relates to' "$DEC_MD" 2>/dev/null || true)
@@ -193,10 +256,6 @@ check "no DECISIONS.md template ships" test ! -e "$KIT/templates/DECISIONS.md"
 # the hook that reads them back keeps only the three heading patterns as knobs.
 echo "checkpoint and declaration budgets:"
 CP_MD="$KIT/.claude/skills/checkpoint/SKILL.md"
-cp_w=$(wc -w 2>/dev/null < "$CP_MD" || echo 9999)
-if [ "$cp_w" -le 300 ]; then ok "checkpoint/SKILL.md is within 300 words ($cp_w)"; else fail "checkpoint/SKILL.md is within 300 words ($cp_w)"; fi
-cp_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$CP_MD" 2>/dev/null || true; } | wc -w)
-if [ "$cp_d" -ge 1 ] && [ "$cp_d" -le 40 ]; then ok "its description is 1-40 words ($cp_d)"; else fail "its description is 1-40 words ($cp_d)"; fi
 cp_adr=$(grep -c 'ADR-' "$CP_MD" 2>/dev/null || true)
 if [ "${cp_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($cp_adr)"; fi
 check "/checkpoint stays user-invoked" grep -qx 'disable-model-invocation: true' "$CP_MD"
@@ -206,8 +265,6 @@ if [ "$cp_h" = '## Current state|## Next|' ]; then ok "the file it creates has e
 cp_l=$(printf '%s\n' "$cp_sk" | awk '/^## / { if (n > m) m = n; n = 0; s = 1; next } s && NF { n++ } END { if (n > m) m = n; print m + 0 }')
 if [ "$cp_l" -ge 1 ] && [ "$cp_l" -le 8 ]; then ok "…of at most 8 lines each ($cp_l)"; else fail "…of at most 8 lines each ($cp_l)"; fi
 check "no PROGRESS.md template ships" test ! -e "$KIT/templates/PROGRESS.md"
-decl_l=$(wc -l < "$DECL")
-if [ "$decl_l" -le 70 ]; then ok "session_declaration.sh is within 70 lines ($decl_l)"; else fail "session_declaration.sh is within 70 lines ($decl_l)"; fi
 decl_v=$(grep -oE 'ATTEST_[A-Z_]+' "$DECL" | LC_ALL=C sort -u | tr '\n' ' ')
 if [ "$decl_v" = 'ATTEST_NEXT_HEADING ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ' ]; then
   ok "…and reads exactly three ATTEST_ variables, the heading patterns"
@@ -222,7 +279,7 @@ fi
 
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
-for hook in "$DECL" "$GUARD"; do
+for hook in "$DECL" "$GUARD" "$RGUARD"; do
   name="$(basename "$hook")"
   check "$name survives an empty payload"    sh -c "echo '{}' | sh '$hook'"
   check "$name survives garbage stdin"       sh -c "echo 'not json' | sh '$hook'"
