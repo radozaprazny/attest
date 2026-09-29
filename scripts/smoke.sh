@@ -1349,6 +1349,9 @@ done
 # #34 (b) deleted /audit-history: every prompt that sends the person to an audit names /gate.
 says_not "no guard prompt names /audit-history" "$_p1$_p2$_p3$_p4$_p5$_p6$_p7$_p8$_p9$_p10$_p11$_p12$_p13$_p14" 'audit-history'
 says "…the NO RECORD one sends the person to /gate" "$_p1" 'Run /gate, which commits its record'
+# #41: the prompts use the glossary's one name for the artefact.
+says "…and names the ship record by its glossary name" "$_p1" 'No clean ship record names HEAD'
+says_not "no guard prompt says gate record" "$_p1$_p2$_p3$_p4$_p5$_p6$_p7$_p8$_p9$_p10$_p11$_p12$_p13$_p14" 'gate record'
 says "…and the record guard asks whether /gate ran" "$_p11" 'only if /gate ran'
 # ATTEST_GUARD=deny turns every ask from both hooks into a deny, with the same reason.
 dny() { env ATTEST_GUARD=deny CLAUDE_PROJECT_DIR="$NR" sh "$1"; }
