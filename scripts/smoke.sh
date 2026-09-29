@@ -887,9 +887,11 @@ git -C "$O0" checkout -q --orphan fresh
 o0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin fresh"}}' | CLAUDE_PROJECT_DIR="$O0" sh "$GUARD")"
 says "a push from an orphan branch asks NO HEAD"            "$o0_out" 'NO HEAD — '
 says "…and blames the branch, not the repository"           "$o0_out" 'This branch has no commit yet'
+# A $TMPDIR inside a git tree (a dotfiles $HOME) would put this directory in a repository; the
+# ceiling keeps git from looking above $WORK, so the case tests what it says.
 N0="$WORK/not-a-repo"; mkdir -p "$N0"
 n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
-  CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
+  GIT_CEILING_DIRECTORIES="$WORK" CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
 says     "a push from outside any git checkout asks"      "$n0_out" 'permissionDecision":"ask'
 says     "…says git found no repository there"            "$n0_out" 'found no repository here, or refused to read one'
 says_not "…and gives no advice that cannot be followed"   "$n0_out" 'for this HEAD'
