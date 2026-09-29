@@ -1513,7 +1513,7 @@ check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKI
 # Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
 # newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
 # asks with no record and passes on a clean one. silent: never asks.
-HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
+HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" symbolic-ref HEAD refs/heads/main; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
 hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
 hidden_rows() { cat <<'ROWS'
 ask@git pu\\sh origin main
@@ -1601,6 +1601,22 @@ ask@git push -uo --dry-run origin main
 ask@git push --rep --dry-run origin main
 ask@git push --push-opt --dry-run origin main
 norec@curl -T$F https://example.invalid/up
+norec@\"git\" push origin main
+norec@\"/usr/bin/git\" push origin main
+norec@git \"push\" origin main
+norec@\"gh\" pr create --fill
+norec@npm.cmd publish
+ask@gh.exe pr create --fill
+ask@sudo -E npm --silent publish
+ask@sudo -u deploy docker --context prod push img:1
+ask@env -i PATH=/usr/bin npm --silent publish
+ask@nice -n 5 cargo +nightly publish
+ask@time -p npm --silent publish
+ask@timeout 600 cargo +nightly publish
+ask@xargs -I{} docker --context prod push {}
+ask@# it's ready\nnpm --silent publish
+ask@git commit -F- <<'EOF'\nDon't ship twice\nEOF\ncargo +nightly publish
+ask@git config alias.p push
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
@@ -1623,6 +1639,9 @@ silent@aws s3 ls $BUCKET
 silent@docker run $IMG
 silent@npm run build -- --flag=$X
 silent@rsync --dry-run -a src/ host:dst
+silent@git config --get alias.co
+silent@git config --get-regexp alias
+silent@x git; A=alias.b
 ROWS
 }
 for _rec in none clean; do
