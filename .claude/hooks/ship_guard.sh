@@ -94,13 +94,14 @@ expands() { tr ';|&()' '\n\n\n\n\n' | awk '
       if ($k ~ /[$`{*?[]/) f = 1
       if (t == "gh" && $k ~ /^(pr|release|gist|repo)$/ && $(k + 1) ~ /[$`{*?[]/) f = 1 } }
   END { exit !f }'; }
-# A ship command seen only in the second reading always asks, record or not.
+# A ship command seen only in the second reading always asks, record or not. A command with none
+# of the characters that can hide one skips it.
 HIDDEN=
-if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then
+if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in *\\*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'alias.'*)
   _x="$(printf '%s' "$CMD" | unhide)"
   ACT="$(ship_act "$(norm "$_x")")"
   if [ -z "$ACT" ] && printf '%s' "$_x" | expands; then ACT="sends data off the machine"; fi
-  [ -z "$ACT" ] || HIDDEN=1
+  [ -z "$ACT" ] || HIDDEN=1 ;; esac
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
