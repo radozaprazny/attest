@@ -1398,274 +1398,105 @@ chmod 500 "$G/.attest/tmp"
 says "an unwritable scratch still yields a decision" "$(tguard 'git push origin main')" 'permissionDecision":"ask'
 chmod 700 "$G/.attest/tmp"
 
-# --- 3b. line endings: a CRLF source must not install a CRLF hook (ADR-0039) -----------
-echo "install.sh — CRLF:"
-check "the kit ships .gitattributes pinning shell to LF" \
-  sh -c "grep -Eq '^\*\.sh[[:space:]]+text eol=lf' '$KIT/.gitattributes'"
-check "…covering the hooks directory too" \
-  sh -c "grep -q 'claude/hooks' '$KIT/.gitattributes'"
-CR="$WORK/crlfkit"; mkdir -p "$CR"
-cp -r "$KIT/.claude" "$KIT/templates" "$CR/"; cp "$KIT"/*.md "$KIT/install.sh" "$CR/"
-# awk, not `sed 's/$/\r/'`: that is a GNU-ism — BSD/macOS sed inserts a literal `r`, the
-# fixture then holds no CR at all, and the whole block would pass without testing anything.
-for f in "$CR"/.claude/hooks/*.sh; do
-  awk '{ printf "%s\r\n", $0 }' "$f" > "$f.crlf" && mv "$f.crlf" "$f"
-done
-if grep -q "$(printf '\r')" "$CR/.claude/hooks/ship_guard.sh"; then
-  ok "the CRLF fixture really holds CR"
-else
-  fail "the CRLF fixture really holds CR"
-fi
-CRT="$WORK/crlftarget"; mkdir -p "$CRT"
-"$CR/install.sh" "$CRT" >/dev/null 2>&1 || true
-if grep -q "$(printf '\r')" "$CRT/.claude/hooks/ship_guard.sh" 2>/dev/null; then
-  fail "a CRLF source installs an LF hook"
-else
-  ok "a CRLF source installs an LF hook"
-fi
-check "…and the installed hook is still valid shell" sh -n "$CRT/.claude/hooks/ship_guard.sh"
-# An UPGRADE over an existing CRLF hook takes the other branch entirely, and used to call a
-# whitespace-only difference "drift" with a "diff against …" most tools render as identical —
-# for a file that exits 2 under dash and blocks every Bash call (attest ADR-0044). Both
-# directions, because naming the CRLF case is worthless if a real edit stops reading as drift.
-CRU="$WORK/crlfupgrade"; mkdir -p "$CRU"
-"$KIT/install.sh" "$CRU" >/dev/null
-sed -i.bak 's/$/\r/' "$CRU/.claude/hooks/ship_guard.sh" 2>/dev/null || \
-  { tr -d '\r' < "$CRU/.claude/hooks/ship_guard.sh" | sed 's/$/\r/' > "$CRU/x" && mv "$CRU/x" "$CRU/.claude/hooks/ship_guard.sh"; }
-rm -f "$CRU/.claude/hooks/ship_guard.sh.bak"
-cru_out="$(run_install "$CRU")"
-says "a CRLF-only copy is named, not called drift"  "$cru_out" 'LINE ENDINGS'
-says_not "…and is not reported as ordinary drift"   "$cru_out" 'ship_guard.sh — yours kept, but it DIFFERS'
-printf '\n# an edit of my own\n' >> "$CRU/.claude/hooks/session_declaration.sh"
-cru_out2="$(run_install "$CRU")"
-says "a real content edit still reads as drift"     "$cru_out2" 'session_declaration.sh — yours kept, but it DIFFERS'
-# ...and the adopter's own next checkout must not undo it (ADR-0039)
-GA="$WORK/gitattr"; mkdir -p "$GA"
-"$KIT/install.sh" "$GA" >/dev/null
-check "the LF attribute lands in the target"        grep -q 'text eol=lf' "$GA/.gitattributes"
-check "…scoped to the kit's own hooks"              grep -q 'claude/hooks' "$GA/.gitattributes"
-"$KIT/install.sh" "$GA" >/dev/null
-# `|| echo 0`: grep -c exits 1 on zero matches, and under `set -e` that ends the run — which
-# once cost this suite 75 of its assertions, silently, including the regression test for a
-# destructive bug. Every count in this file is guarded for that reason.
-# The installer lands two attributes now — the hooks (ADR-0039) and the records the guard
-# parses byte-exactly (ADR-0037). Count each ONE, not the total: a total is the assertion that
-# breaks every time the kit legitimately pins one more path, which teaches the reader to raise
-# the number rather than ask why it moved.
-ga_hooks=$(grep -c '^\.claude/hooks/\*' "$GA/.gitattributes" 2>/dev/null || echo 0)
-ga_recs=$(grep -c '^\.attest/\*\.md' "$GA/.gitattributes" 2>/dev/null || echo 0)
-if [ "$ga_hooks" -eq 1 ] && [ "$ga_recs" -eq 1 ]; then ok "a re-run duplicates neither attribute line"; else fail "a re-run duplicates neither attribute line (hooks=$ga_hooks records=$ga_recs)"; fi
-check "the blanket *.sh rule is NOT written into your repo" \
-  sh -c "! grep -qE '^[*][.]sh' '$GA/.gitattributes'"
-# Nor a skills-wide one: the kit ships no script under skills/, so `.claude/skills/*/*.sh` could
-# only ever match the adopter's own skill scripts (#34 (b)).
-check "no pin on your own skill scripts is written either" \
-  sh -c "! grep -q '^\.claude/skills/' '$GA/.gitattributes'"
-# A pattern the adopter already decided about is left alone — globs are not regexes, and
-# treating them as one is what duplicated these lines in the first draft.
-GA2="$WORK/gitattr-own"; mkdir -p "$GA2"; printf '*.sh text=auto\n' > "$GA2/.gitattributes"
-"$KIT/install.sh" "$GA2" >/dev/null
-check "an existing *.sh rule of yours is not overruled" grep -qx '\*.sh text=auto' "$GA2/.gitattributes"
-own_sh=$(grep -c '^\*\.sh' "$GA2/.gitattributes" 2>/dev/null || echo 0)
-if [ "$own_sh" -eq 1 ]; then ok "…and nothing is appended under it"; else fail "…and nothing is appended under it ($own_sh)"; fi
-check "…while the hooks pattern still lands"        grep -q 'claude/hooks' "$GA2/.gitattributes"
-
-# --- 4. fresh install, then a re-run that must change nothing --------------------------
-echo "install.sh — idempotency:"
-T1="$WORK/fresh"; mkdir -p "$T1"
-fresh_out="$(run_install "$T1")"
-# The one version marker lives in /gate's skill (#34 (b)): install.sh prints it, and the line
-# /gate's material block runs reads it from the installed copy, which is what a record cites.
+# --- 4. install.sh: 10 files and 2 lines into a repo, no document; a re-run is one line (#39) --
+echo "install.sh — a fresh repo:"
+gi() { git init -q "$1" && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init; }
+gc() { git -C "$1" add -A && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -qm "$2"; }
+T1="$WORK/fresh"; mkdir -p "$T1"; gi "$T1"; out="$(run_install "$T1")"
+kit_files="$(git -C "$KIT" ls-files .claude | sort)"
+check "the kit's .claude/ is 10 files" test "$(printf '%s\n' "$kit_files" | grep -c .)" -eq 10
+check "…and a fresh repo gets exactly those" test "$(cd "$T1" && find .claude -type f | sort)" = "$kit_files"
+check "…plus one line each in .gitignore and .gitattributes" \
+  test "$(cat "$T1/.gitignore" "$T1/.gitattributes")" = "$(printf '%s\n' .attest/tmp/ '.claude/hooks/* text eol=lf')"
+check "no .md lands at the project root" sh -c "! ls '$T1'/*.md"
 _kv="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/gate/SKILL.md")"
-if [ -n "$_kv" ]; then ok "gate/SKILL.md carries the kit version ($_kv)"; else fail "gate/SKILL.md carries the kit version"; fi
-says "…the install banner prints it" "$fresh_out" "^attest $_kv "
-_kl="$(grep '^echo "kit ' "$T1/.claude/skills/gate/SKILL.md" || true)"
+says "the banner prints the kit version from gate/SKILL.md (${_kv:-none})" "$out" "^attest $_kv "
 says "…and /gate's material block reads it from the installed copy" \
-  "$(cd "$T1" && bash -c "$_kl" 2>/dev/null)" "^kit $_kv\$"
-check "fresh install lands /gate"             test -f "$T1/.claude/skills/gate/SKILL.md"
-check "fresh install lands the auditor /gate runs" test -f "$T1/.claude/agents/auditor.md"
-check "fresh install lands the ship guard"   test -f "$T1/.claude/hooks/ship_guard.sh"
-check "fresh install lands the declaration hook" test -f "$T1/.claude/hooks/session_declaration.sh"
-check "fresh install lands the settings that wire them" test -f "$T1/.claude/settings.json"
-check "nothing at all lands under .github/" test ! -e "$T1/.github"
-check "attest's own README does not land"   test ! -e "$T1/README.md"
-check "attest's own LICENSE does not land"  test ! -e "$T1/LICENSE"
-# The skill set is enumerated from the kit, not hardcoded: a skill added upstream must install.
-mkdir -p "$WORK/kit-extra"; cp -r "$KIT/.claude" "$KIT/templates" "$KIT"/*.md "$KIT/install.sh" "$WORK/kit-extra/"
-mkdir -p "$WORK/kit-extra/.claude/skills/newthing"; echo '# new' > "$WORK/kit-extra/.claude/skills/newthing/SKILL.md"
-T1b="$WORK/fresh-extra"; mkdir -p "$T1b"
-extra_out=$("$WORK/kit-extra/install.sh" "$T1b" 2>&1 || true)
-check "a skill added to the kit installs without an edit to install.sh" test -f "$T1b/.claude/skills/newthing/SKILL.md"
-says  "…and shows up in the command list" "$extra_out" '/newthing'
-rerun_out=$(run_install "$T1")
-says     "a re-run says it changed nothing, in one line" "$rerun_out" 'changed nothing'
-says_not "…without listing every group again"            "$rerun_out" 'Documents'
-check "second run minted no attest-GUIDE.md" test ! -e "$T1/attest-GUIDE.md"
-says_not "re-run does not false-warn about unwired hooks" "$rerun_out" 'NOT wired'
-# A locally modified kit-owned file must be called out as drift, not skipped silently
-echo '# local modification' >> "$T1/.claude/skills/gate/SKILL.md"
-drift_out=$(run_install "$T1")
-says "a drifted kit file is called out as DIFFERS" "$drift_out" 'gate/SKILL.md — yours kept, but it DIFFERS'
-says "…under a heading that says nothing was overwritten" "$drift_out" 'NEEDS YOU'
+  "$(cd "$T1" && bash -c "$(grep '^echo "kit ' .claude/skills/gate/SKILL.md || true)" 2>/dev/null)" "^kit $_kv\$"
+says "NEXT is claude, /business, /gate, /checkpoint" \
+  "$(printf '%s\n' "$out" | sed -n '/NEXT/,$p' | awk '$1 ~ /^[0-9]$/ { printf "%s ", $2 }')" '^claude /business /gate /checkpoint $'
+says_not "a fresh repo needs nothing of you" "$out" 'NEEDS YOU'
+rerun="$(run_install "$T1")"; check "a re-run prints one line" test "$(printf '%s\n' "$rerun" | wc -l)" -eq 1
+says "…saying it changed nothing" "$rerun" 'changed nothing'
+cmds="$(sed -n 's/^ *"command": "\(.*\)"$/\1/p' "$KIT/.claude/settings.json" | sed 's/\\"/"/g')"
+check "settings.json holds 4 hook commands" test "$(printf '%s\n' "$cmds" | grep -c .)" -eq 4
+while IFS= read -r c; do
+  check "with CLAUDE_PROJECT_DIR unset, $(printf '%s' "$c" | sed 's/.*hooks\///; s/"$//') exits 0 from the project root" \
+    sh -c "cd '$T1' && unset CLAUDE_PROJECT_DIR && echo '{}' | sh -c '$c' >/dev/null"; done <<< "$cmds"
 
-# --- 4b. an abort mid-run must still account for what landed ---------------------------
-echo "install.sh — partial install:"
-TP="$WORK/partial"; mkdir -p "$TP"; touch "$TP/.claude"   # a file where a directory must go
-partial_out=$(run_install "$TP")
-says "an aborted install says it is PARTIAL"        "$partial_out" 'ABORTED'
-says "an aborted install lists what already landed" "$partial_out" '+ CLAUDE.md'
-if "$KIT/install.sh" "$TP" >/dev/null 2>&1; then
-  fail "an aborted install exits non-zero"
-else
-  ok "an aborted install exits non-zero"
-fi
-
-# --- 4c. the self-install guard covers ancestry, not just equality ---------------------
-# Ancestry is exercised against a COPY of the kit inside $WORK, never the real checkout's
-# parent: if a guard ever regresses, a passing-by-accident test must not install the kit
-# into someone's actual projects directory.
-echo "install.sh — self-install guard:"
-ANC="$WORK/anc"; mkdir -p "$ANC"
-cp -r "$KIT/.claude" "$ANC/kit-copy" 2>/dev/null || true
-mkdir -p "$ANC/kit-copy"; cp -r "$KIT/install.sh" "$KIT/templates" "$KIT"/*.md "$ANC/kit-copy/"
+# --- 5. no repository, no commit; refusals; a partial install ----------------------------------
+echo "install.sh — no git, refusals, an abort:"
+T2="$WORK/nogit"; mkdir -p "$T2"; out="$(run_install "$T2")"
+check "outside git: exactly one NEEDS YOU line" test "$(printf '%s\n' "$out" | grep -c '^    · ' || true)" -eq 1
+says "…and it names git" "$out" '· git — no repository'
+check "…and the kit still lands" test -f "$T2/.claude/hooks/ship_guard.sh"
+T2b="$WORK/nocommit"; mkdir -p "$T2b"; git init -q "$T2b"; says "a repository with no commit yet is named too" "$(run_install "$T2b")" '· git — no commit yet'
+TP="$WORK/partial"; mkdir -p "$TP"; touch "$TP/.claude"; says "an aborted install says it is PARTIAL and that a re-run resumes" "$(run_install "$TP")" 'ABORTED — a PARTIAL install.*re-run'
+check "…and exits non-zero" sh -c "! '$KIT/install.sh' '$TP' >/dev/null 2>&1"
+ANC="$WORK/anc"; mkdir -p "$ANC/kit-copy/docs"; cp -r "$KIT/.claude" "$KIT/install.sh" "$ANC/kit-copy/"
 for bad in "$ANC/kit-copy" "$ANC/kit-copy/docs" "$ANC"; do
-  mkdir -p "$bad"
-  label="the kit itself"
-  [ "$bad" = "$ANC/kit-copy/docs" ] && label="a directory inside the kit"
-  [ "$bad" = "$ANC" ] && label="a directory containing the kit"
-  if "$ANC/kit-copy/install.sh" "$bad" >/dev/null 2>&1; then
-    fail "refuses to install into $label"
-  else
-    ok "refuses to install into $label"
-  fi
-done
-# TARGET=/ is asserted by MESSAGE, not by exit code: an unguarded run aborts on EACCES and
-# would pass an exit-code test for entirely the wrong reason.
-says "refuses TARGET=/ as an ancestor of the kit" "$(run_install /)" \
-  'refusing to install the kit into a directory that contains it'
-says "rejects an unknown option rather than treating it as a path" "$(run_install --nope "$WORK/fresh")" \
-  'unknown option'
+  check "refuses to install into ${bad#"$WORK"/}: the kit, inside it, or around it" sh -c "! '$ANC/kit-copy/install.sh' '$bad' >/dev/null 2>&1"; done
+says "refuses TARGET=/ as an ancestor of the kit" "$(run_install /)" 'into a directory that contains it'
+says "rejects an unknown option rather than treating it as a path" "$(run_install --nope "$T1")" 'unknown option'
 
-# --- 5. a .gitignore without a trailing newline survives intact ------------------------
-echo "install.sh — .gitignore:"
-T2="$WORK/nonl"; mkdir -p "$T2"
-printf 'node_modules' > "$T2/.gitignore"
-"$KIT/install.sh" "$T2" >/dev/null
-check "user's rule kept as its own line"  grep -qx 'node_modules' "$T2/.gitignore"
-check "kit's ignore line landed whole"    grep -qx '.claude/settings.local.json' "$T2/.gitignore"
+# --- 6. your .gitignore and .gitattributes; a CRLF kit ----------------------------------------
+echo "install.sh — your ignore and attribute files, line endings:"
+check "the kit's own checkout pins its hooks to LF" grep -q '^\.claude/hooks/\* text eol=lf' "$KIT/.gitattributes"
+T3="$WORK/nonl"; mkdir -p "$T3"; gi "$T3"; printf 'node_modules' > "$T3/.gitignore"; printf '.claude/hooks/* -text\n' > "$T3/.gitattributes"; run_install "$T3" >/dev/null
+check "your last .gitignore rule stays its own line, and the kit's lands whole" test "$(cat "$T3/.gitignore")" = "$(printf 'node_modules\n.attest/tmp/')"
+check "a rule of yours for the hooks' pattern is not overruled" test "$(cat "$T3/.gitattributes")" = '.claude/hooks/* -text'
+CR="$WORK/crlfkit"; mkdir -p "$CR"; cp -r "$KIT/.claude" "$KIT/install.sh" "$CR/"
+for f in "$CR"/.claude/hooks/*.sh; do awk '{ printf "%s\r\n", $0 }' "$f" > "$f.x" && cat "$f.x" > "$f" && rm -f "$f.x"; done
+check "the CRLF fixture really holds CR" grep -q "$(printf '\r')" "$CR/.claude/hooks/ship_guard.sh"
+T4="$WORK/crlftarget"; mkdir -p "$T4"; "$CR/install.sh" "$T4" >/dev/null 2>&1 || true
+check "a CRLF kit installs LF hooks that are valid shell" sh -c "! grep -q \"\$(printf '\\r')\" '$T4/.claude/hooks/ship_guard.sh' && sh -n '$T4/.claude/hooks/ship_guard.sh'"
 
-# --- 6. junk in the kit tree never installs --------------------------------------------
-echo "install.sh — junk filter:"
-K2="$WORK/kitcopy"; mkdir -p "$K2"
-cp -r "$KIT/.claude" "$KIT/templates" "$K2/"; cp "$KIT"/*.md "$K2/" 2>/dev/null || true
-cp "$KIT/install.sh" "$K2/"
-mkdir -p "$K2/.claude/hooks/__pycache__"
-touch "$K2/.claude/hooks/__pycache__/x.pyc" "$K2/.claude/hooks/.DS_Store" \
-      "$K2/.claude/skills/x.swp" "$K2/.claude/skills/y~"
-T3="$WORK/junk"; mkdir -p "$T3"
-"$K2/install.sh" "$T3" >/dev/null
-found=$(find "$T3" \( -name '*.pyc' -o -name '.DS_Store' -o -name '*.swp' -o -name '*~' \) | wc -l)
-if [ "$found" -eq 0 ]; then ok "no junk landed"; else fail "no junk landed ($found found)"; fi
-# ...and the filter did not achieve that by installing nothing at all
-check "the legitimate kit files still landed" test -f "$T3/.claude/skills/gate/SKILL.md"
+# --- 7. a settings.json of yours: never edited, judged by what it wires ------------------------
+echo "install.sh — a settings.json of yours:"
+T5="$WORK/settings"; mkdir -p "$T5/.claude"; gi "$T5"
+printf '%s\n' '{ "permissions": { "allow": ["Bash(npm test)"] }, "model": "sonnet",' \
+  '  "hooks": { "PreToolUse": [ { "matcher": "Bash", "hooks": [ { "type": "command", "command": "true" } ] } ] } }' > "$T5/.claude/settings.json"
+cp "$T5/.claude/settings.json" "$WORK/settings.orig"; out="$(run_install "$T5")"
+check "over your own PreToolUse hook the output is ≤30 lines" test "$(printf '%s\n' "$out" | wc -l)" -le 30
+says "…naming settings.json as not wiring every kit hook" "$out" 'settings.json — yours, kept, and it does not wire'
+check "…which it never edits" cmp -s "$WORK/settings.orig" "$T5/.claude/settings.json"
+if command -v jq >/dev/null 2>&1; then
+  (cd "$T5" && eval "$(printf '%s\n' "$out" | sed -n 's/^ *\(jq --slurpfile .*\)/\1/p')") >/dev/null 2>&1 || true
+  check "run as printed, the jq command adds the 4 kit entries" test "$(jq '[.hooks[][]] | length' "$T5/.claude/settings.json")" -eq 5
+  check "…and keeps every original key and entry" jq -se '((.[1] | keys) - (.[0] | keys)) == [] and .[0].hooks.PreToolUse[0] ==
+    .[1].hooks.PreToolUse[0] and .[0].permissions == .[1].permissions and .[0].model == "sonnet"' "$T5/.claude/settings.json" "$WORK/settings.orig"
+  says "…after which a re-run is one line" "$(run_install "$T5")" 'changed nothing'
+else echo "  skip: jq is not on PATH, so the printed merge command is not run"; fi
+NOJQ="$WORK/nojq"; mkdir -p "$NOJQ"; for c in bash git tr cmp cp mv mkdir dirname sed grep awk tail head rm cat; do ln -s "$(command -v "$c")" "$NOJQ/$c"; done
+cp "$WORK/settings.orig" "$T5/.claude/settings.json"; says "without jq it asks Claude to merge the kit's hooks" "$(PATH="$NOJQ" run_install "$T5")" 'no jq here: ask Claude to merge'
+T6="$WORK/wired"; mkdir -p "$T6/.claude"; gi "$T6"
+wire() { sed -e "$1" -e '1a\
+  "permissions": { "allow": ["PowerShell(git status)"] },' "$KIT/.claude/settings.json" > "$T6/.claude/settings.json"; run_install "$T6"; }
+says_not "a settings.json that differs but wires every hook is not mentioned" "$(wire 's/^//')" 'NEEDS YOU'
+says "one without the ship guard's MCP matcher does not wire it" "$(wire '/mcp__github__/d')" 'does not wire'
+says "one whose shell matcher lacks PowerShell does not, a permission rule aside" "$(wire 's/"Bash|PowerShell"/"Bash"/')" 'does not wire'
 
-# --- 7. an existing settings.json: warn only when a hook is really unwired -------------
-echo "install.sh — inert hooks warning:"
-T4="$WORK/settings"; mkdir -p "$T4/.claude"
-echo '{}' > "$T4/.claude/settings.json"
-settings_out=$(run_install "$T4")
-says "warning printed when settings.json registers no hooks" "$settings_out" 'NOT wired'
-# ...and the same file must not also appear as "untouched": one file, one framing (ADR-0031)
-says_not "an unwired settings.json is not also listed as untouched" \
-  "$(printf '%s' "$settings_out" | sed -n '/YOURS, UNTOUCHED/,/NEEDS YOU/p')" 'settings.json'
-# A settings.json that differs from the kit's but registers every guard HAS them wired —
-# the categorical warning would be false (an older kit stanza is the common case).
-T4b="$WORK/settings-wired"; mkdir -p "$T4b/.claude"
-sed '1a\
-  "_note": "an older kit stanza",' "$KIT/.claude/settings.json" > "$T4b/.claude/settings.json"
-wired_out=$(run_install "$T4b")
-says_not "no false unwired warning when every guard is registered" "$wired_out" 'NOT wired'
-says     "a differing but wired settings.json is reported as such" "$wired_out" 'registers every'
-# ...but naming every hook FILE is not the same as wiring every guard (attest ADR-0058). A
-# stanza written before the ship guard's second registration names ship_guard.sh and still
-# leaves the non-shell publish path ungated; reporting that as wired is the false assurance.
-T4c="$WORK/settings-bash-only"; mkdir -p "$T4c/.claude"
-grep -v 'mcp__github__' "$KIT/.claude/settings.json" > "$T4c/.claude/settings.json"
-for h in session_declaration ship_guard record_guard; do
-  says "the fixture really names $h, so this is not a filename miss" \
-    "$(cat "$T4c/.claude/settings.json")" "$h"
-done
-bashonly_out=$(run_install "$T4c")
-says "a Bash-only ship guard is not reported as fully wired" "$bashonly_out" 'NOT wired'
-says_not "…and is not reported as wired either" "$bashonly_out" 'registers every'
-# ...and a stanza from before ADR-0073, whose shell matcher is `Bash` alone, is not wired either:
-# every file and the MCP matcher are there, and the guard still never sees a PowerShell command.
-T4d="$WORK/settings-no-powershell"; mkdir -p "$T4d/.claude"
-sed 's/"Bash|PowerShell"/"Bash"/' "$KIT/.claude/settings.json" > "$T4d/.claude/settings.json"
-says "the fixture really keeps the MCP matcher, so only PowerShell is missing" \
-  "$(cat "$T4d/.claude/settings.json")" 'mcp__github__'
-nops_out=$(run_install "$T4d")
-says     "a shell matcher without PowerShell is reported as not wired" "$nops_out" 'NOT wired'
-says     "…and the warning says what the PowerShell half is for"       "$nops_out" 'in its shell matcher'
-says_not "…and is not reported as wired"                               "$nops_out" 'registers every'
-# The word alone is not a matcher: a `PowerShell(...)` permission rule in the same file must not
-# stand in for one, and a Windows user is exactly who writes that rule.
-T4e="$WORK/settings-powershell-permission-only"; mkdir -p "$T4e/.claude"
-sed -e 's/"Bash|PowerShell"/"Bash"/' \
-    -e '1a\
-  "permissions": { "allow": ["PowerShell(git status)"] },' \
-  "$KIT/.claude/settings.json" > "$T4e/.claude/settings.json"
-says "the fixture really names PowerShell, only outside a matcher" \
-  "$(cat "$T4e/.claude/settings.json")" 'PowerShell(git status)'
-psperm_out=$(run_install "$T4e")
-says     "a PowerShell permission rule does not count as the matcher"  "$psperm_out" 'NOT wired'
-says_not "…and is not reported as wired"                               "$psperm_out" 'registers every'
-
-# --- 8. a fresh install: every skill, /compliance included, and no COMPLIANCE.md (#38) ------
-echo "install.sh — a fresh install:"
-T5="$WORK/plain-install"; mkdir -p "$T5"
-fresh_out=$(run_install "$T5")
-check "the /compliance skill lands with the others" test -f "$T5/.claude/skills/compliance/SKILL.md"
-says  "…and the command is listed"                  "$fresh_out" 'Commands.*/compliance'
-check "no COMPLIANCE.md lands: /compliance writes it when run" test ! -e "$T5/COMPLIANCE.md"
-says_not "…and the report has no opt-in line left"  "$fresh_out" 'Opt-in'
-check "the document CLAUDE.md is there" test -f "$T5/CLAUDE.md"
-# BUSINESS.md ships no skeleton (#35), nor DECISIONS.md (#37), nor PROGRESS.md (#36): each
-# skill writes its own file, and the report says so.
-check "no PROGRESS.md lands on install"           test ! -e "$T5/PROGRESS.md"
-says  "…the NEXT steps send you to /checkpoint for it" "$fresh_out" '/checkpoint .*writes PROGRESS.md'
-check "no BUSINESS.md lands on install"           test ! -e "$T5/BUSINESS.md"
-says  "…the NEXT steps send you to /business for it" "$fresh_out" '/business .*writes BUSINESS.md'
-check "no DECISIONS.md lands on install"          test ! -e "$T5/DECISIONS.md"
-says  "…the NEXT steps send you to /decision for it" "$fresh_out" '/decision .*writes DECISIONS.md'
-rerun_out=$(run_install "$T5")
-check "a re-run lands no COMPLIANCE.md either"    test ! -e "$T5/COMPLIANCE.md"
-says_not "…and drags nothing into NEEDS YOU"      "$rerun_out" 'NEEDS YOU'
-
-# --- 9. GUIDE.md collision: the kit's manual lands beside yours, and says when it is stale
-echo "install.sh — GUIDE collision:"
-T9="$WORK/ownguide"; mkdir -p "$T9"; echo '# my own guide' > "$T9/GUIDE.md"
-guide_out=$(run_install "$T9")
-check "your own GUIDE.md is untouched"  grep -qx '# my own guide' "$T9/GUIDE.md"
-check "the kit's manual lands beside it" test -f "$T9/attest-GUIDE.md"
-says  "the NEXT steps point at the file the manual is actually in" "$guide_out" 'attest-GUIDE.md PART 9'
-# The commonest upgrade path: the target's GUIDE.md is the kit's own, from an older version.
-T9b="$WORK/staleguide"; mkdir -p "$T9b"
-{ echo '# GUIDE.md — reference guide'; echo 'old copy'; } > "$T9b/GUIDE.md"
-says "an outdated kit GUIDE.md is pointed out, never overwritten" "$(run_install "$T9b")" 'GUIDE.md — an older kit version'
-check "…and it is left exactly as it was" grep -qx 'old copy' "$T9b/GUIDE.md"
-echo '# stale' >> "$T9/attest-GUIDE.md"
-says "a stale attest-GUIDE.md gets the refresh hint" "$(run_install "$T9")" 'attest-GUIDE.md — an older kit version'
-# An upgrade over a kit older than 0.18.0 names what it left, and deletes nothing: a leftover
-# /audit-history still writes records the guard accepts, without the auditor.
-T10="$WORK/retired"; mkdir -p "$T10/.claude/skills/audit-history" "$T10/.claude/agents"
-echo '# old' > "$T10/.claude/skills/audit-history/SKILL.md"; echo '# old' > "$T10/.claude/agents/reviewer.md"
-echo '.claude/skills/*/*.sh text eol=lf' > "$T10/.gitattributes"
-_out="$(run_install "$T10")"
-says "an upgrade names a leftover audit-history skill" "$_out" '.claude/skills/audit-history — retired in kit 0.18.0'
-says "…and a leftover reviewer agent" "$_out" '.claude/agents/reviewer.md — retired in kit 0.18.0'
-says "…and an older kit's skills LF pin" "$_out" 'delete the line .claude/skills/\*/\*.sh text eol=lf'
-check "…and deletes none of them" test -f "$T10/.claude/skills/audit-history/SKILL.md"
+# --- 8. --upgrade: replaces what git holds, names it first, removes the retired paths ----------
+echo "install.sh — --upgrade over an older install:"
+U="$WORK/upgrade"; mkdir -p "$U"; gi "$U"; run_install "$U" >/dev/null
+OLD5=".claude/agents/reviewer.md .claude/agents/doc-auditor.md .claude/skills/_shared .claude/skills/audit-history .claude/skills/gate/triggers.sh"
+for p in $OLD5; do case "${p##*/}" in *.*) f="$U/$p" ;; *) f="$U/$p/SKILL.md" ;; esac; mkdir -p "${f%/*}"; echo old > "$f"; done
+printf '\n# a widened ship list\n' >> "$U/.claude/hooks/ship_guard.sh"; echo '# GUIDE.md — reference guide' > "$U/GUIDE.md"
+echo '# mine' > "$U/BUSINESS.md"; echo "\"\$CLAUDE_PROJECT_DIR/x\"" > "$U/.claude/settings.json"; gc "$U" 'an older kit'; echo 'my edit' >> "$U/.claude/skills/checkpoint/SKILL.md"
+says "without --upgrade one line points at it" "$(run_install "$U")" '5 retired path(s) remain.*--upgrade'
+check "…and nothing is removed" test -f "$U/.claude/skills/audit-history/SKILL.md"
+out="$(run_install --upgrade "$U")"; says "--upgrade names a committed edit to ship_guard.sh as it replaces it" "$out" 'replaced .claude/hooks/ship_guard.sh — .*git diff HEAD'
+check "…with the kit's copy" cmp -s "$KIT/.claude/hooks/ship_guard.sh" "$U/.claude/hooks/ship_guard.sh"
+check "…while git still holds the edit" sh -c "git -C '$U' show HEAD:.claude/hooks/ship_guard.sh | grep -q 'a widened ship list'"
+gone=0; for p in $OLD5; do [ -e "$U/$p" ] || gone=$((gone + 1)); done; check "it removes the 5 retired paths, clean and tracked" test "$gone" -eq 5
+says "it keeps and names a kit file with uncommitted changes" "$out" 'checkpoint/SKILL.md — kept'
+check "…untouched" grep -q 'my edit' "$U/.claude/skills/checkpoint/SKILL.md"
+says "it names the old kit's GUIDE.md" "$out" 'GUIDE.md — an older kit'; says "…and a bare \$CLAUDE_PROJECT_DIR in settings.json" "$out" 'CLAUDE_PROJECT_DIR:-\.'
+check "…and touches no document, GUIDE or settings.json" sh -c "test -f '$U/GUIDE.md' && grep -qx '# mine' '$U/BUSINESS.md' && grep -qF 'CLAUDE_PROJECT_DIR/x' '$U/.claude/settings.json'"
+U2="$WORK/upgrade-dirty"; mkdir -p "$U2/.claude/skills/audit-history"; echo old > "$U2/.claude/skills/audit-history/SKILL.md"
+gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
+says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
+check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
 
 # --- verdict ---------------------------------------------------------------------------
 echo

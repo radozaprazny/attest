@@ -8,11 +8,15 @@
 - Wave 2 (#35–#38) → kit 0.19.0: `/business` 386 words, `/decision` 298, `/compliance` 1,179
   (template inline, always installed), `/checkpoint` 294; only CLAUDE.md lands as a document;
   the session hook prints one line when no non-goals are declared.
-- Smoke 696 passed, 0 failed; the count grows by one per committed ship record.
+- #39 → kit 0.20.0: `install.sh` (141 lines) copies 10 files and appends 2 lines, writes no
+  document or GUIDE, names a missing git, prints a jq merge for a settings.json it will not
+  edit, and `--upgrade` replaces or removes only what git holds; `templates/` is gone.
+- Smoke 661 passed, 0 failed (664 with jq on PATH, as on CI); the count grows by one per
+  committed ship record.
 
 ## Next
-- Wave 3: #39 → #40, #41, #42 → #43 (v1.0.0 and anything published: ask first). #40 and #41
-  carry the README and GUIDE lines #34–#38 left stale (listed on those issues).
+- Wave 3: #40, #41, #42 → #43 (v1.0.0 and anything published: ask first). #40 and #41
+  carry the README and GUIDE lines #34–#39 left stale (listed on those issues).
 - Each issue's body is its spec; re-read its comments before starting.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook
   changes (time-boxed), ship ritual, PR, CI, hand over the merge, tag after merge.
