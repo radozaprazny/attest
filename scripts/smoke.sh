@@ -44,6 +44,149 @@ DECL="$KIT/.claude/hooks/session_declaration.sh"
 GUARD="$KIT/.claude/hooks/ship_guard.sh"
 RGUARD="$KIT/.claude/hooks/record_guard.sh"
 
+# --- fixtures and helpers the groups share (#42) ----------------------------------------
+# fx_<name> builds a fixture on its first call in a process; every later call is a no-op.
+# The guard calls `betterleaks` on a push when one is on PATH (ADR-0070). CI has none and a
+# developer machine may, so every guard case in this suite runs with the scanner switched off —
+# otherwise the same suite would pass or fail by what happens to be installed. The one section
+# that tests the scanner switches it back on, against a stub it controls.
+export ATTEST_LEAK_SCAN=off
+fx_ship() { [ -z "${_fx_ship:-}" ] || return 0; _fx_ship=1
+  S="$WORK/ship"; mkdir -p "$S"
+  git -C "$S" init -q .
+  git -C "$S" symbolic-ref HEAD refs/heads/main
+  git -C "$S" config user.email smoke@example.invalid
+  git -C "$S" config user.name smoke
+  : > "$S/f"; git -C "$S" add f; git -C "$S" commit -qm init
+  SHA="$(git -C "$S" rev-parse --short HEAD)"
+}
+guard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"; }
+rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
+mguard() { # mguard <tool> [tool_input JSON body]
+  echo "{\"tool_name\":\"$1\",\"tool_input\":{${2:-}}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"
+}
+fx_e0() { [ -z "${_fx_e0:-}" ] || return 0; _fx_e0=1
+  E0="$WORK/empty-repo"; mkdir -p "$E0"; git -C "$E0" init -q
+  e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
+    CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
+}
+fx_leak() { [ -z "${_fx_leak:-}" ] || return 0; _fx_leak=1
+  L="$WORK/leakscan"; mkdir -p "$L/repo/.attest" "$L/bin"
+  git -C "$L/repo" init -q .
+  git -C "$L/repo" symbolic-ref HEAD refs/heads/main
+  git -C "$L/repo" config user.email smoke@example.invalid
+  git -C "$L/repo" config user.name smoke
+  : > "$L/repo/f"; git -C "$L/repo" add f; git -C "$L/repo" commit -qm init
+  LSHA="$(git -C "$L/repo" rev-parse --short HEAD)"
+  LREC="$L/repo/.attest/ship-20260916-000000-$LSHA.md"
+  LLOG="$L/repo/.attest/tmp/ship-guard.log"
+  # Distinctive, and shaped like no key: a `ghp_…` value here made betterleaks' own github-pat rule
+  # fire on this file, so the guard stopped the push that shipped it, and every full audit of this
+  # repository — or of a repository generated from it — would have reported it forever.
+  STUB_SECRET="SMOKE-STUB-SECRET-never-a-real-credential"
+  cat > "$L/bin/betterleaks" <<EOF
+#!/bin/sh
+printf '%s\n' "\$@" > "$L/argv"
+pwd -P > "$L/pwd"
+echo "Secret: $STUB_SECRET"
+echo "Secret: $STUB_SECRET" >&2
+sleep "\${STUB_SLEEP:-0}"
+exit "\${STUB_EXIT:-0}"
+EOF
+  chmod +x "$L/bin/betterleaks"
+}
+lguard() { # lguard <stub exit> <command> [VAR=value ...] — later assignments win
+  _e="$1"; _c="$2"; shift 2
+  rm -f "$L/argv" "$L/pwd"
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"}}" |
+    env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT="$_e" CLAUDE_PROJECT_DIR="$L/repo" "$@" sh "$GUARD"
+}
+# col <n> — field n of the last trace line: 2 is the decision, 5 the scan outcome
+col() { tail -n 1 "$LLOG" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+clean_record() { printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$LSHA" > "$LREC"; }
+fx_push() { [ -z "${_fx_push:-}" ] || return 0; _fx_push=1
+  P="$WORK/pushshape"; mkdir -p "$P"
+  git init -q --bare "$P/remote.git"
+  git init -q "$P/repo"
+  git -C "$P/repo" symbolic-ref HEAD refs/heads/main
+  git -C "$P/repo" config user.email smoke@example.invalid
+  git -C "$P/repo" config user.name smoke
+  : > "$P/repo/f"; git -C "$P/repo" add f; git -C "$P/repo" commit -qm init
+  git -C "$P/repo" remote add origin "$P/remote.git"
+  git -C "$P/repo" push -q origin main 2>/dev/null
+  git -C "$P/repo" checkout -qb feature
+  : > "$P/repo/g"; git -C "$P/repo" add g; git -C "$P/repo" commit -qm feature
+  git -C "$P/repo" checkout -q main
+  : > "$P/repo/h"; git -C "$P/repo" add h; git -C "$P/repo" commit -qm ahead
+  git init -q "$P/other"
+  git -C "$P/other" -c user.email=smoke@example.invalid -c user.name=smoke commit -q --allow-empty -m other
+  ln -s "$P/other" "$P/repo/L"
+  PSHA="$(git -C "$P/repo" rev-parse --short HEAD)"
+  mkdir -p "$P/repo/.attest"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$PSHA" > "$P/repo/.attest/ship-20260927-000000-$PSHA.md"
+}
+pguard() {
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$P/repo" sh "$GUARD"
+}
+pcol() { tail -n 1 "$P/repo/.attest/tmp/ship-guard.log" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+passes() { if [ -z "$(pguard "$1")" ]; then ok "$2"; else fail "$2"; fi; }
+# cfix <name> [commit] — `init` on a remote, then X (src/a.py) and a clean record for X, untracked;
+# with `commit`, the record is committed on its own: the carrier.
+cfix() {
+  C="$WORK/carrier/$1/repo"
+  git init -q --bare "$WORK/carrier/$1/remote.git"; git init -q "$C"
+  git -C "$C" symbolic-ref HEAD refs/heads/main
+  git -C "$C" config user.email smoke@example.invalid; git -C "$C" config user.name smoke
+  : > "$C/f"; git -C "$C" add f; git -C "$C" commit -qm init
+  git -C "$C" remote add origin "$WORK/carrier/$1/remote.git"; git -C "$C" push -q origin main 2>/dev/null
+  mkdir -p "$C/src" "$C/.attest"; echo a > "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm work
+  X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
+  if [ "${2:-}" = commit ]; then git -C "$C" add "$CREC"; git -C "$C" commit -qm 'chore: commit the ship record'; fi
+}
+cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD"; }
+cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
+cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
+casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
+# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
+cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
+  says "…traced blocked" "$(cdec)" '^blocked$'; }
+cfix happy commit
+
+# --- groups: six processes at once, each with its own $WORK (#42) ---------------------------
+# With no SMOKE_GROUP the suite starts the six groups in parallel, prints their output in order
+# and adds up their verdicts; a group that dies before its verdict counts as a failure.
+# SMOKE_GROUP=all runs every group in this one process, in order; SMOKE_GROUP=<n> runs one.
+SMOKE_GROUP="${SMOKE_GROUP:-}"
+grp() { [ "$SMOKE_GROUP" = all ] || [ "$SMOKE_GROUP" = "$1" ]; }
+sh_check() {
+  # The hooks run as `sh <hook>`, so the `sh` on PATH is the shell under test. CI names the one it
+  # wants in ATTEST_SMOKE_WANT_SH (dash on ubuntu); a runner image that changed it fails here.
+  SH_REAL="$(readlink -f "$(command -v sh)" 2>/dev/null || command -v sh)"
+  echo "smoke: hooks run under $SH_REAL"
+  if [ -n "${ATTEST_SMOKE_WANT_SH:-}" ]; then
+    case "$SH_REAL" in */"$ATTEST_SMOKE_WANT_SH") ok "the hooks run under $ATTEST_SMOKE_WANT_SH" ;;
+      *) fail "the hooks run under $ATTEST_SMOKE_WANT_SH, not $SH_REAL" ;; esac
+  fi
+}
+if [ -z "$SMOKE_GROUP" ]; then
+  sh_check
+  for _g in 1 2 3 4 5 6; do SMOKE_GROUP=$_g bash "${BASH_SOURCE[0]}" > "$WORK/group-$_g.out" 2>&1 & done
+  wait || true
+  for _g in 1 2 3 4 5 6; do
+    while IFS= read -r _l; do case "$_l" in 'smoke: '[0-9]*' passed, '*) ;; FAIL:*) echo "$_l" >&2 ;; *) echo "$_l" ;; esac
+    done < "$WORK/group-$_g.out"
+    _sum="$(sed -n 's/^smoke: \([0-9]*\) passed, \([0-9]*\) failed$/\1 \2/p' "$WORK/group-$_g.out")"
+    if [ -n "$_sum" ]; then PASS=$((PASS + ${_sum% *})); FAIL=$((FAIL + ${_sum#* }))
+    else fail "group $_g ran to its verdict"; fi
+  done
+  echo
+  echo "smoke: $PASS passed, $FAIL failed"
+  if [ "$FAIL" -eq 0 ]; then exit 0; else exit 1; fi
+fi
+[ "$SMOKE_GROUP" != all ] || sh_check
+
+if grp 1; then
 # --- 0. the kit carries no interpreter dependency --------------------------------------
 echo "kit shape:"
 py_count=$(find "$KIT/.claude" -name '*.py' | wc -l)
@@ -53,15 +196,6 @@ check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
 # #34 (b): one read-only auditor replaces the reviewer, the doc-auditor and the ladder they shared.
 _agents="$(ls "$KIT/.claude/agents")"
 if [ "$_agents" = auditor.md ]; then ok "the kit ships one subagent, the auditor"; else fail "the kit ships one subagent, the auditor ($(printf '%s' "$_agents" | tr '\n' ' '))"; fi
-
-# The hooks run as `sh <hook>`, so the `sh` on PATH is the shell under test. CI names the one it
-# wants in ATTEST_SMOKE_WANT_SH (dash on ubuntu); a runner image that changed it fails here.
-SH_REAL="$(readlink -f "$(command -v sh)" 2>/dev/null || command -v sh)"
-echo "smoke: hooks run under $SH_REAL"
-if [ -n "${ATTEST_SMOKE_WANT_SH:-}" ]; then
-  case "$SH_REAL" in */"$ATTEST_SMOKE_WANT_SH") ok "the hooks run under $ATTEST_SMOKE_WANT_SH" ;;
-    *) fail "the hooks run under $ATTEST_SMOKE_WANT_SH, not $SH_REAL" ;; esac
-fi
 
 # --- 0. budgets: one table, the one home of every size limit (#42) ----------------------------
 # Nothing failed when prose grew, so it grew. A row is <file> <unit> <limit>; the units:
@@ -457,21 +591,12 @@ says     "a level-3 subheading does not end its parent section" \
 says_not "…and an override aimed at one selects nothing" \
          "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Detail' sh "$DECL")" 'sub marker'
 
+fi
+
+if grp 2; then
 # --- 3. the ship guard: asks exactly at the boundary -----------------------------------
 echo "hooks — PreToolUse ship guard:"
-# The guard calls `betterleaks` on a push when one is on PATH (ADR-0070). CI has none and a
-# developer machine may, so every guard case in this suite runs with the scanner switched off —
-# otherwise the same suite would pass or fail by what happens to be installed. The one section
-# that tests the scanner switches it back on, against a stub it controls.
-export ATTEST_LEAK_SCAN=off
-S="$WORK/ship"; mkdir -p "$S"
-git -C "$S" init -q .
-git -C "$S" symbolic-ref HEAD refs/heads/main
-git -C "$S" config user.email smoke@example.invalid
-git -C "$S" config user.name smoke
-: > "$S/f"; git -C "$S" add f; git -C "$S" commit -qm init
-SHA="$(git -C "$S" rev-parse --short HEAD)"
-guard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"; }
+fx_ship
 
 if [ -z "$(guard 'ls -la')" ]; then ok "an ordinary command passes untouched"; else fail "an ordinary command passes untouched"; fi
 says "git push without a record asks"        "$(guard 'git push origin main')" 'permissionDecision":"ask'
@@ -653,7 +778,6 @@ rm -f "$S"/.attest/ship-*.md
 # The record the guard above reads is an ordinary untracked file, and the ship guard judges
 # commands and publish tools — so the Write tool went straight past it. These two arms make the
 # write a prompt.
-rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
 says "writing a ship record asks"                "$(rguard "$S/.attest/ship-20260910-000000-abc1234.md")" 'permissionDecision":"ask'
 if [ -z "$(rguard "$S/src/main.py")" ]; then ok "an ordinary file write passes untouched"; else fail "an ordinary file write passes untouched"; fi
 if [ -z "$(rguard "$S/.attest/gate-20260910-000000-abc1234.md")" ]; then ok "a gate record is not gated — no machine reads it"; else fail "a gate record is not gated — no machine reads it"; fi
@@ -693,9 +817,6 @@ says "…and a write in the LAST part of a compound" \
 # A GitHub MCP server ships bytes over the API: `git push` is never typed, so the Bash matcher
 # never fires and the gate the README advertises was simply absent there.
 rm -f "$S"/.attest/ship-*.md "$S/.attest/tmp/ship-guard.log"
-mguard() { # mguard <tool> [tool_input JSON body]
-  echo "{\"tool_name\":\"$1\",\"tool_input\":{${2:-}}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"
-}
 says "an MCP push asks"            "$(mguard mcp__github__push_files)" 'permissionDecision":"ask'
 says "an MCP pull request asks"    "$(mguard mcp__github__create_pull_request)" 'permissionDecision":"ask'
 says "an MCP file write asks"      "$(mguard mcp__github__create_or_update_file)" 'permissionDecision":"ask'
@@ -751,9 +872,7 @@ says "a git push through the PowerShell tool asks" \
 # --- no HEAD to name: an empty repository, and no repository at all (ADR-0073) ----------
 # A bare `rev-parse HEAD` prints the word HEAD before failing in an empty repository, so the
 # guard used to think a HEAD existed: it scanned, and asked about a record "for HEAD ()".
-E0="$WORK/empty-repo"; mkdir -p "$E0"; git -C "$E0" init -q
-e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
-  CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
+fx_e0
 says     "a push from a repository with no commits asks"  "$e0_out" 'permissionDecision":"ask'
 says     "…says it has no commits yet"                    "$e0_out" 'NO HEAD — .*no commit yet'
 says     "…and blames the repository"                     "$e0_out" 'This repository has no commit'
@@ -831,43 +950,16 @@ says "a push still claims what a push does"   "$(guard 'git push origin main')" 
 # does not exist yet, and most merges never touch this machine. Do not "fix" this assertion.
 if [ -z "$(guard 'gh pr merge 4 --merge')" ]; then ok "a merge stays silent — a declared gap, not a miss"; else fail "a merge stays silent — a declared gap, not a miss"; fi
 
+fi
+
+if grp 3; then
+fx_ship
 # --- the leak scanner, when one is installed (ADR-0070) --------------------------------
 # A STUB stands in for betterleaks: it records its argv one argument per line and the directory it
 # ran in, prints a fake secret on BOTH streams so a leak into the prompt or the trace would show,
 # sleeps if asked to, and exits with whatever the case asks for.
 echo "hooks — ship guard leak scan:"
-L="$WORK/leakscan"; mkdir -p "$L/repo/.attest" "$L/bin"
-git -C "$L/repo" init -q .
-git -C "$L/repo" symbolic-ref HEAD refs/heads/main
-git -C "$L/repo" config user.email smoke@example.invalid
-git -C "$L/repo" config user.name smoke
-: > "$L/repo/f"; git -C "$L/repo" add f; git -C "$L/repo" commit -qm init
-LSHA="$(git -C "$L/repo" rev-parse --short HEAD)"
-LREC="$L/repo/.attest/ship-20260916-000000-$LSHA.md"
-LLOG="$L/repo/.attest/tmp/ship-guard.log"
-# Distinctive, and shaped like no key: a `ghp_…` value here made betterleaks' own github-pat rule
-# fire on this file, so the guard stopped the push that shipped it, and every full audit of this
-# repository — or of a repository generated from it — would have reported it forever.
-STUB_SECRET="SMOKE-STUB-SECRET-never-a-real-credential"
-cat > "$L/bin/betterleaks" <<EOF
-#!/bin/sh
-printf '%s\n' "\$@" > "$L/argv"
-pwd -P > "$L/pwd"
-echo "Secret: $STUB_SECRET"
-echo "Secret: $STUB_SECRET" >&2
-sleep "\${STUB_SLEEP:-0}"
-exit "\${STUB_EXIT:-0}"
-EOF
-chmod +x "$L/bin/betterleaks"
-lguard() { # lguard <stub exit> <command> [VAR=value ...] — later assignments win
-  _e="$1"; _c="$2"; shift 2
-  rm -f "$L/argv" "$L/pwd"
-  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"}}" |
-    env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT="$_e" CLAUDE_PROJECT_DIR="$L/repo" "$@" sh "$GUARD"
-}
-# col <n> — field n of the last trace line: 2 is the decision, 5 the scan outcome
-col() { tail -n 1 "$LLOG" 2>/dev/null | awk -v n="$1" '{print $n}'; }
-clean_record() { printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$LSHA" > "$LREC"; }
+fx_leak
 clean_record
 
 # A clean scan changes nothing — and the scanner was asked exactly the right question, argument by
@@ -1032,30 +1124,7 @@ fi
 # --- 3a. a record speaks for HEAD, so the push has to ship HEAD alone (ADR-0076) --------
 # Each of these passed silently on v0.12.1 with a clean record for HEAD, and traced `pass`.
 echo "hooks — ship guard: what the push ships:"
-P="$WORK/pushshape"; mkdir -p "$P"
-git init -q --bare "$P/remote.git"
-git init -q "$P/repo"
-git -C "$P/repo" symbolic-ref HEAD refs/heads/main
-git -C "$P/repo" config user.email smoke@example.invalid
-git -C "$P/repo" config user.name smoke
-: > "$P/repo/f"; git -C "$P/repo" add f; git -C "$P/repo" commit -qm init
-git -C "$P/repo" remote add origin "$P/remote.git"
-git -C "$P/repo" push -q origin main 2>/dev/null
-git -C "$P/repo" checkout -qb feature
-: > "$P/repo/g"; git -C "$P/repo" add g; git -C "$P/repo" commit -qm feature
-git -C "$P/repo" checkout -q main
-: > "$P/repo/h"; git -C "$P/repo" add h; git -C "$P/repo" commit -qm ahead
-git init -q "$P/other"
-git -C "$P/other" -c user.email=smoke@example.invalid -c user.name=smoke commit -q --allow-empty -m other
-ln -s "$P/other" "$P/repo/L"
-PSHA="$(git -C "$P/repo" rev-parse --short HEAD)"
-mkdir -p "$P/repo/.attest"
-printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$PSHA" > "$P/repo/.attest/ship-20260927-000000-$PSHA.md"
-pguard() {
-  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$P/repo" sh "$GUARD"
-}
-pcol() { tail -n 1 "$P/repo/.attest/tmp/ship-guard.log" 2>/dev/null | awk -v n="$1" '{print $n}'; }
-passes() { if [ -z "$(pguard "$1")" ]; then ok "$2"; else fail "$2"; fi; }
+fx_push
 passes 'git push'                           "a plain push of HEAD passes on HEAD's record"
 passes 'git push origin'                    "…and so does one naming only the remote"
 passes 'git push -u origin main'            "…and one naming the branch HEAD is on"
@@ -1146,33 +1215,15 @@ _out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/.attest/ship-
   env LC_ALL=C.UTF-8 CLAUDE_PROJECT_DIR="$P/repo" sh "$RGUARD")"
 says "record_guard asks on a record write holding an invalid byte" "$_out" 'permissionDecision":"ask'
 
+fi
+
+if grp 4; then
+fx_ship; fx_leak; fx_push
 # --- 3a2. a commit that only adds records carries them (ADR-0077) ----------------------
 # Committing a record moves HEAD, so the push that carried it asked with no evidence behind the
 # answer. HEAD now passes as the commit X a clean record names, traced `pass-carrier`, when X..HEAD
 # only adds records; every other shape below still asks.
 echo "hooks — ship guard: the record's own commit:"
-# cfix <name> [commit] — `init` on a remote, then X (src/a.py) and a clean record for X, untracked;
-# with `commit`, the record is committed on its own: the carrier.
-cfix() {
-  C="$WORK/carrier/$1/repo"
-  git init -q --bare "$WORK/carrier/$1/remote.git"; git init -q "$C"
-  git -C "$C" symbolic-ref HEAD refs/heads/main
-  git -C "$C" config user.email smoke@example.invalid; git -C "$C" config user.name smoke
-  : > "$C/f"; git -C "$C" add f; git -C "$C" commit -qm init
-  git -C "$C" remote add origin "$WORK/carrier/$1/remote.git"; git -C "$C" push -q origin main 2>/dev/null
-  mkdir -p "$C/src" "$C/.attest"; echo a > "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm work
-  X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
-  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
-  if [ "${2:-}" = commit ]; then git -C "$C" add "$CREC"; git -C "$C" commit -qm 'chore: commit the ship record'; fi
-}
-cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD"; }
-cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
-cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
-casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
-# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
-cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
-  says "…traced blocked" "$(cdec)" '^blocked$'; }
-cfix happy commit
 _out="$(cguard 'git push')"; _rc=$?
 if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's clean record passes: exit 0, no output"
   else fail "a push whose HEAD only adds X's clean record passes: exit 0, no output"; fi
@@ -1316,6 +1367,10 @@ says "a bare push under push.default=matching, another branch ahead, asks" "$(cg
 says "…traced ask, never pass-carrier" "$(cdec)" '^ask$'
 cpasses 'git push origin main' "…while naming HEAD's branch still passes as the carrier"
 
+fi
+
+if grp 5; then
+fx_ship; fx_e0; fx_leak
 # --- 3a3. what the list reads, what the prompt says, and who answers it (ADR-0078) -------
 echo "hooks — ship guard: spellings, prompts and the deny switch:"
 cfix norec; rm "$C/$CREC"; NR="$C"
@@ -1466,6 +1521,9 @@ chmod 500 "$G/.attest/tmp"
 says "an unwritable scratch still yields a decision" "$(tguard 'git push origin main')" 'permissionDecision":"ask'
 chmod 700 "$G/.attest/tmp"
 
+fi
+
+if grp 6; then
 # --- 4. install.sh: 10 files and 2 lines into a repo, no document; a re-run is one line (#39) --
 echo "install.sh — a fresh repo:"
 gi() { git init -q "$1" && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init; }
@@ -1663,6 +1721,8 @@ _RF="$(grep -oE '\.attest/ship-[0-9]{8}-[0-9]{6}-[0-9a-f]+\.md' "$KIT/README.md"
 check "README quotes a ship guard prompt" test -n "$_RQ"
 check "…whose verdict, action, reason and next step are still the hook's" quoted_prompt
 check "README's ship record block is the record it links, byte for byte" quoted_record
+
+fi
 
 # --- verdict ---------------------------------------------------------------------------
 echo
