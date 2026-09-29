@@ -1617,6 +1617,25 @@ ask@xargs -I{} docker --context prod push {}
 ask@# it's ready\nnpm --silent publish
 ask@git commit -F- <<'EOF'\nDon't ship twice\nEOF\ncargo +nightly publish
 ask@git config alias.p push
+ask@git commit -m \"feat: x\n\nbody line\" && npm --silent publish
+ask@git commit -m 'feat: x\n\nbody' && npm --silent publish
+ask@git commit -m \"feat: x\nbody\" && docker --debug push img
+ask@git commit -m \"feat: x\nbody\" && git $V origin
+ask@git commit -m \"feat: x\nbody\" && git -c alias.p=push p
+ask@echo \"a\nb\"; docker --debug push img
+ask@git config alias.x pu\"\"sh
+ask@git config --global alias.x 'pu''sh'
+ask@git config alias.x \"$V\"
+ask@git config set alias.x pu\"\"sh
+ask@sudo -Eu deploy npm --silent publish
+ask@sudo -iu deploy npm --silent publish
+ask@/usr/bin/env npm --silent publish
+ask@/usr/bin/time -o f npm --silent publish
+ask@\"sudo\" npm --silent publish
+ask@setsid npm --silent publish
+ask@ionice -c3 npm --silent publish
+ask@xargs --max-args 1 npm --silent publish
+ask@stdbuf --output L npm --silent publish
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
@@ -1642,6 +1661,10 @@ silent@rsync --dry-run -a src/ host:dst
 silent@git config --get alias.co
 silent@git config --get-regexp alias
 silent@x git; A=alias.b
+silent@sudo -u deploy npm test
+silent@timeout 60 npm run build
+silent@git config user.name push
+silent@git commit -m \"feat: x\n\nbody line\"
 ROWS
 }
 for _rec in none clean; do
