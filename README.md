@@ -43,7 +43,7 @@ Claude runs a push, and no clean record covers HEAD. The ship guard stops it and
 prompt is real, from a fresh install:
 
 ```text
-attest ship guard: NO RECORD — sends data off the machine (git push origin main). No clean /gate record names HEAD 80b75af. Run /gate, which commits its record, then push; or approve anyway.
+attest ship guard: NO RECORD — sends data off the machine (git push origin main). No clean ship record names HEAD 80b75af. Run /gate, which commits its record, then push; or approve anyway.
 ```
 
 `/gate` runs betterleaks and the auditor over what the push would send, then writes a ship
