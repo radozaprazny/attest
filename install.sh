@@ -231,9 +231,9 @@ ensure_attribute() {
   G_NEW=$((G_NEW + 1))
 }
 
-# The kit's one version marker lives inside the shared ladder, so it travels with every
-# install (ADR-0018) — there is no separate VERSION file to copy or clean up.
-KIT_VERSION="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/_shared/audit-ladder.md" 2>/dev/null || true)"
+# The kit's one version marker lives inside /gate's skill, so it travels with every install
+# (ADR-0018) — there is no separate VERSION file to copy or clean up.
+KIT_VERSION="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/gate/SKILL.md" 2>/dev/null || true)"
 echo
 echo "attest${KIT_VERSION:+ $KIT_VERSION}  →  $TARGET"
 echo
@@ -270,15 +270,26 @@ for dir in "$KIT"/.claude/skills/*/; do
     continue
   fi
   copy_tree_if_absent ".claude/skills/$sk"
-  # _shared holds the ladder, not a skill — it installs, but it is not a command you can type.
-  [ "$sk" = "_shared" ] || CMDS="$CMDS /$sk"
+  CMDS="$CMDS /$sk"
 done
 say "$(group_icon)" "Commands" "${CMDS# }"
 
 # --- subagents ---------------------------------------------------------------------------
 group_reset
 copy_tree_if_absent ".claude/agents"
-say "$(group_icon)" "Checks" "auditor — the read-only subagent /gate runs · reviewer · doc-auditor"
+say "$(group_icon)" "Checks" "auditor — the read-only subagent /gate runs"
+
+# Retired in kit 0.18.0 (#34). Copy-if-absent never deletes, so an upgrade names what an older
+# kit left: a leftover /audit-history still writes records the guard accepts, without the auditor.
+for old in .claude/skills/audit-history .claude/skills/_shared .claude/skills/gate/triggers.sh \
+           .claude/agents/reviewer.md .claude/agents/doc-auditor.md; do
+  if [ -e "$TARGET/$old" ] || [ -L "$TARGET/$old" ]; then
+    note_needs_you "$old" "retired in kit 0.18.0, replaced by /gate and its auditor — delete it"
+  fi
+done
+if grep -qxF '.claude/skills/*/*.sh text eol=lf' "$TARGET/.gitattributes" 2>/dev/null; then
+  note_needs_you ".gitattributes" "delete the line .claude/skills/*/*.sh text eol=lf — an older kit wrote it, and it also rewrites your own skill scripts"
+fi
 
 # --- hooks + their wiring ----------------------------------------------------------------
 # Warn about unwired hooks only when the kept settings.json really leaves one unwired: an
@@ -326,9 +337,8 @@ fi
 say "$(group_icon)" "Guards" "non-goals into every session · a ship gate before anything leaves"
 
 # --- the reference guide: this one always lands -------------------------------------------
-# GUIDE.md is the kit's reference manual, not a runtime dependency: the shared audit ladder and
-# the ownership contract live in .claude/skills/_shared/audit-ladder.md, which installs with the
-# skills that read it (ADR-0010). The "GUIDE PART N" references in the skills are documentation
+# GUIDE.md is the kit's reference manual, not a runtime dependency: /gate and its auditor carry
+# every rule they apply (ADR-0010). The "GUIDE PART N" references in the skills are documentation
 # pointers — a dangling one costs a reader a lookup, not an audit its severity.
 GUIDE_REF="GUIDE.md"   # which file the kit's manual ended up in — the NEXT steps cite it
 GUIDE_ICON="·"
@@ -376,12 +386,6 @@ ensure_attribute ".claude/hooks/* text eol=lf"
 # alone between Windows and a false diagnosis. Narrow, like the line above: `.attest/` is the
 # kit's own directory, never the user's source.
 ensure_attribute ".attest/*.md text eol=lf"
-# The gate's stage-0 script is the kit's first executable outside .claude/hooks/, and a CR at
-# the end of its last token breaks it exactly as it breaks a hook — with the difference that
-# this one fails open and silently, so the gate would quietly run every pass instead of
-# refusing to start. Narrow like the two above: only the kit's own skill directories
-# (attest ADR-0039, ADR-0067).
-ensure_attribute ".claude/skills/*/*.sh text eol=lf"
 
 ensure_ignore ".claude/settings.local.json"
 # The run records under .attest/ are meant to be committed; only the shared scratch is not —

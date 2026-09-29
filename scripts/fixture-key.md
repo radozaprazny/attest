@@ -29,9 +29,8 @@ invented a floor. Leave it out and the auditor has missed a fault.
   is the auditor's alone. It also scans the untracked file under its real name, which tests
   `-z` and `quotepath=off`.
 - No finding under `.claude/`: the kit is untracked, and its 9 files are excluded from the
-  material. Until #34 (b) deletes them, the old passes' files (`reviewer.md`, `doc-auditor.md`,
-  `_shared/`, `triggers.sh`, `audit-history/`) are still in the untracked list, and so is
-  `settings.json`. The auditor reads them as the kit's own install.
+  material. Of `.claude/`, only `settings.json` stays in the untracked list; the auditor
+  reads it as the kit's own install.
 
 **Scoring.** A fault counts as found when its class and path match and its severity is the one
 above. An extra note must cite evidence. An extra blocker is a false positive and counts

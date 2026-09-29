@@ -5,7 +5,7 @@ choices → DECISIONS.md · backlog → GitHub issues · history → `docs/archi
 
 ## Shell
 - Hooks are POSIX `sh`; `install.sh` and `scripts/*.sh` are bash.
-- Lint as CI does: `uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh .claude/skills/gate/triggers.sh`
+- Lint as CI does: `uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh`
 
 ## Verify
 - `./scripts/smoke.sh` must end `0 failed`; a hook change comes with its smoke case.

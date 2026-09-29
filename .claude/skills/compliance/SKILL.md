@@ -1,18 +1,15 @@
 ---
 name: compliance
 description: >-
-  Creates, maintains and audits COMPLIANCE.md — the project's declared compliance posture
+  Creates and maintains COMPLIANCE.md — the project's declared compliance posture
   (which regimes apply, the self-assessed classification, the obligations that follow, data
   handling). EU-first (EU AI Act + GDPR as two independent axes). Reads BUSINESS.md's archetype
   as a TRIGGER for whether the AI Act may apply — it never assigns the legal tier from the
-  archetype alone. Three modes: bootstrap, update, and `audit` (does the diff touch regulated
-  ground — a new personal-data field, a new model/automated decision, a new data source —
-  against the declared posture; read-only). Surfaces provisions & checklists, NEVER a legal
-  verdict. Optionally verifies live via an EU-AI-Act MCP if one is connected; works offline
-  without it. Do NOT use it for status (PROGRESS.md), rules (CLAUDE.md), non-goals
+  archetype alone. Two modes: bootstrap and update. Surfaces provisions & checklists, NEVER
+  a legal verdict. Optionally verifies live via an EU-AI-Act MCP if one is connected; works
+  offline without it. Do NOT use it for status (PROGRESS.md), rules (CLAUDE.md), non-goals
   (BUSINESS.md) or decision rationale (DECISIONS.md).
 disable-model-invocation: true
-argument-hint: "[audit]"
 ---
 
 # /compliance — declared compliance posture (COMPLIANCE.md)
@@ -69,10 +66,12 @@ shelf life, and this one is written to send you to a live source instead.
 If an **EU-AI-Act MCP** is connected (an account connector or a project `.mcp.json` — see
 GUIDE PART 6), use it to *enrich and verify*: look up a provision, classify a description,
 list obligations for a role/risk, check a deadline, check a document for gaps. Where the live
-result and the offline checklist **diverge**, report it as **major** ("posture gap — verify"),
+result and the offline checklist **diverge**, mark it open ("posture gap — verify"),
 never as a verdict for either side. Cite which findings were MCP-verified in §9.
 
-## Three modes
+## Two modes
+
+The argument `audit` is retired: say `/gate` checks regulated ground before a push, and stop.
 
 ### Mode 1 — COMPLIANCE.md is absent, or still the shipped template (bootstrap)
 
@@ -105,99 +104,7 @@ never as a verdict for either side. Cite which findings were MCP-verified in §9
    sections**; refresh **Last reviewed**. 4. If a regime's applicability changed, say so and
    re-cite. If unsure, **ask** — do not guess a legal conclusion.
 
-### Mode 3 — `audit` (does the diff touch regulated ground?)
-
-Invoked as **`/compliance audit`**. Read-only. It **owns regulated ground** — a scope/non-goal
-question is `/business audit`'s and an undocumented decision that lands on no regulated ground
-is `/decision audit`'s (the ladder's `/decision` ↔ `/compliance` edge settles the overlap), so
-one hunk is flagged once.
-
-> **The shell trigger is a NARROWER projection of the list below, and the gap is yours to know**
-> (attest ADR-0067). `triggers.sh`'s pattern reaches every class the ladder calls an automatic
-> blocker — special-category data, national identifiers, Art 5 practices — but it is a word
-> list: it does not see a postal address written as `street`+`city`+`zip` in three separate
-> fields, a transfer described without the word, or a vendor it has never heard of. **Read this
-> section as what the audit covers; read the pattern as what wakes the audit up.** `/gate full`
-> runs you without either.
->
-> **Inside `/gate`, the two checks below have already run in shell** (attest ADR-0067).
-> `triggers.sh` decides the trigger from the diff and states the posture as a mechanical fact,
-> so a light-mode run that reaches you at all has already hit — and you receive
-> `$M/trigger-compliance.txt`, the `file:line` list of what hit, as your starting point rather
-> than your boundary. **Read the two sections anyway**: in `/gate full`, when the skill is run
-> on its own, and whenever no trigger file was handed to you, they are yours to apply. The hits
-> are a lead, never the finding: the pass is still the whole diff against the declared posture.
-
-#### Step 0 — the posture check, before anything else
-
-**You are installed, so this project's posture is your ground whether or not the diff touches
-it.** Before the trigger, ask one question: **is a posture declared at all?** *No posture
-declared* means either `COMPLIANCE.md` is **absent**, or it exists with its sections still
-`<placeholder>` text — the same rule Modes 1 and 2 apply. Both count, and keying this on the
-file merely *existing* is how the state comes back: a user told to "delete it" would land in a
-repo where this skill still owns regulated ground and nothing ever speaks.
-
-If no posture is declared, say so in **one line**, a **minor** — which never moves the verdict
-line at all (`_shared/audit-ladder.md`, *What flips the verdict line*):
-
-> *"no posture declared (`COMPLIANCE.md` absent / still placeholders) while `/compliance` is
-> installed — run `/compliance` to fill it, or remove **both** `COMPLIANCE.md` and
-> `.claude/skills/compliance/` and record in one sentence why the project is out of scope."*
-
-Removing **both** is the only remedy that leaves a consistent state: with the skill gone, the
-ladder re-assigns this ground to another audit; with the skill present and the file gone,
-nobody owns it. Never advise deleting the file alone.
-
-**One escape.** If the project *ships* `COMPLIANCE.md` as a template for someone else and keeps
-its own posture elsewhere — the kit's own repo is the case, and `/gate`'s `$DOCS` and the
-declaration hook's `ATTEST_BUSINESS` handle the same ADR-0006 tension — then a posture recorded
-in that other place satisfies this check. Say where you found it and move on.
-
-Report this once, here. Do **not** repeat it in step 1 of the full pass.
-
-#### The trigger check
-
-**Do this on the diff and nothing else** (step 0 above has already run): no `COMPLIANCE.md`, no
-MCP call, no other document. Look for any of —
-
-- a new or renamed **field, column, parameter or log line** that can hold personal data (name,
-  email, phone, address, IP, device or account identifier, location, or anything
-  special-category under Art 9 — health, biometrics, ethnicity, beliefs, sex life);
-- a new **model, inference call, score, ranking or automated decision** about people;
-- a new **data source, export, third-party SDK, or cross-border transfer**;
-- anything resembling a **prohibited (Art 5)** practice.
-
-**No hit → return step 0's line, if it applied, plus exactly `out of scope — nothing in this
-diff touches regulated ground`, and stop.** That is the whole audit; it is the common case and
-it is a correct result. One hit → the full pass:
-
-1. **Read `COMPLIANCE.md`** — the declared posture. If step 0 already found none, carry that
-   forward and do not compare the diff against an empty file; do not file the finding twice.
-2. **Scan the diff for regulated ground** — a new **personal-data field**, a new **model or
-   automated decision**, a new **data source / transfer**, a feature touching a **prohibited
-   (Art 5)** practice (biometric categorisation, emotion recognition, scraping, scoring →
-   highest severity).
-3. **Compare to the posture** — is this covered, or a gap? Use the MCP to check obligations /
-   gaps if present.
-4. **Return a short verdict** (shared audit ladder — see `.claude/skills/_shared/audit-ladder.md`). For each finding: a
-   one-line description, **evidence** (`file:line` / commit), and a severity —
-   - **blocker** — a new feature bearing on a **prohibited (Art 5)** practice, personal data
-     handled with no lawful basis in the posture, or any **special-category (Art 9) or
-     national-ID** field: the ladder's floor is absolute and applies here first, before this
-     list;
-   - **major** — regulated ground the declared posture does not cover;
-   - **minor** — a stale citation, a missing **Last reviewed**, an un-cited obligation.
-
-   If the hunk is also an **unrecorded decision** (a new dependency, a swapped library), it is
-   still yours alone under the ladder's `/decision` ↔ `/compliance` edge — name the missing ADR
-   in one clause of your finding rather than leaving it to a second one.
-   Phrase findings as *"this diff may bear on Art X — re-check the classification"*, **never**
-   *"this is now high-risk / non-compliant"* (that is for a human/DPO). End with a recommended
-   `COMPLIANCE.md` update — but **do not** make it. If the full pass finds the posture already
-   covers everything the trigger caught, say so in one line. **The audit writes nothing.**
-
 ## After editing
 
-- **Bootstrap / update:** do **not** commit automatically — leave the commit to me (`docs:`).
+- Do **not** commit automatically — leave the commit to me (`docs:`).
   Change nothing other than `COMPLIANCE.md`. Summarize what you classified and every open gap.
-- **Audit:** read-only — report the verdict, change nothing at all.

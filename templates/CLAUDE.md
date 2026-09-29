@@ -28,8 +28,8 @@ demand.
 
 > **Note — attest ships no formatter.** The kit deliberately installs nothing that edits your
 > code: use your own formatter, your own config, at your own moment (a pre-commit hook, your
-> editor, CI). Write the command here so the `reviewer` subagent runs the same one you do —
-> it derives the project's conventions from this file and from nothing else. See GUIDE PART 2.
+> editor, CI). Write the command here so Claude, and `/code-review`, read the same one you
+> run. See GUIDE PART 2.
 
 ## Commit style
 

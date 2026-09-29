@@ -52,6 +52,9 @@ py_count=$(find "$KIT/.claude" -name '*.py' | wc -l)
 if [ "$py_count" -eq 0 ]; then ok "no .py anywhere under .claude/"; else fail "no .py anywhere under .claude/ ($py_count found)"; fi
 check "no formatter config ships"  test ! -e "$KIT/ruff.toml"
 check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
+# #34 (b): one read-only auditor replaces the reviewer, the doc-auditor and the ladder they shared.
+_agents="$(ls "$KIT/.claude/agents")"
+if [ "$_agents" = auditor.md ]; then ok "the kit ships one subagent, the auditor"; else fail "the kit ships one subagent, the auditor ($(printf '%s' "$_agents" | tr '\n' ' '))"; fi
 
 # --- 0a. the gate's word budgets (issue #34) --------------------------------------------
 # Every word of these two files is paid on every /gate run, in two contexts. The targets are
@@ -65,202 +68,6 @@ check "the auditor can read and nothing else" grep -qx 'tools: Read, Grep, Glob'
 desc_w=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$AUDITOR_MD" 2>/dev/null || true; } | wc -w)
 if [ "$desc_w" -ge 1 ] && [ "$desc_w" -le 40 ]; then ok "the auditor's description is 1-40 words ($desc_w)"; else fail "the auditor's description is 1-40 words ($desc_w)"; fi
 check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
-
-# --- 0b2. `/gate fix`: the contract, in the files that have to agree -------------------
-# #34 (a) rewrote /gate without fix mode, so the cases that pinned it in gate/SKILL.md are gone.
-# What is left pins the reviewer and the ladder, which #34 (b) deletes with this section.
-echo "gate fix — the contract:"
-check "the reviewer has the re-review mode the loop calls" \
-  grep -q '^## Re-review mode' "$KIT/.claude/agents/reviewer.md"
-check "…and is told not to re-litigate an untouched hunk" \
-  grep -q 'Do not re-litigate' "$KIT/.claude/agents/reviewer.md"
-check "…and counts to the same cap the skill states" \
-  grep -q 'round <n>/3' "$KIT/.claude/agents/reviewer.md"
-# ADR-0071: the mark is written by /business under the ladder's output shape.
-check "the ladder's output shape carries the repair mark on a /business blocker" \
-  grep -q './business. blocker only.*.repair: code.' "$KIT/.claude/skills/_shared/audit-ladder.md"
-check "…and /business is told to set it on every blocker" \
-  grep -q 'Mark every blocker .repair: code. or .repair: person.' "$KIT/.claude/skills/business/SKILL.md"
-check "…and the ladder carries the same exception" \
-  grep -q 'no code with' "$KIT/.claude/skills/_shared/audit-ladder.md"
-
-# --- 0c. the gate's stage 0: which passes does this diff need? -------------------------
-# Five rules, five fixtures. Each one stands for a subagent context that used to be spent to
-# discover nothing — and the last two for the opposite risk, a pass skipped that should have
-# run. The script decides from the diff alone, so the fixtures are diffs (attest ADR-0067).
-echo "gate stage 0 — triggers:"
-TRG="$KIT/.claude/skills/gate/triggers.sh"
-S0="$WORK/stage0"
-mkdir -p "$S0/repo/.claude/skills/compliance" "$S0/M"
-: > "$S0/M/status.txt"
-
-stage0() { # stage0 — run the script over $S0/M/diff.patch inside the fixture repo
-  rm -f "$S0/M/triggers.txt" "$S0/M"/trigger-*.txt
-  ( cd "$S0/repo" && sh "$TRG" "$S0/M" >/dev/null 2>&1 )
-  cat "$S0/M/triggers.txt" 2>/dev/null
-}
-
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/.attest/gate-20260101-000000-abc1234.md b/.attest/gate-20260101-000000-abc1234.md
---- /dev/null
-+++ b/.attest/gate-20260101-000000-abc1234.md
-@@ -0,0 +1,2 @@
-+# gate run
-+- findings: 0 blocker · 0 major · 0 minor
-EOF
-out=$(stage0)
-says     "a records-only diff skips every pass"      "$out" 'reviewer skip · records only'
-says_not "…including the reviewer"                   "$out" 'reviewer run'
-
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/package.json b/package.json
---- a/package.json
-+++ b/package.json
-@@ -3,5 +3,6 @@
-   "dependencies": {
-+    "left-pad": "^1.3.0"
-   }
-EOF
-out=$(stage0)
-says "a dependency manifest runs /decision audit" "$out" 'decision run'
-says "…and the reviewer with it"                  "$out" 'reviewer run'
-check "the hits are handed over as evidence" test -s "$S0/M/trigger-decision.txt"
-
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/src/user.py b/src/user.py
---- a/src/user.py
-+++ b/src/user.py
-@@ -1,2 +1,3 @@
- class User:
-+    email = ""
-EOF
-out=$(stage0)
-says "a personal-data field runs /compliance audit" "$out" 'compliance run'
-says "…and does not run /decision on it"            "$out" 'decision skip'
-# The line number is the one the finding will cite: line 2 of the new file, not of the hunk.
-check "the evidence cites the new file's own line" grep -q '^src/user\.py:2:' "$S0/M/trigger-compliance.txt"
-
-# Same diff, with the skill removed: a project that opted out must read as "not installed",
-# never as a pass that ran and found nothing (ADR-0030).
-mv "$S0/repo/.claude/skills/compliance" "$S0/repo/.claude/skills/compliance-off"
-out=$(stage0)
-says "without the skill, compliance is not-installed" "$out" 'compliance not-installed'
-mv "$S0/repo/.claude/skills/compliance-off" "$S0/repo/.claude/skills/compliance"
-
-# BUSINESS.md still the shipped skeleton: nothing declared, and no subagent to say so.
-cp "$KIT/templates/BUSINESS.md" "$S0/repo/BUSINESS.md"
-out=$(stage0)
-says "a template BUSINESS.md declares nothing, without a pass" "$out" 'business skip · nothing declared'
-
-# Filled, with the project's own watch list: the words it names are the words that fire.
-cat > "$S0/repo/BUSINESS.md" <<'EOF'
-# BUSINESS.md
-## Purpose
-A read-only dashboard.
-## Non-goals
-<!-- gate-watch: subprocess, docker exec -->
-- No writes to the host.
-EOF
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/run.py b/run.py
---- a/run.py
-+++ b/run.py
-@@ -1,1 +1,2 @@
- x = 1
-+subprocess.run(["ls"])
-EOF
-out=$(stage0)
-says "a word from the project's watch list runs /business audit" "$out" 'business run'
-
-# The same tree, a diff the list does not name: the pass stays off. This is the assertion that
-# makes the one above mean something.
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/README.md b/README.md
---- a/README.md
-+++ b/README.md
-@@ -1,1 +1,2 @@
- # Title
-+A sentence about nothing in particular.
-EOF
-out=$(stage0)
-says "a diff no list names leaves /business off" "$out" 'business skip · no trigger'
-
-# A diff is not always shaped the way the parser expects, and the failure mode is the worst one
-# there is: no paths parsed used to read as "records only", so the gate skipped every pass and
-# wrote an attestation saying the diff held nothing but records. One fixture per header shape a
-# real git config produces, and one for a patch that cannot be parsed at all.
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git app.py app.py
---- app.py
-+++ app.py
-@@ -1,1 +1,2 @@
- x = 1
-+import requests
-EOF
-out=$(stage0)
-says "diff.noprefix headers still name their paths" "$out" 'reviewer run'
-says "…and still reach the trigger rules"           "$out" 'decision run'
-
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/old.py b/new.py
-similarity index 100%
-rename from old.py
-rename to new.py
-EOF
-out=$(stage0)
-says "a rename-only diff is not 'records only'" "$out" 'reviewer run'
-
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/logo.png b/logo.png
-Binary files a/logo.png and b/logo.png differ
-EOF
-out=$(stage0)
-says "a binary-only diff is not 'records only'" "$out" 'reviewer run'
-
-printf 'this is not a patch at all\n' > "$S0/M/diff.patch"
-stage0 >/dev/null || true   # no triggers.txt to print is the point; the suite runs under `set -e`
-check "a patch it cannot parse produces no verdict at all" test ! -e "$S0/M/triggers.txt"
-
-# An untracked DIRECTORY: `git status --porcelain` without -uall collapses a whole new feature
-# into one `?? src/` line. The first commit of a feature is exactly what this stage is for.
-mkdir -p "$S0/repo/newfeature"
-printf 'import requests\nemail = "a@b.c"\n' > "$S0/repo/newfeature/collect.py"
-printf '?? newfeature/\n' > "$S0/M/status.txt"
-: > "$S0/M/diff.patch"
-out=$(stage0)
-says "a new untracked directory is walked, not skipped" "$out" 'decision run'
-says "…and its contents reach the compliance rule"     "$out" 'compliance run'
-check "the evidence names the file inside it" grep -q '^newfeature/collect\.py:' "$S0/M/trigger-decision.txt"
-rm -rf "$S0/repo/newfeature"; : > "$S0/M/status.txt"
-
-# The posture check is ADR-0030's rule as a command: an unfilled COMPLIANCE.md declares nothing
-# and must say so, because silence reads as "declared" to every later audit. The shipped
-# template carries prose with no placeholder in it, which is what made the first version of
-# this check pass the template as filled.
-cp "$KIT/templates/COMPLIANCE.md" "$S0/repo/COMPLIANCE.md"
-cat > "$S0/M/diff.patch" <<'EOF'
-diff --git a/a.py b/a.py
---- a/a.py
-+++ b/a.py
-@@ -1,1 +1,2 @@
- x = 1
-+y = 2
-EOF
-out=$(stage0)
-says "a template COMPLIANCE.md reports no posture, without a pass" "$out" 'posture none'
-printf '# COMPLIANCE.md\n\n## Scope\n\n- **Applies:** GDPR only. No model, no inference.\n' > "$S0/repo/COMPLIANCE.md"
-out=$(stage0)
-says_not "a filled one does not"                                   "$out" 'posture none'
-rm -f "$S0/repo/COMPLIANCE.md"
-
-# Fail-open, and note the direction: no material means write nothing, so the skill's rule
-# ("no triggers.txt => run every pass") is what applies. Silence must never read as "skip".
-rm -f "$S0/M/triggers.txt"
-( cd "$S0/repo" && sh "$TRG" >/dev/null 2>&1 ); rc1=$?
-( cd "$S0/repo" && sh "$TRG" /nonexistent/dir >/dev/null 2>&1 ); rc2=$?
-if [ "$rc1" -eq 0 ] && [ "$rc2" -eq 0 ]; then ok "stage 0 exits 0 with no material at all"
-else fail "stage 0 exits 0 with no material at all (got $rc1/$rc2)"; fi
-check "…and writes no triggers.txt it cannot stand behind" test ! -e "$S0/M/triggers.txt"
 
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
@@ -478,7 +285,7 @@ says "a record whose HEAD line names another commit does not clear it" "$(guard 
 for rec in "$KIT"/.attest/ship-*.md; do
   [ -e "$rec" ] || continue
   rsha="$(basename "$rec" .md)"; rsha="${rsha##*-}"
-  # Shape, not verdict: on the day /audit-history honestly records a blocker, a verdict test
+  # Shape, not verdict: on the day /gate honestly records a blocker, a verdict test
   # would fail on something that is not a defect — and the pressure would be to edit an
   # append-only record.
   check "the kit's own $(basename "$rec") is readable by the guard" \
@@ -531,9 +338,10 @@ says "a record naming another commit does not clear it" "$(guard 'git push origi
 
 # --- a CRLF checkout is a property of the checkout, never of the verdict (ADR-0050) ----
 # The `.gitattributes` pin claimed the `- HEAD:` arm "never matches" on CRLF. It never matched
-# the BARE form; the shape /audit-history actually writes — sha, branch, tree — passed anyway,
-# because the CR landed where a `*` swallowed it. Both forms are now read the same way.
-for _shape in template bare; do
+# the BARE form; the shape /audit-history wrote — sha, branch, tree — passed anyway,
+# because the CR landed where a `*` swallowed it. Every form is now read the same way, and
+# the third shape below is the one /gate writes, tree on its own line.
+for _shape in template bare gate; do
   rm -f "$S"/.attest/ship-*.md
   # the guard's OWN default abbreviation, so this isolates line endings from ADR-0050's sha
   # length. At that length the template shape passed before this series too — which is the
@@ -542,6 +350,8 @@ for _shape in template bare; do
   _cs="$(git -C "$S" rev-parse --short HEAD)"
   if [ "$_shape" = template ]
     then printf -- '- HEAD: %s (main) \xc2\xb7 tree: clean\r\n- findings: 0 blocker \xc2\xb7 0 major\r\n' "$_cs" > "$S/.attest/ship-20260910-000000-$_cs.md"
+  elif [ "$_shape" = gate ]
+    then printf -- '- HEAD: %s (main)\r\n- tree: clean\r\n- findings: 0 blocker \xc2\xb7 0 note\r\n- verdict: \xe2\x9c\x85 clean to push\r\n' "$_cs" > "$S/.attest/ship-20260910-000000-$_cs.md"
     else printf -- '- HEAD: %s\r\n- findings: 0 blocker\r\n' "$_cs" > "$S/.attest/ship-20260910-000000-$_cs.md"; fi
   if [ -z "$(guard 'git push origin main')" ]
     then ok "a CRLF record in its $_shape shape clears the guard"
@@ -1068,6 +878,9 @@ cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" |
 cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
 cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
 casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
+# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
+cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
+  says "…traced blocked" "$(cdec)" '^blocked$'; }
 cfix happy commit
 _out="$(cguard 'git push')"; _rc=$?
 if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's clean record passes: exit 0, no output"
@@ -1116,7 +929,12 @@ cfix empty; git -C "$C" commit -q --allow-empty -m empty
 casks "a HEAD adding nothing at all"
 cfix blocker commit
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$X" > "$C/.attest/ship-20260928-110000-$X.md"
-casks "a carrier whose second record for X reports a blocker"
+cblocked "a carrier whose second record for X reports a blocker" "ship-20260928-110000-$X.md"
+# /gate's own flow after a ⚠️ run: the record, committed on its own, is the carrier's only record.
+cfix gateblock
+printf -- '- HEAD: %s (main)\n- tree: clean\n- findings: 1 blocker · 0 note\n- verdict: ⚠️ fix before push\n' "$X" > "$C/$CREC"
+git -C "$C" add "$CREC"; git -C "$C" commit -qm "chore(attest): ship record for $X" -- "$CREC"
+cblocked "a push after a committed ⚠️ /gate record" "ship-20260928-100000-$X.md"
 cfix rebased commit; _c="$(git -C "$C" rev-parse HEAD)"
 git -C "$C" reset -q --hard HEAD~2; mkdir -p "$C/src"; echo a2 > "$C/src/a.py"
 git -C "$C" add src; git -C "$C" commit -qm 'work, rebased'; git -C "$C" cherry-pick "$_c" >/dev/null 2>&1
@@ -1147,7 +965,7 @@ else ok "a signed carrier passes under log.showSignature=true (skipped: no ssh-k
 cfix midblock commit; _s1="$(git -C "$C" rev-parse --short HEAD)"
 printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$_s1" > "$C/.attest/ship-20260928-120000-$_s1.md"
 git -C "$C" add ".attest/ship-20260928-120000-$_s1.md"; git -C "$C" commit -qm 'chore: commit the second record'
-casks "a carrier above a commit whose later record reports a blocker"
+cblocked "a carrier above a commit whose later record reports a blocker" "ship-20260928-120000-$_s1.md"
 cfix emptytop commit; git -C "$C" commit -q --allow-empty -m empty
 casks "an empty commit above the carrier"
 cfix emptymid; git -C "$C" commit -q --allow-empty -m empty; git -C "$C" add "$CREC"; git -C "$C" commit -qm carrier
@@ -1302,6 +1120,10 @@ for _p in "$_p1" "$_p2" "$_p3" "$_p4" "$_p5" "$_p6" "$_p7" "$_p8" "$_p9" "$_p10"
     else fail "reason $_n ($_v) leads with its verdict, in $_w words"; fi
   _n=$((_n + 1))
 done
+# #34 (b) deleted /audit-history: every prompt that sends the person to an audit names /gate.
+says_not "no guard prompt names /audit-history" "$_p1$_p2$_p3$_p4$_p5$_p6$_p7$_p8$_p9$_p10$_p11$_p12$_p13$_p14" 'audit-history'
+says "…the NO RECORD one sends the person to /gate" "$_p1" 'Run /gate, which commits its record'
+says "…and the record guard asks whether /gate ran" "$_p11" 'only if /gate ran'
 # ATTEST_GUARD=deny turns every ask from both hooks into a deny, with the same reason.
 dny() { env ATTEST_GUARD=deny CLAUDE_PROJECT_DIR="$NR" sh "$1"; }
 for _pl in '{"tool_name":"Bash","tool_input":{"command":"git push"}}' \
@@ -1409,6 +1231,10 @@ ga_recs=$(grep -c '^\.attest/\*\.md' "$GA/.gitattributes" 2>/dev/null || echo 0)
 if [ "$ga_hooks" -eq 1 ] && [ "$ga_recs" -eq 1 ]; then ok "a re-run duplicates neither attribute line"; else fail "a re-run duplicates neither attribute line (hooks=$ga_hooks records=$ga_recs)"; fi
 check "the blanket *.sh rule is NOT written into your repo" \
   sh -c "! grep -qE '^[*][.]sh' '$GA/.gitattributes'"
+# Nor a skills-wide one: the kit ships no script under skills/, so `.claude/skills/*/*.sh` could
+# only ever match the adopter's own skill scripts (#34 (b)).
+check "no pin on your own skill scripts is written either" \
+  sh -c "! grep -q '^\.claude/skills/' '$GA/.gitattributes'"
 # A pattern the adopter already decided about is left alone — globs are not regexes, and
 # treating them as one is what duplicated these lines in the first draft.
 GA2="$WORK/gitattr-own"; mkdir -p "$GA2"; printf '*.sh text=auto\n' > "$GA2/.gitattributes"
@@ -1421,13 +1247,17 @@ check "…while the hooks pattern still lands"        grep -q 'claude/hooks' "$G
 # --- 4. fresh install, then a re-run that must change nothing --------------------------
 echo "install.sh — idempotency:"
 T1="$WORK/fresh"; mkdir -p "$T1"
-"$KIT/install.sh" "$T1" >/dev/null
-check "fresh install lands the shared ladder" test -f "$T1/.claude/skills/_shared/audit-ladder.md"
+fresh_out="$(run_install "$T1")"
+# The one version marker lives in /gate's skill (#34 (b)): install.sh prints it, and the line
+# /gate's material block runs reads it from the installed copy, which is what a record cites.
+_kv="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/gate/SKILL.md")"
+if [ -n "$_kv" ]; then ok "gate/SKILL.md carries the kit version ($_kv)"; else fail "gate/SKILL.md carries the kit version"; fi
+says "…the install banner prints it" "$fresh_out" "^attest $_kv "
+_kl="$(grep '^echo "kit ' "$T1/.claude/skills/gate/SKILL.md" || true)"
+says "…and /gate's material block reads it from the installed copy" \
+  "$(cd "$T1" && bash -c "$_kl" 2>/dev/null)" "^kit $_kv\$"
 check "fresh install lands /gate"             test -f "$T1/.claude/skills/gate/SKILL.md"
 check "fresh install lands the auditor /gate runs" test -f "$T1/.claude/agents/auditor.md"
-check "fresh install lands the gate's stage 0" test -f "$T1/.claude/skills/gate/triggers.sh"
-check "the stage-0 script is LF-pinned in the adopter's repo" \
-  grep -q '^\.claude/skills/\*/\*\.sh text eol=lf$' "$T1/.gitattributes"
 check "fresh install lands the ship guard"   test -f "$T1/.claude/hooks/ship_guard.sh"
 check "fresh install lands the declaration hook" test -f "$T1/.claude/hooks/session_declaration.sh"
 check "fresh install lands the settings that wire them" test -f "$T1/.claude/settings.json"
@@ -1599,6 +1429,16 @@ says "an outdated kit GUIDE.md is pointed out, never overwritten" "$(run_install
 check "…and it is left exactly as it was" grep -qx 'old copy' "$T9b/GUIDE.md"
 echo '# stale' >> "$T9/attest-GUIDE.md"
 says "a stale attest-GUIDE.md gets the refresh hint" "$(run_install "$T9")" 'attest-GUIDE.md — an older kit version'
+# An upgrade over a kit older than 0.18.0 names what it left, and deletes nothing: a leftover
+# /audit-history still writes records the guard accepts, without the auditor.
+T10="$WORK/retired"; mkdir -p "$T10/.claude/skills/audit-history" "$T10/.claude/agents"
+echo '# old' > "$T10/.claude/skills/audit-history/SKILL.md"; echo '# old' > "$T10/.claude/agents/reviewer.md"
+echo '.claude/skills/*/*.sh text eol=lf' > "$T10/.gitattributes"
+_out="$(run_install "$T10")"
+says "an upgrade names a leftover audit-history skill" "$_out" '.claude/skills/audit-history — retired in kit 0.18.0'
+says "…and a leftover reviewer agent" "$_out" '.claude/agents/reviewer.md — retired in kit 0.18.0'
+says "…and an older kit's skills LF pin" "$_out" 'delete the line .claude/skills/\*/\*.sh text eol=lf'
+check "…and deletes none of them" test -f "$T10/.claude/skills/audit-history/SKILL.md"
 
 # --- verdict ---------------------------------------------------------------------------
 echo

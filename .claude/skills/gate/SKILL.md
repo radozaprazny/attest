@@ -13,6 +13,8 @@ Scope is what the next push sends: `HEAD --not --remotes`, plus uncommitted and 
 files. `full` adds all history (`--all`). Code review is left to `/code-review`.
 No commit yet: say so and stop.
 
+Kit version: 0.18.0
+
 ## 1. Material and key layer — one Bash call
 
 Run as **one** call, `bash <<'EOF'` … `EOF` (`FULL=1 bash` for `full`). It writes the
@@ -41,7 +43,7 @@ if command -v betterleaks >/dev/null; then echo "betterleaks $(betterleaks versi
   [ ${#U[@]} -eq 0 ] || b untracked dir "${U[@]}"; else echo 'betterleaks absent'; fi | tee "$D/leaks.txt"
 echo "HEAD $(git rev-parse --short HEAD) ($(git branch --show-current | grep . || echo detached))" \
   "· tree $([ -n "$(git status --porcelain)" ] && echo dirty || echo clean) · ts $(date +%Y%m%d-%H%M%S)"
-echo "kit $(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' .claude/skills/_shared/audit-ladder.md)"
+echo "kit $(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' .claude/skills/gate/SKILL.md)"
 wc -l "$D"/*.patch "$D"/*.txt
 ```
 
