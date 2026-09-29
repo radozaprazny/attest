@@ -1,451 +1,141 @@
 #!/usr/bin/env bash
-# install.sh — install the attest kit into a project.
+# install.sh — copy the attest kit into a project: 10 files, each only if absent, and 2 lines
+# appended to .gitignore and .gitattributes. It writes no document; each skill writes its own.
 #
-# Never clobbers. Every file is copy-if-absent; anything already present is left exactly as
-# it is and reported for you to merge by hand. Nothing here is attest's identity: README.md,
-# LICENSE and the root documents describe *attest* and are deliberately not installed; the
-# one document it installs is the template templates/CLAUDE.md.
+#   ./install.sh [--upgrade] <path-to-your-project>
 #
-# The report is grouped by CAPABILITY, not by path (attest ADR-0031): what you can now do,
-# what stayed yours, what did not land and why. The per-file detail prints only when there is
-# something a human actually has to act on.
-#
-#   ./install.sh <path-to-your-project>
-
-set -Eeuo pipefail   # -E: the ERR trap below must fire from inside functions too
+# --upgrade replaces the kit's own files where git holds your copy, naming each one first, and
+# removes the paths an older kit left under the same condition. It never touches a document or
+# .claude/settings.json.
+set -Eeuo pipefail
 
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-TARGET=""
+FILES=".claude/settings.json .claude/hooks/session_declaration.sh .claude/hooks/ship_guard.sh
+  .claude/hooks/record_guard.sh .claude/agents/auditor.md .claude/skills/gate/SKILL.md
+  .claude/skills/business/SKILL.md .claude/skills/decision/SKILL.md
+  .claude/skills/compliance/SKILL.md .claude/skills/checkpoint/SKILL.md"
+RETIRED=".claude/agents/reviewer.md .claude/agents/doc-auditor.md .claude/skills/_shared
+  .claude/skills/audit-history .claude/skills/gate/triggers.sh"
+TARGET=""; UPGRADE=0
 
-usage() {   # usage [exit-code] — a requested --help is not an error, so it exits 0 on stdout
-  local code="${1:-2}"
-  if [ "$code" = 0 ]; then echo "usage: ./install.sh <path-to-your-project>"
-  else echo "usage: ./install.sh <path-to-your-project>" >&2; fi
-  exit "$code"
-}
-
+usage() { echo "usage: ./install.sh [--upgrade] <path-to-your-project>"; exit "${1:-2}"; }
 while [ $# -gt 0 ]; do
   case "$1" in
-    -h|--help)    usage 0 ;;
-    -*)           echo "install.sh: unknown option: $1" >&2; usage ;;
-    *)            [ -z "$TARGET" ] || { echo "install.sh: more than one target given" >&2; usage; }
-                  TARGET="$1" ;;
+    -h|--help) usage 0 ;;
+    --upgrade) UPGRADE=1 ;;
+    -*) echo "install.sh: unknown option: $1" >&2; usage >&2 ;;
+    *) [ -z "$TARGET" ] || { echo "install.sh: more than one target given" >&2; usage >&2; }
+       TARGET="$1" ;;
   esac
   shift
 done
-
-[ -n "$TARGET" ] || usage
+[ -n "$TARGET" ] || usage >&2
 [ -d "$TARGET" ] || { echo "install.sh: no such directory: $TARGET" >&2; exit 2; }
-TARGET="$(cd "$TARGET" && pwd -P)"   # -P: resolve symlinks, so the self-install guard holds
-# Ancestry, not just equality: installing into a subdirectory of the kit (a mistyped
-# tab-completion) or into a directory that contains it would litter the checkout with a
-# second copy. The trailing slashes make the prefix test exact — and TARGET == KIT is the
-# degenerate case of the first pattern. The prefixes are built as variables first:
-# "${VAR%/}"/* would put a *quoted null* in the pattern, which bash matches literally — the
-# guard would then silently never fire for TARGET=/.
-KIT_P="${KIT%/}/"
-TARGET_P="${TARGET%/}/"
-case "$TARGET_P" in "$KIT_P"*)
-  echo "install.sh: refusing to install the kit into itself (or into a directory inside it)" >&2; exit 2 ;;
-esac
-case "$KIT_P" in "$TARGET_P"*)
-  echo "install.sh: refusing to install the kit into a directory that contains it" >&2; exit 2 ;;
-esac
+TARGET="$(cd "$TARGET" && pwd -P)"
+# Ancestry both ways, with trailing slashes so the prefix test is exact. The prefixes are
+# variables because a quoted "${X%/}" inside the pattern would match TARGET=/ never.
+KP="${KIT%/}/"; TP="${TARGET%/}/"
+case "$TP" in "$KP"*) echo "install.sh: refusing to install the kit into itself (or into a directory inside it)" >&2; exit 2 ;; esac
+case "$KP" in "$TP"*) echo "install.sh: refusing to install the kit into a directory that contains it" >&2; exit 2 ;; esac
+cd "$TARGET"
 
-INSTALLED=()
-KEPT=()               # yours, left exactly as they were — informational, never a warning
-NEEDS_YOU=()          # the kit moved and your copy did not, or a hook is on disk but unwired
-LINES=()              # the report, buffered: a run that changed nothing prints one line instead
-LAST=""               # per-file outcome: new | same | kept | drift | none
+LANDED=(); DONE=(); NEEDS=(); DIFFER=()
+trap 'echo "install.sh: ABORTED — a PARTIAL install; landed first: ${LANDED[*]:-nothing}. Fix the cause and re-run: it resumes." >&2' ERR
+need() { NEEDS+=("$1"); }
+present() { [ -e "$1" ] || [ -L "$1" ]; }
+# The kit's copy with CR removed: a CRLF hook exits 2 under dash, which blocks every Bash call.
+kit() { tr -d '\r' < "$KIT/$1"; }
+same() { kit "$1" | cmp -s - "$1" 2>/dev/null; }
+# cp first, so the mode is the kit's; then the LF content; mv, so a symlink is replaced, not followed.
+put() { mkdir -p "$(dirname "$1")"; cp "$KIT/$1" "$1.attest$$"; kit "$1" > "$1.attest$$"; mv -f "$1.attest$$" "$1"; }
+tracked_clean() { [ "$GIT" = 1 ] && git ls-files --error-unmatch -- "$1" >/dev/null 2>&1 &&
+  git diff --quiet HEAD -- "$1" 2>/dev/null && [ -z "$(git ls-files --others -- "$1")" ]; }
 
-# An abort mid-run (unwritable path, .claude present as a regular file, disk full) leaves a
-# partial install and skips the report below — so say what landed and that a re-run is safe.
-on_abort() {
-  local code=$?
-  echo >&2
-  echo "install.sh: ABORTED (exit $code) — this install is PARTIAL." >&2
-  if [ "${#INSTALLED[@]}" -gt 0 ]; then
-    echo "  landed before the failure:" >&2
-    for i in "${INSTALLED[@]}"; do echo "    + $i" >&2; done
-  else
-    echo "  nothing had been written yet." >&2
-  fi
-  echo "  Fix the cause and re-run: every write is copy-if-absent, so a re-run resumes safely." >&2
-}
-trap on_abort ERR
+GIT=1
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then GIT=0
+  need "git — no repository here: /gate and the ship guard judge a commit, so git init and commit once"
+elif ! git rev-parse -q --verify HEAD >/dev/null 2>&1; then GIT=0
+  need "git — no commit yet: /gate and the ship guard judge a commit, so commit once"
+fi
 
-note_needs_you() { NEEDS_YOU+=("$1 — $2"); }
+for f in $FILES; do
+  if ! present "$f"; then put "$f"; LANDED+=("$f")
+  elif [ "$f" != .claude/settings.json ] && ! same "$f"; then DIFFER+=("$f"); fi
+done
+OLD=(); for p in $RETIRED; do present "$p" && OLD+=("$p"); done
 
-# copy_if_absent <relative-path> [reason-noun] [path-in-kit] — sets LAST
-copy_if_absent() {
-  local rel="$1" what="${2:-file}" src="$KIT/${3:-$1}"
-  LAST="none"
-  # A file this kit checkout does not have is not an error to abort on — an older kit, or a
-  # partial copy, simply has nothing to install here.
-  [ -e "$src" ] || return 0
-  # -L too: a dangling symlink is not -e, but cp must not write through it either
-  if [ -e "$TARGET/$rel" ] || [ -L "$TARGET/$rel" ]; then
-    if cmp -s "$src" "$TARGET/$rel" 2>/dev/null; then
-      LAST="same"
-    elif [ "$what" = "version" ]; then
-      # Kit-owned trees (skills/hooks/agents): a silently stale copy is how installs
-      # freeze — say that it drifted and where the fresh copy sits (ADR-0018). This one
-      # really is an action: the kit moved and your copy did not.
-      LAST="drift"
-      # ...but first separate the one "drift" that is not a drift at all. If the two files are
-      # identical once CR is removed, the content never diverged — the copy is the kit's own,
-      # mangled to CRLF by a Windows checkout made before .gitattributes existed. That is the
-      # population ADR-0039 was written for, and the generic message fails it twice: "diff
-      # against …" shows nothing in most tools, and the file it calls merely stale is one that
-      # exits 2 under dash, which for a PreToolUse hook BLOCKS every Bash call in the session.
-      # Name it, and hand over the one-line repair. The file is still not rewritten here —
-      # copy-if-absent is the kit's load-bearing promise and a whitespace difference is not a
-      # reason to start writing into files a user already has (attest ADR-0044).
-      if { tr -d '\r' < "$TARGET/$rel" 2>/dev/null || :; } |
-           cmp -s - <(tr -d '\r' < "$src" 2>/dev/null || :) 2>/dev/null; then
-        note_needs_you "$rel" "identical to the kit's except for LINE ENDINGS (CRLF) — under dash a CRLF hook exits 2, and a PreToolUse hook that exits 2 blocks every Bash call; repair with: tr -d '\\r' < $rel > $rel.lf && mv $rel.lf $rel"
-      else
-        note_needs_you "$rel" "yours kept, but it DIFFERS from the kit's — diff against $src to upgrade"
-      fi
-    else
-      # A DOCUMENT of yours that the kit also ships is the DESIGNED outcome, not a problem:
-      # it is reported as kept, never as something to fix (ADR-0031). Only documents go in
-      # that bucket — settings.json is judged by whether it leaves a hook unwired, and listing
-      # it here too would print one file twice under opposite framings.
-      # An `[ … ] && …` here would leave the function returning 1 for a non-document, which
-      # `set -e` plus the ERR trap turns into a bogus "ABORTED, partial install".
-      LAST="kept"
-      if [ "$what" = "document" ]; then KEPT+=("$rel"); fi
+V="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/gate/SKILL.md" 2>/dev/null || true)"
+banner() { [ -n "${B:-}" ] || { echo; echo "attest${V:+ $V}  →  $TARGET"; echo; B=1; }; }
+if [ "$UPGRADE" = 1 ]; then
+  for f in ${DIFFER[@]+"${DIFFER[@]}"}; do
+    if tracked_clean "$f"; then
+      banner; echo "  ✓ replaced $f — it differed from the kit's; yours is in HEAD: git diff HEAD -- $f"
+      put "$f"; DONE+=("$f")
+    else need "$f — kept: it differs from the kit's and git does not hold it; commit it, then re-run --upgrade"; fi
+  done
+  for p in ${OLD[@]+"${OLD[@]}"}; do
+    if tracked_clean "$p"; then banner; rm -rf -- "$p"; DONE+=("$p")
+      echo "  ✓ removed $p — retired; git checkout HEAD -- $p restores it"
+    else need "$p — retired, kept: it has uncommitted changes or git does not track it"; fi
+  done
+  for g in GUIDE.md attest-GUIDE.md; do
+    if head -n1 "$g" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
+      need "$g — an older kit's manual; the kit no longer installs one, so delete it unless you keep it"
     fi
-  else
-    mkdir -p "$(dirname "$TARGET/$rel")"
-    cp "$src" "$TARGET/$rel"
-    # The kit's own checkout may hold CRLF — .gitattributes fixes that for anyone who clones
-    # the kit, but not for a copy that predates it, a zip download, or a checkout made before
-    # the attribute existed. A hook with CRLF is fatal under dash (it exits 2, and a PreToolUse
-    # exit 2 blocks every Bash call), so strip it on the way in rather than trusting the source
-    # (attest ADR-0039). `cat >` rather than `mv`: it preserves the mode cp just set.
-    # Recorded as landed BEFORE the rewrite below: the file is already on disk and a re-run
-    # would find it, so if the strip dies mid-write the abort report has to name it — otherwise
-    # "a re-run resumes safely" is false for exactly that file (it would come back as kept/drift
-    # and never be repaired).
-    INSTALLED+=("$rel")
-    LAST="new"
-    # Same scope as the attribute above, plus any `.sh` the kit itself ships: a hook without an
-    # extension must be stripped too, or the two mechanisms disagree about what they cover.
-    case "$rel" in
-      *.sh|.claude/hooks/*)
-        # If the rewrite fails halfway the file is truncated but still reported as installed and
-        # skipped by the next re-run — a hook that parses and does nothing. Restore from the kit
-        # instead of swallowing it (attest ADR-0039).
-        if ! { tr -d '\r' < "$TARGET/$rel" > "$TARGET/$rel.lf$$" 2>/dev/null &&
-               cat "$TARGET/$rel.lf$$" > "$TARGET/$rel" 2>/dev/null; }; then
-          cp "$src" "$TARGET/$rel" 2>/dev/null || true
-          note_needs_you "$rel" "the CRLF strip failed; the kit's file was restored as-is — check its line endings before relying on the hook"
-          G_ACT=$((G_ACT + 1))
-        fi
-        rm -f "$TARGET/$rel.lf$$" 2>/dev/null || true
-        ;;
-    esac
-  fi
+  done
+  grep -qxF '.claude/skills/*/*.sh text eol=lf' .gitattributes 2>/dev/null &&
+    need ".gitattributes — delete the line .claude/skills/*/*.sh text eol=lf: an older kit wrote it, and it rewrites your own scripts"
+  grep -qF "\"\$CLAUDE_PROJECT_DIR/" .claude/settings.json 2>/dev/null &&
+    need ".claude/settings.json — write \${CLAUDE_PROJECT_DIR:-.} for \$CLAUDE_PROJECT_DIR in its hook commands: unset, each hook exits 2 under dash"
+elif [ $((${#DIFFER[@]} + ${#OLD[@]})) -gt 0 ]; then
+  need "${#DIFFER[@]} kit file(s) differ from this kit, ${#OLD[@]} retired path(s) remain — $KIT/install.sh --upgrade $TARGET names each, and replaces only what git holds"
+fi
+
+# append <file> <line> — never over a symlink, never glued onto an unterminated last line.
+# .gitattributes is matched on its pattern, so a rule of yours for the same glob wins.
+append() {
+  if [ -L "$1" ]; then need "$1 — a symlink; append the line $2 yourself"; return 0; fi
+  if [ "$1" = .gitattributes ]; then
+    awk -v p="${2%% *}" '$1 == p { f = 1 } END { exit !f }' "$1" 2>/dev/null && return 0
+  else grep -qxF "$2" "$1" 2>/dev/null && return 0; fi
+  if [ -s "$1" ] && [ -n "$(tail -c1 "$1")" ]; then echo >> "$1"; fi
+  printf '%s\n' "$2" >> "$1"; LANDED+=("$1 += $2")
 }
+append .gitignore ".attest/tmp/"
+append .gitattributes ".claude/hooks/* text eol=lf"
 
-# Group accounting: every group ends up as one line. G_NEW counts what landed, G_ACT counts
-# what the human must act on; the icon follows from those two, so no caller decides it.
-G_NEW=0; G_ACT=0
-group_reset() { G_NEW=0; G_ACT=0; }
-group_add() {   # group_add <path> [noun] — copy and fold the outcome into the group
-  copy_if_absent "$1" "${2:-version}"
-  case "$LAST" in
-    new)    G_NEW=$((G_NEW + 1)) ;;
-    drift)  G_ACT=$((G_ACT + 1)) ;;
-  esac
-}
-group_icon() { if [ "$G_ACT" -gt 0 ]; then echo "⚠"; elif [ "$G_NEW" -gt 0 ]; then echo "✓"; else echo "·"; fi; }
-# say <icon> <label> <text> — only the label is padded, and it is always ASCII. Padding the
-# content column instead would misalign the moment a "·" separator appeared in it: printf
-# counts bytes, and every box-drawing character costs two or three of them (ADR-0031).
-say() { LINES+=("$(printf '  %s  %-10s %s' "$1" "$2" "$3")"); }
-
-# copy_tree_if_absent <relative-dir> — per-file, never a blanket cp -r
-copy_tree_if_absent() {
-  local dir="$1" rel
-  [ -d "$KIT/$dir" ] || return 0
-  while IFS= read -r -d '' src; do
-    rel="${src#"$KIT"/}"   # quoted: $KIT is a literal here, not a glob
-    group_add "$rel" "version"
-  done < <(find "$KIT/$dir" -type f \
-      ! -name '*.pyc' ! -name '.DS_Store' ! -name '*.swp' ! -name '*~' \
-      ! -path '*/__pycache__/*' -print0)
-}
-
-# ensure_ignore <line> — append to .gitignore, never overwrite it
-ensure_ignore() {
-  local line="$1"
-  # Never write through a symlinked .gitignore: touch would follow it (creating a file
-  # outside the project, or aborting the whole run on an unwritable path).
-  if [ -L "$TARGET/.gitignore" ]; then
-    note_needs_you ".gitignore += $line" "your .gitignore is a symlink — append the line yourself"
-    G_ACT=$((G_ACT + 1))
-    return 0
-  fi
-  touch "$TARGET/.gitignore"
-  if grep -qxF "$line" "$TARGET/.gitignore" 2>/dev/null; then
-    return 0
-  fi
-  # If the file's last byte is not a newline, appending would glue our line onto the
-  # user's last rule — breaking theirs and losing ours. Complete their line first.
-  if [ -s "$TARGET/.gitignore" ] && [ -n "$(tail -c1 "$TARGET/.gitignore")" ]; then
-    echo >> "$TARGET/.gitignore"
-  fi
-  printf '%s\n' "$line" >> "$TARGET/.gitignore"
-  INSTALLED+=(".gitignore += $line")
-  G_NEW=$((G_NEW + 1))
-}
-
-# ensure_attribute <line> — append to .gitattributes, never overwrite it. Same symlink and
-# trailing-newline care as ensure_ignore; the two files have identical hazards.
-ensure_attribute() {
-  local line="$1"
-  if [ -L "$TARGET/.gitattributes" ]; then
-    note_needs_you ".gitattributes += $line" "your .gitattributes is a symlink — append the line yourself"
-    G_ACT=$((G_ACT + 1))
-    return 0
-  fi
-  touch "$TARGET/.gitattributes"
-  # Match on the path pattern, not the whole line: an adopter who wrote `*.sh text=auto` has
-  # already made a decision about that pattern and we do not get to append a second, contrary
-  # one under it. awk with `$1 == p`, never grep: the patterns are globs, so `*.sh` in a regex
-  # is a quantifier on nothing — that mistake let the line be appended on every re-run.
-  if awk -v p="${line%% *}" '$1 == p { found = 1 } END { exit !found }' \
-       "$TARGET/.gitattributes" 2>/dev/null; then
-    return 0
-  fi
-  if [ -s "$TARGET/.gitattributes" ] && [ -n "$(tail -c1 "$TARGET/.gitattributes")" ]; then
-    echo >> "$TARGET/.gitattributes"
-  fi
-  printf '%s\n' "$line" >> "$TARGET/.gitattributes"
-  INSTALLED+=(".gitattributes += $line")
-  G_NEW=$((G_NEW + 1))
-}
-
-# The kit's one version marker lives inside /gate's skill, so it travels with every install
-# (ADR-0018) — there is no separate VERSION file to copy or clean up.
-KIT_VERSION="$(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' "$KIT/.claude/skills/gate/SKILL.md" 2>/dev/null || true)"
-echo
-echo "attest${KIT_VERSION:+ $KIT_VERSION}  →  $TARGET"
-echo
-
-# --- documents ------------------------------------------------------------------------
-# BUSINESS.md is not here: /business writes it from the repo and at most three questions, so
-# no skeleton ships for it (#35). Nor is COMPLIANCE.md: /compliance carries its template and
-# writes the file only when run, since an empty posture file reads as "declared" (#38). Nor is
-# DECISIONS.md: /decision creates it with its first entry (#37). Nor is PROGRESS.md:
-# /checkpoint creates it on first use (#36). The template sits in templates/, because the
-# kit's root holds attest's own documents.
-CLAUDE_INSTALLED=0
-{ [ -e "$TARGET/CLAUDE.md" ] || [ -L "$TARGET/CLAUDE.md" ]; } || CLAUDE_INSTALLED=1
-group_reset
-copy_if_absent "CLAUDE.md" "document" "templates/CLAUDE.md"
-if [ "$LAST" = "new" ]; then G_NEW=$((G_NEW + 1)); fi
-say "$(group_icon)" "Documents" "CLAUDE.md — a template, you fill it in"
-
-# --- skills ------------------------------------------------------------------------------
-# Enumerate the kit's skills rather than listing them: a hardcoded list means a skill added
-# upstream installs nowhere and nobody finds out (the same failure ADR-0018 exists to prevent).
-# Every directory ships, /compliance included: it is user-invoked only, so it costs no context
-# until run (#38).
-group_reset
-CMDS=""
-for dir in "$KIT"/.claude/skills/*/; do
-  [ -d "$dir" ] || continue
-  sk="$(basename "$dir")"
-  copy_tree_if_absent ".claude/skills/$sk"
-  CMDS="$CMDS /$sk"
-done
-say "$(group_icon)" "Commands" "${CMDS# }"
-
-# --- subagents ---------------------------------------------------------------------------
-group_reset
-copy_tree_if_absent ".claude/agents"
-say "$(group_icon)" "Checks" "auditor — the read-only subagent /gate runs"
-
-# Retired in kit 0.18.0 (#34). Copy-if-absent never deletes, so an upgrade names what an older
-# kit left: a leftover /audit-history still writes records the guard accepts, without the auditor.
-for old in .claude/skills/audit-history .claude/skills/_shared .claude/skills/gate/triggers.sh \
-           .claude/agents/reviewer.md .claude/agents/doc-auditor.md; do
-  if [ -e "$TARGET/$old" ] || [ -L "$TARGET/$old" ]; then
-    note_needs_you "$old" "retired in kit 0.18.0, replaced by /gate and its auditor — delete it"
-  fi
-done
-if grep -qxF '.claude/skills/*/*.sh text eol=lf' "$TARGET/.gitattributes" 2>/dev/null; then
-  note_needs_you ".gitattributes" "delete the line .claude/skills/*/*.sh text eol=lf — an older kit wrote it, and it also rewrites your own skill scripts"
+# A settings.json of yours is never edited. It is judged by what it wires: every hook file, the
+# ship guard's MCP matcher, and PowerShell in a shell matcher (Windows routes shell there).
+S=.claude/settings.json
+if ! same "$S"; then
+  for w in session_declaration.sh ship_guard.sh record_guard.sh mcp__github__ '"matcher"[[:space:]]*:[[:space:]]*"[^"]*PowerShell'; do
+    grep -qE "$w" "$S" 2>/dev/null || { UNWIRED=1; break; }
+  done
+fi
+if [ -n "${UNWIRED:-}" ]; then
+  need "$S — yours, kept, and it does not wire every kit hook, so the unwired ones never run"
+  if command -v jq >/dev/null 2>&1; then
+    # shellcheck disable=SC2016  # a jq program: $k, $e, $a and $x are jq's, not the shell's
+    j='.hooks //= {} | reduce ($k[0].hooks | to_entries[]) as $e (.; .hooks[$e.key] = ((.hooks[$e.key] // []) as $a | $a + [$e.value[] | select(. as $x | $a | all(. != $x))]))'
+    need "  to append the kit's hook entries and change no other key, run from $TARGET:
+      jq --slurpfile k $(printf '%q' "$KIT/$S") '$j' $S > $S.new && mv $S.new $S"
+  else need "  no jq here: ask Claude to merge the hooks of $KIT/$S into it"; fi
 fi
 
-# --- hooks + their wiring ----------------------------------------------------------------
-# Warn about unwired hooks only when the kept settings.json really leaves one unwired: an
-# older stanza — or yours with the kit's hooks merged in — registers them already, and a
-# categorical warning would be false (ADR-0020). So ask the file which hooks it names.
-#
-# By NAME is not enough on its own any more (attest ADR-0058). The ship guard is registered
-# twice — once for the shell tools, once for the publish tools of a GitHub MCP server — so a stanza
-# written before that second registration names `ship_guard.sh`, passes a filename check, and
-# leaves the non-shell publish path ungated while this installer reports it as wired. That is
-# the false assurance ADR-0035 refuses, so the MCP matcher is required alongside the filenames.
-# `PowerShell` is required for the same reason (attest ADR-0073): a stanza whose shell matcher is
-# `Bash` alone names every file and still never fires where Claude Code routes shell commands
-# through its PowerShell tool — on Windows, by default. It is looked for in a `"matcher"` value,
-# not anywhere: a `PowerShell(...)` permission rule in the same file would otherwise pass it,
-# and a Windows user is exactly who writes one. `PowerShell|Bash` passes too.
-KIT_HOOKS=()
-for h in "$KIT"/.claude/hooks/*; do
-  [ -f "$h" ] && KIT_HOOKS+=("$(basename "$h")")
-done
-KIT_HOOKS+=("mcp__github__")
-SETTINGS_STATE="absent"
-if [ -e "$TARGET/.claude/settings.json" ] || [ -L "$TARGET/.claude/settings.json" ]; then
-  if cmp -s "$KIT/.claude/settings.json" "$TARGET/.claude/settings.json" 2>/dev/null; then
-    SETTINGS_STATE="identical"
-  else
-    SETTINGS_STATE="wired"
-    for hook in "${KIT_HOOKS[@]:-}"; do
-      grep -qF "$hook" "$TARGET/.claude/settings.json" 2>/dev/null || SETTINGS_STATE="unwired"
-    done
-    grep -qE '"matcher"[[:space:]]*:[[:space:]]*"[^"]*PowerShell' "$TARGET/.claude/settings.json" \
-      2>/dev/null || SETTINGS_STATE="unwired"
-  fi
+if [ ${#LANDED[@]} -eq 0 ] && [ ${#DONE[@]} -eq 0 ] && [ ${#NEEDS[@]} -eq 0 ]; then
+  echo "attest${V:+ $V} is already in $TARGET — this run changed nothing."; exit 0
 fi
-group_reset
-copy_tree_if_absent ".claude/hooks"
-copy_if_absent ".claude/settings.json" "settings"
-# No `drift` arm: copy_if_absent only ever sets it for a "version" file. Whether a KEPT
-# settings.json is an action is decided by SETTINGS_STATE below, not by the copy.
-case "$LAST" in new) G_NEW=$((G_NEW + 1)) ;; esac
-if [ "$SETTINGS_STATE" = "unwired" ]; then
-  G_ACT=$((G_ACT + 1))
-  note_needs_you ".claude/settings.json" "your settings kept, and they do not wire every one of the kit's guards — see the stanza below"
+banner; n=0; for l in ${LANDED[@]+"${LANDED[@]}"}; do case "$l" in .claude/*) n=$((n + 1)) ;; esac; done
+[ "$n" -eq 0 ] || echo "  ✓ $n kit file(s) landed under .claude/ — settings, 3 hooks, the auditor, /gate /business /decision /compliance /checkpoint"
+for l in ${LANDED[@]+"${LANDED[@]}"}; do case "$l" in .claude/*) ;; *) echo "  ✓ $l" ;; esac; done
+if [ ${#NEEDS[@]} -gt 0 ]; then
+  echo; echo "  NEEDS YOU"
+  for l in "${NEEDS[@]}"; do case "$l" in " "*) echo "  $l" ;; *) echo "    · $l" ;; esac; done
 fi
-say "$(group_icon)" "Guards" "non-goals into every session · a ship gate before anything leaves"
-
-# --- the reference guide: this one always lands -------------------------------------------
-# GUIDE.md is the kit's reference manual, not a runtime dependency: /gate and its auditor carry
-# every rule they apply (ADR-0010). The "GUIDE PART N" references in the skills are documentation
-# pointers — a dangling one costs a reader a lookup, not an audit its severity.
-GUIDE_REF="GUIDE.md"   # which file the kit's manual ended up in — the NEXT steps cite it
-GUIDE_ICON="·"
-if [ ! -e "$TARGET/GUIDE.md" ] && [ ! -L "$TARGET/GUIDE.md" ]; then
-  cp "$KIT/GUIDE.md" "$TARGET/GUIDE.md"
-  INSTALLED+=("GUIDE.md"); GUIDE_ICON="✓"
-  # A leftover attest-GUIDE.md from an earlier dual-install would now shadow nothing —
-  # point it out (never delete it ourselves).
-  if [ -e "$TARGET/attest-GUIDE.md" ] || [ -L "$TARGET/attest-GUIDE.md" ]; then
-    note_needs_you "attest-GUIDE.md" "leftover from an earlier install — GUIDE.md is now the kit's; delete it if you no longer keep your own guide"
-  fi
-elif cmp -s "$KIT/GUIDE.md" "$TARGET/GUIDE.md"; then
-  : # a re-run: the GUIDE.md present is the kit's own prior install
-elif head -n1 "$TARGET/GUIDE.md" 2>/dev/null | grep -qF '# GUIDE.md — reference guide'; then
-  GUIDE_ICON="⚠"
-  note_needs_you "GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh"
-elif [ ! -e "$TARGET/attest-GUIDE.md" ] && [ ! -L "$TARGET/attest-GUIDE.md" ]; then
-  cp "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"
-  GUIDE_REF="attest-GUIDE.md"; GUIDE_ICON="✓"
-  INSTALLED+=("attest-GUIDE.md")
-  KEPT+=("GUIDE.md (yours — the kit's manual landed beside it as attest-GUIDE.md, which is what the skills' \"GUIDE PART N\" references mean)")
-elif cmp -s "$KIT/GUIDE.md" "$TARGET/attest-GUIDE.md"; then
-  GUIDE_REF="attest-GUIDE.md"
-else
-  # Your own GUIDE.md plus an attest-GUIDE.md that is neither current nor yours: it is the
-  # kit's manual from an older install. Same refresh hint the GUIDE.md branch gets — without
-  # it this path is the one place a stale manual can never be noticed (ADR-0018).
-  GUIDE_REF="attest-GUIDE.md"; GUIDE_ICON="⚠"
-  note_needs_you "attest-GUIDE.md" "an older kit version — copy $KIT/GUIDE.md over it by hand to refresh (your own GUIDE.md is untouched; the skills' \"GUIDE PART N\" refs mean attest-GUIDE.md)"
-fi
-say "$GUIDE_ICON" "Manual" "$GUIDE_REF — the whole loop is PART 9"
-
-# --- .gitignore: append the lines the kit needs, never replace the file --------------------
-group_reset
-# The strip above guarantees LF bytes at install time; it cannot stop the adopter's own next
-# checkout from re-creating CRLF, which is what .gitattributes is for. Appended, never written
-# over — same contract as .gitignore (attest ADR-0039).
-# Only the kit's own footprint. A blanket `*.sh` would reach scripts the kit never installed —
-# and `text` normalises on `git add`, so it would rewrite the adopter's own CRLF blobs at their
-# next commit, with a rule this installer wrote. `.claude/hooks/*` covers every executable the
-# kit puts in the repo, which is the whole of what ADR-0039 is about (attest ADR-0039).
-ensure_attribute ".claude/hooks/* text eol=lf"
-# The ship guard reads two lines out of a record (ADR-0037) and strips CR first (ADR-0050), so
-# this is belt and braces: it keeps records byte-identical across checkouts rather than standing
-# alone between Windows and a false diagnosis. Narrow, like the line above: `.attest/` is the
-# kit's own directory, never the user's source.
-ensure_attribute ".attest/*.md text eol=lf"
-
-ensure_ignore ".claude/settings.local.json"
-# The run records under .attest/ are meant to be committed; only the shared scratch is not —
-# the gate's fallback material and the ship guard's decision log both live there (ADR-0034).
-ensure_ignore ".attest/tmp/"
-if [ "$G_NEW" -gt 0 ] || [ "$G_ACT" -gt 0 ]; then
-  say "$(group_icon)" "Ignored" ".claude/settings.local.json · .attest/tmp/ · the kit's hooks and records pinned to LF"
-fi
-
-# --- what deliberately did not land --------------------------------------------------------
-say "·" "Not ours" "README.md · LICENSE — they describe attest, not your project"
-
-# --- the report ------------------------------------------------------------------------------
-# A re-run that changed nothing says so in one line. Eight rows of "·" is a wall that reads as
-# "something happened" and has to be parsed before you learn that nothing did (ADR-0031).
-if [ ${#INSTALLED[@]} -eq 0 ] && [ ${#KEPT[@]} -eq 0 ] && [ ${#NEEDS_YOU[@]} -eq 0 ]; then
-  echo "  ·  Everything was already in place — this run changed nothing."
-else
-  for l in "${LINES[@]}"; do echo "$l"; done
-fi
-
-if [ ${#KEPT[@]} -gt 0 ]; then
-  echo
-  echo "  YOURS, UNTOUCHED (${#KEPT[@]}) — the kit ships these too and did not overwrite them:"
-  for k in "${KEPT[@]}"; do echo "    · $k"; done
-fi
-
-if [ ${#NEEDS_YOU[@]} -gt 0 ]; then
-  echo
-  echo "  NEEDS YOU (${#NEEDS_YOU[@]}) — nothing was overwritten; these are yours to merge:"
-  for s in "${NEEDS_YOU[@]}"; do echo "    · $s"; done
-fi
-
-if [ "$SETTINGS_STATE" = "unwired" ]; then
-  cat <<'EOF'
-
-  ⚠ What it leaves out is on disk but NOT wired, and will never run — a whole hook; the ship
-    guard's second registration, which is the only thing gating a push made through an MCP
-    server rather than a shell; or `PowerShell` in its shell matcher, without which the guard
-    never sees a command Claude Code runs through its PowerShell tool, as it does on Windows by
-    default. Merge this in:
-
-EOF
-  sed 's/^/      /' "$KIT/.claude/settings.json"
-elif [ "$SETTINGS_STATE" = "wired" ]; then
-  echo
-  echo "  · Your .claude/settings.json was kept. It differs from the kit's but registers every"
-  echo "    one of the kit's guards, so they will run."
-fi
-
-# --- next ------------------------------------------------------------------------------------
 echo
 echo "  NEXT"
-n=1
-printf '  %d  %-24s %s\n' "$n" "Restart Claude Code" "skills only load on a fresh session"
-n=$((n + 1))
-if [ "$CLAUDE_INSTALLED" = 1 ]; then
-  printf '  %d  %-24s %s\n' "$n" "Fill CLAUDE.md" "loaded every turn, ships with <placeholders>; /init is quickest"
-  n=$((n + 1))
-fi
-printf '  %d  %-24s %s\n' "$n" "/business" "writes BUSINESS.md; its non-goals reach every session and /gate"
-n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "/decision" "writes DECISIONS.md: one entry per choice, as it lands"
-n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "/checkpoint" "writes PROGRESS.md before /clear; the next session reads it"
-n=$((n + 1))
-printf '  %d  %-24s %s\n' "$n" "$GUIDE_REF PART 9" "everything else, end to end"
-echo
-echo "  Day one is CLAUDE.md and your non-goals. DECISIONS.md waits for the first choice"
-echo "  that lands, and the gate is worth most on your first real change: over"
-echo "  documents alone it has only prose to judge."
+echo "  1  claude        start it, or restart a session that was open: skills load at start"
+echo "  2  /business     writes BUSINESS.md; its non-goals reach every session and /gate"
+echo "  3  /gate         before a push: audits what it sends, commits the record the guard reads"
+echo "  4  /checkpoint   before /clear: writes PROGRESS.md for the next session"
 echo
