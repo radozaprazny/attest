@@ -127,8 +127,8 @@ edits your code** — there is no formatter here, by design (attest ADR-0027).
 - **If your live documents are not at those names,** set `ATTEST_BUSINESS` and
   `ATTEST_THREAD_CARRIER` — in the `env` block of `.claude/settings.json`, or in your
   environment. Paths are relative to the project root. This is the case for any repo that
-  ships the kit's documents as *templates* and keeps its real ones elsewhere (attest's own
-  live in `docs/attest-*.md` — the same distinction `/gate` scopes with `$DOCS`).
+  ships the kit's documents as *templates* at those names and keeps its real ones elsewhere —
+  the same distinction `/gate` scopes with `$DOCS`.
 - **If your sections are not called that either,** set `ATTEST_NONGOALS_HEADING`,
   `ATTEST_STATE_HEADING` and `ATTEST_NEXT_HEADING` the same way. The defaults are the kit's
   English headings, and a project writing its documents in another language gets **silence**

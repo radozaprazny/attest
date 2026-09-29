@@ -1,43 +1,19 @@
-# CLAUDE.md — <Your Project>
+# CLAUDE.md — attest
 
-Project conventions, for Claude Code and for humans. This file holds the **rules** (they
-change rarely).
+Rules for working on attest itself. Status → PROGRESS.md · boundaries → BUSINESS.md · binding
+choices → DECISIONS.md · backlog → GitHub issues · history → `docs/archive/`.
 
-**Doc routing — one fact, one home:** rules → `CLAUDE.md` · live status → `PROGRESS.md` ·
-purpose & boundaries → `BUSINESS.md` · why we chose X over Y → `DECISIONS.md` · regulatory
-posture → `COMPLIANCE.md`. Write each fact in exactly one place. Full table in GUIDE PART 1.
+## Shell
+- Hooks are POSIX `sh`; `install.sh` and `scripts/*.sh` are bash.
+- Lint as CI does: `uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh .claude/skills/gate/triggers.sh`
 
-This file is loaded into context **every turn**, so keep it lean — every line costs tokens
-on every request. Quick way to add a rule: start a prompt with `#` and Claude appends it here.
+## Verify
+- `./scripts/smoke.sh` must end `0 failed`; a hook change comes with its smoke case.
 
-**Never `@import` `BUSINESS.md` / `PROGRESS.md` / `DECISIONS.md` / `COMPLIANCE.md` into this
-file** — `@path` imports are always-on and eat the context window. Skills read those docs on
-demand.
+## Commits
+- Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`), imperative,
+  ≤72 characters, one logical unit each.
 
-## Language / stack
-
-<your conventions — language and version, project layout, dependency policy>
-
-## Tests
-
-<your conventions — test runner, where tests live, naming, isolation rules>
-
-## Formatting and lint
-
-<your conventions — formatter, linter, line length, rule sets>
-
-> **Note — attest ships no formatter.** The kit deliberately installs nothing that edits your
-> code: use your own formatter, your own config, at your own moment (a pre-commit hook, your
-> editor, CI). Write the command here so the `reviewer` subagent runs the same one you do —
-> it derives the project's conventions from this file and from nothing else. See GUIDE PART 2.
-
-## Commit style
-
-- **Conventional Commits**: `feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`.
-- Subject in the imperative, short (≤ ~72 chars), no trailing period.
-- Example: `feat: add user session cache`.
-- One commit = one logical unit. History should tell the truth.
-
-## Running / verifying
-
-<your commands — how to set up, run and verify the project>
+## The one rule
+A DECISIONS entry only for a change to METHOD, the record format or a hook contract; backlog in
+GitHub issues, current state in a short PROGRESS.md; no devlog.

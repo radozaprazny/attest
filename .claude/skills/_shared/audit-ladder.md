@@ -10,12 +10,12 @@ them and is never absent when an audit runs.
 > Not a skill — this directory has no `SKILL.md` and Claude Code ignores it for skill
 > discovery. It is reference material the skills `Read` when they need it.
 
-> **`attest ADR-NNNN` means attest's own decision log**, at
-> `github.com/radozaprazny/attest` (`docs/attest-decisions.md`) — the kit does not install it.
-> Those citations are provenance for a rule, never a file to look up in *your* repo; your own
-> log is `DECISIONS.md` and its numbering is unrelated.
+> **`attest ADR-NNNN` means attest's own decision log**, archived at
+> `github.com/radozaprazny/attest` (`docs/archive/attest-decisions.md`) — the kit does not
+> install it. Those citations are provenance for a rule, never a file to look up in *your* repo;
+> your own log is `DECISIONS.md` and its numbering is unrelated.
 
-Kit version: 0.16.0 (the kit's one version marker — it lives in this file because the ladder
+Kit version: 0.16.1 (the kit's one version marker — it lives in this file because the ladder
 installs with every audit consumer, so the version travels with the kit and can never desync
 from the contract; attest ADR-0018. `install.sh` prints it; a `/gate` run record cites it.
 Bump it when cutting a release.)

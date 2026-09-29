@@ -1,58 +1,18 @@
-# BUSINESS.md — business context
-
-> Why the project exists (purpose, archetype, non-goals). Changes rarely. status →
-> `PROGRESS.md` · rules → `CLAUDE.md` · why-we-chose-X → `DECISIONS.md` · posture →
-> `COMPLIANCE.md`. (full table: GUIDE PART 1)
-
-<!--
-How to use this file:
-  - Run `/business` to bootstrap this file (it decides the project's archetype, explores
-    the repo, asks what the code cannot show, then writes) or to update it against the
-    current state of the project. Run `/business audit` to check reality against the
-    non-goals/scope below without changing the file.
-  - Anti-duplication: no status here ("done", "12 tests green" -> PROGRESS.md), no
-    technical rules (language version, commit style -> CLAUDE.md).
-  - The Non-goals section is the valuable one — it is the boundary you check new ideas
-    against so scope does not creep.
-  - Optional, and read by /gate's stage 0: ONE html comment line whose body reads
-    `gate-watch: word, word, word` — put it under the Non-goals heading, where it belongs and
-    where a reader will look; the stage takes the first one in the file. The words are those
-    that make a
-    diff worth a /business audit in THIS project (a library your non-goals forbid, a directory,
-    a call). Leave it out and a generic set applies: the network, telemetry and upload shapes
-    that cross a boundary in most projects. It is a trigger, never a definition of the
-    boundary — the words decide when the pass RUNS, your non-goals decide what it finds.
--->
+# BUSINESS.md — attest
 
 ## Purpose
-
-<what it is and what it does, in 2–4 sentences>
-
-## Archetype
-
-**<library | cli | service | data-pipeline | ai-system | local-app>** — <a few words on why>
-
-> The archetype is only a **trigger** `/compliance` reads: it signals the EU AI Act *may*
-> apply and prompts the real classification — it does **not** determine the legal risk tier,
-> which `/compliance` sets in `COMPLIANCE.md` from the intended purpose and the Annexes.
-
-## Target user
-
-<who it is for>
-
-## Value
-
-<why it is worth it — speed, privacy, accuracy, cost, ...>
-
-## Scope (in-scope)
-
-- <what the project covers>
-- Later: <planned, but not yet>
+A Claude Code kit that injects a project's non-goals at session start and holds a push or a
+publish until a dated record says a leak scan of that exact HEAD came back clean.
 
 ## Non-goals
+- No interpreter beyond /bin/sh in hooks.
+- Nothing in the kit edits your code: no formatter, and no rule that rewrites your files.
+- No warning you cannot act on when it fires: a hook prevents, it does not remind.
+- One way to install: `install.sh`, copy-if-absent, into the repo's own `.claude/`; no plugin.
+- No runtime prompt over its measured budget.
+- No legal verdict and no legal date: the compliance skill points at the law, it does not decide.
+- Never rewrite a user's history or overwrite a file they already have.
 
-- <what it deliberately does NOT cover — the project's boundaries>
-
-## What success looks like
-
-- <what done / good looks like>
+## Regulated
+Not in itself: attest stores nothing about people, and a ship record names a finding's class
+and path, never its value.

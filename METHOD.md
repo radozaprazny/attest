@@ -137,7 +137,7 @@ at its own first property: declare what is true, then check reality against the 
 
 And the evidence base is small: the reference implementation was dogfooded on **two sandboxes
 seeded with six known planted faults — 6/6 caught at the right severity, 0 false positives**
-([the record](docs/attest-devlog.md)). Six faults, two sandboxes. That is a clean sweep, not a
+([the record](docs/archive/attest-devlog.md)). Six faults, two sandboxes. That is a clean sweep, not a
 benchmark, and it is quoted here with the sample size attached for the same reason the method
 exists at all.
 
