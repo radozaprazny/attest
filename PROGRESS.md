@@ -8,8 +8,8 @@
   1,455 words for one gate.
 - #41 → `v0.22.0`: GUIDE 2,294 words, repo-only, no ADR citations, an 8-row permission-mode
   table; the NO RECORD prompt says "ship record".
-- #56 + #58 → kit 0.23.0: a second reading makes a hidden ship command ask (149-row smoke
-  table); an orphan branch's NO HEAD names the branch. Smoke 976 passed, 0 failed.
+- #56 + #58 → kit 0.23.0: a second reading makes a hidden ship command ask (163-row smoke
+  table); an orphan branch's NO HEAD names the branch. Smoke 1004 passed, 0 failed.
 
 ## Next
 - #42 (budget table, dash + macOS CI, pinned shellcheck, six parallel smoke groups) → #43
