@@ -30,12 +30,12 @@ TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
 # git.exe reads as git, and an option or value whose quotes do not pair up runs on to the word
 # that pairs them (an escaped quote does not count).
 norm() { printf '%s' "$1" | awk '
-  function bare(x) { gsub(/[\042\047]/, "", x); return x }
+  function bare(x) { gsub(/\\*[\042\047]/, "", x); return x }
   function q(x) { gsub(/\\\\[\042\047]/, "", x); if (K == "" && match(x, /[\042\047]/)) K = substr(x, RSTART, 1); return K == "" ? 0 : gsub(K, "", x) }
   {
     out = ""
     for (i = 1; i <= NF; i++) {
-      t = bare($i); sub(/git\.exe$/, "git", t)
+      t = bare($i); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", t)
       out = (out == "" ? t : out " " t)
       if (t ~ /git$/)
         while (i < NF && substr(bare($(i+1)), 1, 1) == "-") {
@@ -69,13 +69,31 @@ esac; }
 # or git is handed an alias. The tool is looked for at the start of a part, past assignments and
 # wrappers; quotes keep a value whole. A program name that is itself an expansion is not read.
 reread() { awk '
-  function part(   k, j, t, v, w, m, x) {
-    for (k = 1; k <= nw && (W[k] ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || W[k] ~ /^(sudo|env|nice|nohup|time|command|exec|builtin|if|while|until|then|do|else|[{!])$/); k++) ;
-    t = W[k]; gsub(/["\047]/, "", t); sub(/.*\//, "", t); sub(/\.exe$/, "", t)
+  # base: a word as a program name, with quotes, path, case and a Windows suffix gone.
+  function base(x) { gsub(/["\047]/, "", x); sub(/.*[\/]/, "", x); x = tolower(x); sub(/\.(exe|cmd|ps1|bat)$/, "", x); return x }
+  # A wrapper takes its own options first; these are the ones whose value is the next word.
+  function takes(wr, o) {
+    return (wr == "sudo" && o ~ /^(-[ugCDhprtU]|--(user|group|chdir|host|prompt|role|type|other-user))$/) ||
+      (wr == "env" && o ~ /^(-[uCS]|--(unset|chdir|split-string))$/) || (wr == "nice" && o ~ /^(-n|--adjustment)$/) ||
+      (wr == "exec" && o == "-a") || (wr == "ionice" && o ~ /^-[cnp]$/) || (wr == "time" && o == "-o") ||
+      (wr == "xargs" && o ~ /^(-[ILnPsdEa]|--(max-args|max-procs|max-lines|max-chars|replace|delimiter|eof|arg-file))$/) ||
+      (wr == "timeout" && o ~ /^(-[sk]|--(signal|kill-after))$/) || (wr == "stdbuf" && o ~ /^(-[ioe]|--(input|output|error))$/) }
+  function part(   k, j, t, v, w, m, x, wr, o, rd) {
+    for (k = 1; k <= nw; k++) {
+      if (W[k] ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || W[k] ~ /^(if|while|until|then|do|else|[{!]|builtin)$/) continue
+      wr = base(W[k])
+      if (wr !~ /^(sudo|env|nice|exec|xargs|timeout|stdbuf|command|nohup|time|setsid|ionice)$/) break
+      while (k < nw && W[k + 1] ~ /^-/) { o = W[++k]
+        if (o !~ /=/ && (takes(wr, o) || (o ~ /^-[A-Za-z][A-Za-z]+$/ && takes(wr, "-" substr(o, length(o), 1))))) k++ }
+      if (wr == "timeout" && W[k + 1] ~ /^[0-9.]+[smhd]?$/) k++ }
+    if (k > nw) return
+    t = base(W[k])
     if (t ~ /[$`]/) { for (j = k + 1; j <= nw; j++) { w = W[j]; gsub(/["\047]/, "", w)
         if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
     if (t !~ /^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle|aws|gsutil)$/) return
-    if (t == "git" && tolower(P) ~ /alias\./) f = 1
+    # Reading an alias is harmless; setting one, to whatever value, is not.
+    rd = W[k + 1] == "config" && (P ~ /(^| )(--get(-all|-regexp)?|-l|--list|--unset(-all)?|get|list|unset)( |$)/ || tolower(W[nw]) ~ /alias\./)
+    if (t == "git" && tolower(P) ~ /alias\./ && !rd) f = 1
     v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
     for (j = k + 1; j <= nw; j++) { w = W[j]
       if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
@@ -88,22 +106,28 @@ reread() { awk '
       if (w ~ ("^(" v ")$")) { f = 1; return }
       if (t == "docker" && w == "image") continue
       if (W[j - 1] !~ /^-[^=]*$/) return } }
-  { s = $0; o = ""; n = length(s)
-    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
-      if (c != "\\") { o = o c; continue }
-      d = substr(s, ++i, 1)
-      if (d == "n") { o = o ";"; continue }
-      if (d == "t") { o = o " "; continue }
-      if (d != "\\") { o = o d; continue }
-      if (substr(s, i + 1, 2) == "\\n") i += 2 }
-    r = o; gsub(/[$]["\047]/, "\"", o); print o
-    gsub(/[@+!][(]/, "$(", r); nw = 0; w = ""; q = ""; P = ""
+  # One walk over r, splitting it into parts and words. A newline ends a part; with reset, it also
+  # ends a quote, since an apostrophe in a comment or heredoc never closes. Both walks run: a
+  # quoted string over several lines reads right only without the reset.
+  function walk(reset,   i, c, w, q) {
+    nw = 0; w = ""; q = ""; P = ""
     for (i = 1; i <= length(r) + 1; i++) { c = (i > length(r)) ? ";" : substr(r, i, 1)
+      if (c == "\001") { if (reset) q = ""; if (q == "") c = ";" }
       if (q != "") { w = w c; P = P c; if (c == q) q = ""; continue }
       if (c == "\"" || c == "\047") { q = c; w = w c; P = P c; continue }
       if (c ~ /[ ;|&()]/) { if (w != "") W[++nw] = w; w = ""
         if (c != " ") { part(); nw = 0; P = "" } else P = P c; continue }
-      w = w c; P = P c }
+      w = w c; P = P c } }
+  { s = $0; o = ""; n = length(s)
+    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
+      if (c != "\\") { o = o c; continue }
+      d = substr(s, ++i, 1)
+      if (d == "n") { o = o "\001"; continue }
+      if (d == "t") { o = o " "; continue }
+      if (d != "\\") { o = o d; continue }
+      if (substr(s, i + 1, 2) == "\\n") i += 2 }
+    r = o; gsub(/\001/, ";", o); gsub(/[$]["\047]/, "\"", o); print o
+    gsub(/[@+!][(]/, "$(", r); walk(1); walk(0)
     print (f ? "x" : "") }'; }
 # A ship command seen only in the second reading always asks, record or not. A command with none
 # of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
