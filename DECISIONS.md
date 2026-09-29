@@ -31,6 +31,13 @@ per-machine install; `install.sh` is the only way in. (epic #28 D5, ADR-0075)
 v1.0.0 removes what the cut removes with no aliases and no deprecation window; a migration note
 of ≤15 lines tells an adopter how to move. (epic #28, #43)
 
+## 2026-09-28 — Gate once before a push, with one read-only auditor
+`/gate` runs betterleaks and one auditor (Read, Grep, Glob) over what the next push sends, and
+always writes and commits a ship record: `HEAD`, `tree`, `scope`, `findings: n blocker · n
+note`, `verdict`, `kit`, `key layer`, one line per blocker. Two severities; the guard still
+clears on `0 blocker`. Rejected: a required run per commit, and a second reviewer agent.
+(epic #28 D1, D4; #34)
+
 ## 2026-09-28 — Ask by default, deny only by opt-in
 An ask needs a human; `ATTEST_GUARD=deny` turns every ask into a deny where nobody answers.
 Denying by default would block every mention of a push in an attended session. (ADR-0078)
