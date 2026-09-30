@@ -28,12 +28,15 @@ check() { # check <description> <command...>
   if "$@" >/dev/null 2>&1; then ok "$desc"; else fail "$desc"; fi
 }
 
+# got <text> — on a failure, what the case actually read, cut short, so a CI log says why.
+got() { printf '      got: %s\n' "$(printf '%s' "${1:-(nothing)}" | tr '\n' ' ' | cut -c1-240)"; }
+
 says() { # says <description> <text> <pattern> — assert the output contains a pattern
-  if printf '%s' "$2" | grep -q "$3"; then ok "$1"; else fail "$1"; fi
+  if printf '%s' "$2" | grep -q "$3"; then ok "$1"; else fail "$1"; got "$2"; fi
 }
 
 says_not() { # says_not <description> <text> <pattern> — assert it does not
-  if printf '%s' "$2" | grep -q "$3"; then fail "$1"; else ok "$1"; fi
+  if printf '%s' "$2" | grep -q "$3"; then fail "$1"; got "$2"; else ok "$1"; fi
 }
 
 # run_install <args...> — capture the run's output. Never aborts the suite: a non-zero exit
@@ -174,7 +177,7 @@ if [ -z "$SMOKE_GROUP" ]; then
   for _g in 1 2 3 4 5 6 7 8 9; do SMOKE_GROUP=$_g bash "${BASH_SOURCE[0]}" > "$WORK/group-$_g.out" 2>&1 & done
   wait || true
   for _g in 1 2 3 4 5 6 7 8 9; do
-    while IFS= read -r _l; do case "$_l" in 'smoke: '[0-9]*' passed, '*) ;; FAIL:*) echo "$_l" >&2 ;; *) echo "$_l" ;; esac
+    while IFS= read -r _l; do case "$_l" in 'smoke: '[0-9]*' passed, '*) ;; *) echo "$_l" ;; esac
     done < "$WORK/group-$_g.out"
     _sum="$(sed -n 's/^smoke: \([0-9]*\) passed, \([0-9]*\) failed$/\1 \2/p' "$WORK/group-$_g.out")"
     if [ -n "$_sum" ]; then PASS=$((PASS + ${_sum% *})); FAIL=$((FAIL + ${_sum#* }))
@@ -222,16 +225,19 @@ prose() { # prose <file> <words|long> — a sentence ends at . ! ? before a spac
     /^>[ \t]?/ { sub(/^>[ \t]?/, "") }
     { buf = (buf == "" ? $0 : buf " " $0) }
     END { flush(); print (W == "long" ? long + 0 : words + 0) }' "$1"; }
-fenced() { awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$1" | wc -w; }
+# nwords: runs of anything but space, tab and newline. wc -w counts by locale and platform (GNU
+# 798, GNU under LC_ALL=C 777, macOS 801 for gate/SKILL.md); awk counts the same everywhere.
+nwords() { awk '{ n += NF } END { print n + 0 }'; }
+fenced() { awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$1" | nwords; }
 measure() { # measure <unit> <file>
   case "$1" in
-    words)    wc -w < "$2" ;;
+    words)    nwords < "$2" ;;
     lines)    wc -l < "$2" ;;
     comments) grep -cE '^[[:space:]]*#' "$2" ;;
-    desc)     _n=$(awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$2" | wc -w)
+    desc)     _n=$(awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$2" | nwords)
               [ "$_n" -gt 0 ] && echo "$_n" || echo 9999 ;;
     fenced)   fenced "$2" ;;
-    unfenced) echo $(( $(wc -w < "$2") - $(fenced "$2") )) ;;
+    unfenced) echo $(( $(nwords < "$2") - $(fenced "$2") )) ;;
     prose)    prose "$2" words ;;
     long)     prose "$2" long ;;
   esac; }
@@ -1362,8 +1368,8 @@ for c in 'npm publish; gh pr create --fill' 'git commit -qam x && gh pr create -
   says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'
 done
 says "a PR whose shell sits in another repository asks on the carrier" \
-  "$(echo "{\"cwd\":\"$P/other\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}" |
-     CLAUDE_PROJECT_DIR="$C" sh "$GUARD")" 'permissionDecision":"ask'
+  "$(_pl="{\"cwd\":\"$P/other\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}"; echo "$_pl" |
+     CLAUDE_PROJECT_DIR="$C" sh "$GUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"ask'
 # A plain push under push.default=matching also sends another branch: the shape asks first.
 cfix matching commit
 git -C "$C" branch other HEAD~2; git -C "$C" push -q origin other 2>/dev/null
@@ -1488,7 +1494,7 @@ for _pl in '{"tool_name":"Bash","tool_input":{"command":"git push"}}' \
   says "under ATTEST_GUARD=deny, $(printf '%s' "$_pl" | cut -c1-70) is denied" "$(echo "$_pl" | dny "$GUARD")" 'permissionDecision":"deny'
 done
 says "…and so is a Write of a record" \
-  "$(echo "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$NR/.attest/ship-a.md\",\"content\":\"x\"}}" | dny "$RGUARD")" 'permissionDecision":"deny'
+  "$(_pl="{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$NR/.attest/ship-a.md\",\"content\":\"x\"}}"; echo "$_pl" | dny "$RGUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"deny'
 check "README no longer says the guard answers in every permission mode" sh -c "! grep -q 'whatever permission mode' '$KIT/README.md'"
 # The scan runs from the repository's top level, so diff.relative cannot narrow what it reads.
 _R="$WORK/carrier/scantop"; git init -q "$_R"; mkdir -p "$_R/proj/.attest"
@@ -1634,13 +1640,18 @@ fi
 
 if grp 8 || grp 9; then
 # --- 10. a ship command spelled to hide it still asks (#56) ------------------------------------
-# The table is the suite's largest, so its two record states run at once: group 8 with no
-# record, group 9 with a clean one.
 # Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
-# newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
-# asks with no record and passes on a clean one. silent: never asks.
-HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" symbolic-ref HEAD refs/heads/main; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
-hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
+# newline). ask: asks, a clean record or not. norec: an ordinary ship command, so it asks with no
+# record and passes on a clean one. silent: never asks.
+# A record can only clear an ask, never raise one: the decision before the record lookup is the
+# same in both states. So an ask row runs with a clean record, which implies it asks with none; a
+# silent row runs with none; a norec row runs in both. Rows alternate between groups 8 and 9.
+HP="$WORK/hidden"; HC="$WORK/hidden-clean"
+for _r in "$HP" "$HC"; do git init -q "$_r"; git -C "$_r" symbolic-ref HEAD refs/heads/main
+  git -C "$_r" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one; done
+mkdir -p "$HC/.attest"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HC" rev-parse --short HEAD)" > "$HC/.attest/ship-20260101-000000-x.md"
+hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$2" | CLAUDE_PROJECT_DIR="$1" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
 hidden_rows() { cat <<'ROWS'
 ask@git pu\\sh origin main
 ask@git pu\\sh origin other
@@ -1807,22 +1818,18 @@ silent@time make test
 silent@sudo -Eu www-data ls
 ROWS
 }
-for _rec in none clean; do
-  case "$SMOKE_GROUP.$_rec" in all.*|8.none|9.clean) ;; *) continue ;; esac
-  if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
-    printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
-  while IFS='@' read -r _want _cmd; do
-    [ "$_want" != norec ] || { [ "$_rec" = none ] && _want=ask || _want=silent; }
-    _out="$(hid "$_cmd")"
-    if [ "$_want" = ask ]; then says "record $_rec: $_cmd asks" "$_out" 'permissionDecision":"ask'
-    else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
-  done < <(hidden_rows)
-done
-if grp 9; then
-  _asks=$(hidden_rows | grep -c '^ask@')
-  says "…and with a clean record each hidden form is traced nothead ($_asks)" \
-    "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
-fi
+_i=0; _asks=0
+while IFS='@' read -r _want _cmd; do
+  _i=$((_i + 1)); case "$SMOKE_GROUP.$((_i % 2))" in all.*|8.1|9.0) ;; *) continue ;; esac
+  case "$_want" in
+    ask) _asks=$((_asks + 1)); says "record clean: $_cmd asks" "$(hid "$HC" "$_cmd")" 'permissionDecision":"ask' ;;
+    norec) says "record none: $_cmd asks" "$(hid "$HP" "$_cmd")" 'permissionDecision":"ask'
+      says_not "record clean: $_cmd stays silent" "$(hid "$HC" "$_cmd")" 'permissionDecision' ;;
+    *) says_not "record none: $_cmd stays silent" "$(hid "$HP" "$_cmd")" 'permissionDecision' ;;
+  esac
+done < <(hidden_rows)
+says "…and with a clean record each hidden form is traced nothead ($_asks)" \
+  "$(grep -c ' nothead ' "$HC/.attest/tmp/ship-guard.log" 2>/dev/null || true)" "^$_asks\$"
 
 fi
 
