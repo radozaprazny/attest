@@ -30,12 +30,12 @@ TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
 # git.exe reads as git, and an option or value whose quotes do not pair up runs on to the word
 # that pairs them (an escaped quote does not count).
 norm() { printf '%s' "$1" | awk '
-  function bare(x) { gsub(/[\042\047]/, "", x); return x }
+  function bare(x) { gsub(/\\*[\042\047]/, "", x); return x }
   function q(x) { gsub(/\\\\[\042\047]/, "", x); if (K == "" && match(x, /[\042\047]/)) K = substr(x, RSTART, 1); return K == "" ? 0 : gsub(K, "", x) }
   {
     out = ""
     for (i = 1; i <= NF; i++) {
-      t = bare($i); sub(/git\.exe$/, "git", t)
+      t = bare($i); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", t)
       out = (out == "" ? t : out " " t)
       if (t ~ /git$/)
         while (i < NF && substr(bare($(i+1)), 1, 1) == "-") {
@@ -53,19 +53,87 @@ case "$TOOL" in
   mcp__*) KIND=mcp; ACT="sends data off the machine" ;;
 esac
 ship_act() { case "$1" in
-  *"git push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
+  *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
   *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T "*)
+  *"--upload-file"*|*"curl"*" -T"*)
     echo "sends data off the machine" ;;
   *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
+# A second reading, of the still JSON-escaped command. Line 1: the command with continuations
+# joined, other shell backslashes dropped and $'x' or $"x" read as "x". Line 2: `x` when a part
+# starts with a ship tool the list cannot read: its subcommand is an expansion (a variable,
+# substitution, $'…', brace, glob, extglob), its verb sits behind options (npm --silent publish),
+# or git is handed an alias. The tool is looked for at the start of a part, past assignments and
+# wrappers; quotes keep a value whole. A program name that is itself an expansion is not read.
+reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle|aws|gsutil)$" }
+  # base: a word as a program name, with quotes, path, case and a Windows suffix gone.
+  function base(x) { gsub(/["\047]/, "", x); sub(/.*[\/]/, "", x); x = tolower(x); sub(/\.(exe|cmd|ps1|bat)$/, "", x); return x }
+  function part(   k, j, t, v, w, m, x) {
+    for (k = 1; k <= nw; k++) if (W[k] !~ /^[A-Za-z_][A-Za-z0-9_]*=/ && W[k] !~ /^(if|while|until|then|do|else|[{!]|builtin)$/) break
+    if (k > nw) return
+    # Past a wrapper the program is the first word that names a ship tool or is an expansion. No
+    # option of the wrapper is read, so no value of one can hide the tool.
+    if (base(W[k]) ~ /^(sudo|env|nice|exec|xargs|timeout|stdbuf|command|nohup|time|setsid|ionice)$/) {
+      for (j = k + 1; j <= nw; j++) if (base(W[j]) ~ TOOLS || (W[j] !~ /^-/ && W[j] ~ /[$`]/)) break
+      if (j > nw) return; k = j }
+    t = base(W[k])
+    if (t ~ /[$`]/) { for (j = k + 1; j <= nw; j++) { w = W[j]; gsub(/["\047]/, "", w)
+        if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
+    if (t !~ TOOLS) return
+    if (t == "git" && tolower(P) ~ /alias\./) f = 1
+    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
+    for (j = k + 1; j <= nw; j++) { w = W[j]
+      if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
+      m++; x = (w ~ /[$`{*?[]/); gsub(/["\047]/, "", w)
+      if (x && (m == 1 || t !~ /^(gh|aws)$/)) { f = 1; return }
+      if (t == "git") return
+      if (t ~ /^(gh|aws)$/ && m == 1 && w !~ /^(pr|release|gist|repo|s3)$/ && W[j - 1] ~ /^-[^=]*$/) { m--; continue }
+      if (t == "gh") { if (m == 1 && w ~ /^(pr|release|gist|repo)$/) continue; if (x) f = 1; return }
+      if (t == "aws") { if (m == 1 && w == "s3") continue; if (x || (m == 2 && w ~ /^(cp|sync|mv)$/)) f = 1; return }
+      if (w ~ ("^(" v ")$")) { f = 1; return }
+      if (t == "docker" && w == "image") continue
+      if (W[j - 1] !~ /^-[^=]*$/) return } }
+  # One walk over r, splitting it into parts and words. A newline ends a part; with reset, it also
+  # ends a quote, since an apostrophe in a comment or heredoc never closes. Both walks run: a
+  # quoted string over several lines reads right only without the reset.
+  function walk(reset,   i, c, w, q) {
+    nw = 0; w = ""; q = ""; P = ""
+    for (i = 1; i <= length(r) + 1; i++) { c = (i > length(r)) ? ";" : substr(r, i, 1)
+      if (c == "\001") { if (reset) q = ""; if (q == "") c = ";" }
+      if (q != "") { w = w c; P = P c; if (c == q) q = ""; continue }
+      if (c == "\"" || c == "\047") { q = c; w = w c; P = P c; continue }
+      if (c ~ /[ ;|&()]/) { if (w != "") W[++nw] = w; w = ""
+        if (c != " ") { part(); nw = 0; P = "" } else P = P c; continue }
+      w = w c; P = P c } }
+  { s = $0; o = ""; n = length(s)
+    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
+      if (c != "\\") { o = o c; continue }
+      d = substr(s, ++i, 1)
+      if (d == "n") { o = o "\001"; continue }
+      if (d == "t") { o = o " "; continue }
+      if (d != "\\") { o = o d; continue }
+      if (substr(s, i + 1, 2) == "\\n") i += 2 }
+    r = o; gsub(/\001/, ";", o); gsub(/[$]["\047]/, "\"", o); print o
+    gsub(/[@+!][(]/, "$(", r); walk(1); walk(0)
+    print (f ? "x" : "") }'; }
+# A ship command seen only in the second reading always asks, record or not. A command with none
+# of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
+# no option before its verb) skips it.
+HIDDEN=; NL='
+'
+if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in
+  *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
+  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*)
+  _x="$(printf '%s' "$CMD" | reread)"
+  ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
+  [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
+  [ -z "$ACT" ] || HIDDEN=1 ;; esac
+fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
-NL='
-'
 if [ "${KIND:-}" != mcp ]; then
   _parts="$(printf '%s' "$NORM" | sed 's#\\\\#/#g; s/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
   _oifs="$IFS"; IFS="$NL"
@@ -109,11 +177,14 @@ if [ "${KIND:-}" = record ]; then
   exit 0
 fi
 
-# Only a plain dry run passes: anything compound can hide a real push behind it.
+# Only a plain dry run passes: anything compound can hide a real push behind it, and an option
+# before --dry-run can take it as its value, so --dry-run must follow the verb itself.
 # shellcheck disable=SC2016
 case "$CMD" in
-  *';'*|*'&'*|*'|'*|*'$('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*'\n'*) ;;
-  *) case " $NORM " in *" --no-d"*|*" -o --dry-run "*|*" --push-option --dry-run "*) ;; *" --dry-run "*) trace dryrun; exit 0 ;; esac ;;
+  *';'*|*'&'*|*'|'*|*'$'*|*'<('*|*'>('*|*'`'*|*'#'*|*'"'*|*"'"*|*"$NL"*|*\\*|*'{'*|*'*'*|*'?'*|*'['*) ;;
+  *' --repo'*|*' --exec'*|*' --receive-pack'*|*' --dry-run='*|*' --dry-run false'*) ;;
+  *) case " $NORM " in *" --no-d"*) ;;
+       *" push --dry-run "*|*" publish --dry-run "*|*" upload --dry-run "*|*" rsync --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
 record_head_sha() {
   sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
@@ -261,6 +332,8 @@ EOF
     if [ "$_plain" = pr ]; then [ -n "$SHAPE" ] || CARRY=1; [ -n "$SHIPS" ] || SHAPE=; else CARRY=1; fi ;;
   esac
 fi
+if [ -n "$HIDDEN" ]; then CARRY=; SHAPEDEC=nothead
+  SHAPE="It spells a ship command with a backslash, \$'…' or a variable, which the guard cannot read"; fi
 
 if [ -n "$FULL" ]; then
   # Every record naming HEAD must be clean (a later blocker still holds). A carrier is looked for
@@ -277,7 +350,8 @@ if [ -n "$FULL" ]; then
       NEXT="Run /gate, which commits its record, then push; or approve anyway." ;;
   esac
 elif git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
-  V="NO HEAD"; WHY="This repository has no commit yet, so no record can name HEAD"; NEXT="Commit, run /gate, then retry; or approve."
+  _n="repository"; [ -z "$(git -C "$ROOT" rev-list -n 1 --all 2>/dev/null)" ] || _n="branch"
+  V="NO HEAD"; WHY="This $_n has no commit yet, so no record can name HEAD"; NEXT="Commit, run /gate, then retry; or approve."
 else
   V="NO HEAD"; WHY="git found no repository here, or refused to read one"
   NEXT="Fix safe.directory and run /gate, or approve only if you mean this."

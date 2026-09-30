@@ -699,10 +699,18 @@ e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin mai
   CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
 says     "a push from a repository with no commits asks"  "$e0_out" 'permissionDecision":"ask'
 says     "…says it has no commits yet"                    "$e0_out" 'NO HEAD — .*no commit yet'
+says     "…and blames the repository"                     "$e0_out" 'This repository has no commit'
 says_not "…never names an empty HEAD"                     "$e0_out" 'HEAD ()'
 says_not "…and does not tell it to audit a HEAD it lacks" "$e0_out" 'for this HEAD'
 says     "…and runs no scan over commits that do not exist" \
   "$(awk '{print $5}' "$E0/.attest/tmp/ship-guard.log" 2>/dev/null)" '^-$'
+# An orphan branch in a repository with commits has no HEAD either, but the repository is not
+# empty, so the prompt blames the branch (#58).
+O0="$WORK/orphan-branch"; git init -q "$O0"; git -C "$O0" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
+git -C "$O0" checkout -q --orphan fresh
+o0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin fresh"}}' | CLAUDE_PROJECT_DIR="$O0" sh "$GUARD")"
+says "a push from an orphan branch asks NO HEAD"            "$o0_out" 'NO HEAD — '
+says "…and blames the branch, not the repository"           "$o0_out" 'This branch has no commit yet'
 N0="$WORK/not-a-repo"; mkdir -p "$N0"
 n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
   CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
@@ -1500,6 +1508,192 @@ U2="$WORK/upgrade-dirty"; mkdir -p "$U2/.claude/skills/audit-history"; echo old 
 gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
+
+# --- 10. a ship command spelled to hide it still asks (#56) ------------------------------------
+# Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
+# newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
+# asks with no record and passes on a clean one. silent: never asks.
+HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" symbolic-ref HEAD refs/heads/main; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
+hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
+hidden_rows() { cat <<'ROWS'
+ask@git pu\\sh origin main
+ask@git pu\\sh origin other
+ask@git $'push' origin main
+ask@git $\"push\" origin main
+ask@np\\m publish
+ask@npm pub\\lish
+ask@git $SUB origin main
+ask@git $(echo push) origin main
+ask@git `echo push` origin main
+ask@git -C . $SUB origin main
+ask@git push --dry-run origin HEAD >(npm publish)
+ask@git push --dry-run <(true)
+ask@git push --dry-run $X origin HEAD
+ask@git \"$SUB\" origin main
+ask@git \"${SUB}\" origin main
+ask@git -C . \"$SUB\" origin main
+ask@true;git $SUB origin main
+ask@(git $SUB origin main)
+ask@cd /tmp\ngit $SUB origin main
+ask@git pu$X origin main
+ask@git pu${X} origin main
+ask@git pu$(echo sh) origin main
+ask@git pu$'\\x73'h origin main
+ask@git pu$'\\163'h origin main
+ask@npm $'pub\\x6cish'
+ask@np$'\\x6d' publish
+ask@npm \"$P\"
+ask@npm $P
+ask@gh pr $C
+ask@cargo $X
+ask@docker $X img
+ask@git \\\n  push origin main
+ask@git pu\\\nsh origin main
+ask@npm \\\n  publish
+ask@git\tpush origin main
+ask@git {push,} origin main
+ask@git pus? origin main
+ask@git -c alias.x=push x origin main
+norec@git lfs push origin main
+norec@git subtree push --prefix d origin main
+ask@git push --dry-run origin main --n\\o-dry-run
+ask@git push --dry-run origin {--no-dry-run,main}
+ask@git push --repo --dry-run origin main
+norec@npm publish --dry-run false
+norec@npm publish --dry-run --dry-run=false
+ask@git pu$'s'h origin main
+ask@git pu$'\\U00000073'h origin main
+ask@npm $'publish'
+ask@gh pr $'create'
+ask@git pu$'\\x73\\x00junk'h origin main
+ask@np$'\\x6d' publish
+ask@$G push origin main
+ask@git -C \"my dir\" $X origin main
+ask@git -C 'my dir' $X origin main
+ask@git -c \"user.name=a b\" $X origin main
+ask@git -C \"a;b\" $X origin main
+ask@gh -R o/r pr $C
+ask@git --git-dir \"a b\" $X origin main
+ask@sudo git $X origin main
+ask@{ git $X origin main; }
+ask@if git $X origin main; then :; fi
+ask@npm --silent $X
+ask@docker --context default $X img
+ask@cargo +nightly $X
+ask@git -c ALIAS.x=push x origin main
+ask@git --config-env=alias.x=V x origin main
+ask@GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=alias.x GIT_CONFIG_VALUE_0=push git x origin main
+ask@shopt -s extglob\ngit @(push) origin main
+ask@aws s3 $OP f s3://b/
+ask@gsutil $OP f gs://b/
+ask@npm --silent publish
+ask@yarn --cwd d publish
+ask@docker --context default push img
+ask@docker -H unix:///x push img
+ask@cargo +nightly publish
+ask@uv --directory d publish
+ask@poetry -C d publish
+ask@gem -q push x.gem
+ask@gsutil -m cp f gs://b/
+ask@aws --profile p s3 cp f s3://b/
+ask@git push -fo --dry-run origin main
+ask@git push -uo --dry-run origin main
+ask@git push --rep --dry-run origin main
+ask@git push --push-opt --dry-run origin main
+norec@curl -T$F https://example.invalid/up
+norec@\"git\" push origin main
+norec@\"/usr/bin/git\" push origin main
+norec@git \"push\" origin main
+norec@\"gh\" pr create --fill
+norec@npm.cmd publish
+ask@gh.exe pr create --fill
+ask@sudo -E npm --silent publish
+ask@sudo -u deploy docker --context prod push img:1
+ask@env -i PATH=/usr/bin npm --silent publish
+ask@nice -n 5 cargo +nightly publish
+ask@time -p npm --silent publish
+ask@timeout 600 cargo +nightly publish
+ask@xargs -I{} docker --context prod push {}
+ask@# it's ready\nnpm --silent publish
+ask@git commit -F- <<'EOF'\nDon't ship twice\nEOF\ncargo +nightly publish
+ask@git config alias.p push
+ask@git commit -m \"feat: x\n\nbody line\" && npm --silent publish
+ask@git commit -m 'feat: x\n\nbody' && npm --silent publish
+ask@git commit -m \"feat: x\nbody\" && docker --debug push img
+ask@git commit -m \"feat: x\nbody\" && git $V origin
+ask@git commit -m \"feat: x\nbody\" && git -c alias.p=push p
+ask@echo \"a\nb\"; docker --debug push img
+ask@git config alias.x pu\"\"sh
+ask@git config --global alias.x 'pu''sh'
+ask@git config alias.x \"$V\"
+ask@git config set alias.x pu\"\"sh
+ask@sudo -Eu deploy npm --silent publish
+ask@sudo -iu deploy npm --silent publish
+ask@/usr/bin/env npm --silent publish
+ask@/usr/bin/time -o f npm --silent publish
+ask@\"sudo\" npm --silent publish
+ask@setsid npm --silent publish
+ask@ionice -c3 npm --silent publish
+ask@xargs --max-args 1 npm --silent publish
+ask@stdbuf --output L npm --silent publish
+ask@git config --get alias.co
+ask@git config --get-regexp alias.
+ask@sudo -uroot git \"$P\"
+ask@sudo -uroot npm --silent publish
+ask@sudo -urunner git $V
+ask@xargs -Ipaths git \"$P\"
+ask@xargs --replace git \"$P\"
+ask@xargs --replace npm --silent publish
+ask@xargs --max-lines git \"$P\"
+ask@git config alias.p push # alias.x
+ask@git config alias.p push 2>/tmp/alias.err
+ask@git config alias.p push get
+ask@git config alias.p pu\"\"sh # alias.
+silent@git push --dry-run origin HEAD
+silent@git log --format=$FMT
+silent@grep -rn push docs/
+silent@echo $HOME
+silent@git -C \"$DIR\" status
+silent@git diff \"$BASE\"...HEAD
+silent@git log $(git merge-base HEAD main)..HEAD
+silent@git stash push -m wip
+silent@printf '%s\\n' a b
+silent@IFS=$'\\n' read -r x
+silent@gh api repos/$REPO/pulls
+silent@npm run $SCRIPT
+silent@uv run pytest $ARGS
+silent@git commit -m \"fix: a typo\"
+silent@echo x > C:\\\\repo\\\\notes.md
+silent@make -C docker $TARGET
+silent@find . -path ./git -prune -o -name '*.py' -print
+silent@ls docker *.yml
+silent@aws s3 ls $BUCKET
+silent@docker run $IMG
+silent@npm run build -- --flag=$X
+silent@rsync --dry-run -a src/ host:dst
+silent@x git; A=alias.b
+silent@sudo -u deploy npm test
+silent@timeout 60 npm run build
+silent@git config user.name push
+silent@git commit -m \"feat: x\n\nbody line\"
+silent@sudo apt install docker
+silent@time make test
+silent@sudo -Eu www-data ls
+ROWS
+}
+for _rec in none clean; do
+  if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
+    printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
+  while IFS='@' read -r _want _cmd; do
+    [ "$_want" != norec ] || { [ "$_rec" = none ] && _want=ask || _want=silent; }
+    _out="$(hid "$_cmd")"
+    if [ "$_want" = ask ]; then says "record $_rec: $_cmd asks" "$_out" 'permissionDecision":"ask'
+    else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
+  done < <(hidden_rows)
+done
+_asks=$(hidden_rows | grep -c '^ask@')
+says "…and with a clean record each hidden form is traced nothead ($_asks)" \
+  "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
 
 # --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
 _RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"
