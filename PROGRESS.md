@@ -12,12 +12,15 @@
 - #43 `v1.0.0`, released 2026-09-30: Release notes 300 words with an 8-step migration note
   (run end to end from a scratch v0.12.0 install, PR #63), About text 100 characters, topics
   `secret-scanning`, `git-hooks`, `audit-trail`; the 2026-09-15 plan in `docs/archive/`.
+- #62 → kit 1.1.0: the leak scan and its watchdog stop by KILL and are reaped, so bash 3.2
+  prints no `Terminated` line, and a parent that ignores TERM neither waits nor clears a slow
+  scan.
 
 ## Next
-- #43: the two list submissions, by the maintainer (awesome-claude-code takes only its web
-  form, from a human); their links into PR #63, then close #43 by hand.
+- #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
+  its web form, from a human); their links into PR #63, then close #43 by hand.
 - #59: ship commands the list does not name (pnpm, docker compose, glab, gcloud, …).
-- #62: bash as `/bin/sh` reports the killed watchdog on stderr.
+- #65: a hidden push beside another ship command rides on HEAD's record (found building #59).
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook
   changes (time-boxed), ship ritual, PR, CI, hand over the merge, tag after merge.
 - Pre-epic backlog triaged on #43: #58 filed and fixed, two smoke items folded into #42.
