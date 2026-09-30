@@ -1367,9 +1367,11 @@ for c in 'npm publish; gh pr create --fill' 'git commit -qam x && gh pr create -
          'gh pr create --fill >(npm publish)' 'gh pr create --title x --body-file <(./deploy.sh)'; do
   says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'
 done
+# Payloads with a comma inside braces are built outside "$( )": bash 3.2 (macOS) reads \" there
+# differently, and the braces then expand.
+_pl='{"cwd":"'"$P/other"'","tool_name":"Bash","tool_input":{"command":"gh pr create --fill"}}'
 says "a PR whose shell sits in another repository asks on the carrier" \
-  "$(_pl="{\"cwd\":\"$P/other\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}"; echo "$_pl" |
-     CLAUDE_PROJECT_DIR="$C" sh "$GUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"ask'
+  "$(printf '%s' "$_pl" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"ask'
 # A plain push under push.default=matching also sends another branch: the shape asks first.
 cfix matching commit
 git -C "$C" branch other HEAD~2; git -C "$C" push -q origin other 2>/dev/null
@@ -1493,8 +1495,9 @@ for _pl in '{"tool_name":"Bash","tool_input":{"command":"git push"}}' \
            "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"grep -rn 'git push' docs/\"}}"; do
   says "under ATTEST_GUARD=deny, $(printf '%s' "$_pl" | cut -c1-70) is denied" "$(echo "$_pl" | dny "$GUARD")" 'permissionDecision":"deny'
 done
+_pl='{"tool_name":"Write","tool_input":{"file_path":"'"$NR"'/.attest/ship-a.md","content":"x"}}'
 says "…and so is a Write of a record" \
-  "$(_pl="{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$NR/.attest/ship-a.md\",\"content\":\"x\"}}"; echo "$_pl" | dny "$RGUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"deny'
+  "$(printf '%s' "$_pl" | dny "$RGUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"deny'
 check "README no longer says the guard answers in every permission mode" sh -c "! grep -q 'whatever permission mode' '$KIT/README.md'"
 # The scan runs from the repository's top level, so diff.relative cannot narrow what it reads.
 _R="$WORK/carrier/scantop"; git init -q "$_R"; mkdir -p "$_R/proj/.attest"
