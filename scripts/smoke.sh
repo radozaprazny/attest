@@ -267,8 +267,8 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 45 lines more
-.claude/hooks/ship_guard.sh           lines     419
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 50 lines more
+.claude/hooks/ship_guard.sh           lines     424
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64

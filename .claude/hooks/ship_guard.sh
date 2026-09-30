@@ -71,17 +71,21 @@ sends() { printf '%s\n' "$1" | awk '
         if (c == "gh" && o in G) hit(G[o], val(v)); else if (c == "curl" && o in C) hit(C[o], val(v)) }
       else if (x ~ /^-[A-Za-z]/) { t = (c == "gh") ? "XfFHpqt" : "AbcCdDeEFHKmoPQrtTuUwxXyYz"
         for (k = 2; k <= length(x); k++) if (index(t, substr(x, k, 1))) { hit(substr(x, k, 1), val(substr(x, k + 1))); break } } }
-    if (c == "gh" && (g ? (tolower(P) ~ /mutation/ || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
-    n = 0; P = "" }
-  function walk(mode,   j, ch, d, q, wd) { n = 0; P = ""
-    for (j = 1; j <= length(s) + 1; j++) { ch = (j > length(s)) ? ";" : substr(s, j, 1)
+    if (c == "gh" && (g ? (M || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
+    n = 0 }
+  # A quoted run is taken whole: a character at a time is quadratic in some awks.
+  function walk(mode,   j, ch, d, q, wd, r) { n = 0
+    for (j = 1; j <= L + 1; j++) { ch = (j > L) ? ";" : substr(s, j, 1)
       if (ch == "\001" && mode == 1) q = ""
-      if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") { wd = wd d; P = P d }; continue }
-      if (q != "") { if (ch == q) q = ""; else { wd = wd ch; P = P ch }; continue }
+      if (j <= L && q != "" && ch != q && ch != "\\" && ch != "\001") { r = substr(s, j)
+        match(r, q == "\047" ? "^[^\047\001]+" : "^[^\"\\\\\001]+"); wd = wd substr(r, 1, RLENGTH); j += RLENGTH - 1; continue }
+      if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") wd = wd d; continue }
+      if (q != "") { if (ch == q) q = ""; else wd = wd ch; continue }
       if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
-      if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch == " ") P = P ch; else judge(); continue }
-      wd = wd ch; P = P ch } }
+      if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
+      wd = wd ch } }
   { s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
+    L = length(s); M = (tolower(s) ~ /mutation/)
     out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
     walk(0); walk(1); walk(2); if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
@@ -164,18 +168,19 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
 # no option before its verb) skips it. Beside a ship command seen first, every part it missed is read.
 HIDDEN=; NL='
 '
-if [ -z "${KIND:-}" ]; then case "$CMD" in
+can_hide() { case "$1" in
   *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
-  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*)
+  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*) return 0 ;; esac; return 1; }
+if [ -z "${KIND:-}" ] && can_hide "$CMD"; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
     ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
     [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&()' '\n'); do
-      [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
+      can_hide "$_p" && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
       [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
-    done; IFS="$_oifs"; fi ;; esac
+    done; IFS="$_oifs"; fi
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
