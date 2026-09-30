@@ -13,7 +13,7 @@ Scope is what the next push sends: `HEAD --not --remotes`, plus uncommitted and 
 files. `full` adds all history (`--all`). Code review is left to `/code-review`.
 No commit yet: say so and stop.
 
-Kit version: 1.1.0
+Kit version: 1.2.0
 
 ## 1. Material and key layer — one Bash call
 
