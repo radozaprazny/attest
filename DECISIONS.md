@@ -47,3 +47,11 @@ The SessionStart hook prints BUSINESS.md's non-goals and PROGRESS.md's Current s
 from the project root, or one line when no non-goals are declared, so a wired hook never looks
 missing. `/checkpoint` rewrites only those two sections. Rejected: dropping the carrier for
 resume and compaction, which do not survive `/clear`. (epic #28 D3, declined 2026-09-26; #36)
+
+## 2026-09-30 — Ask on a ship command the guard reads only a second time
+The literal list misses a ship command spelled with a backslash, a line continuation or `$'…'`,
+one behind a wrapper or behind its own options, one whose subcommand is an expansion, and git
+handed an alias. A second reading sees them, and such a command asks even on a clean record. A
+dry run passes only as `<verb> --dry-run`. The second reading skips no text to save a prompt:
+an over-ask costs a click, a hidden push costs the guard. Rejected: decoding every shell
+spelling, and reading wrapper options or exempting alias reads, which hid pushes in review. (#56)

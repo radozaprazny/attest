@@ -68,32 +68,22 @@ esac; }
 # substitution, $'…', brace, glob, extglob), its verb sits behind options (npm --silent publish),
 # or git is handed an alias. The tool is looked for at the start of a part, past assignments and
 # wrappers; quotes keep a value whole. A program name that is itself an expansion is not read.
-reread() { awk '
+reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle|aws|gsutil)$" }
   # base: a word as a program name, with quotes, path, case and a Windows suffix gone.
   function base(x) { gsub(/["\047]/, "", x); sub(/.*[\/]/, "", x); x = tolower(x); sub(/\.(exe|cmd|ps1|bat)$/, "", x); return x }
-  # A wrapper takes its own options first; these are the ones whose value is the next word.
-  function takes(wr, o) {
-    return (wr == "sudo" && o ~ /^(-[ugCDhprtU]|--(user|group|chdir|host|prompt|role|type|other-user))$/) ||
-      (wr == "env" && o ~ /^(-[uCS]|--(unset|chdir|split-string))$/) || (wr == "nice" && o ~ /^(-n|--adjustment)$/) ||
-      (wr == "exec" && o == "-a") || (wr == "ionice" && o ~ /^-[cnp]$/) || (wr == "time" && o == "-o") ||
-      (wr == "xargs" && o ~ /^(-[ILnPsdEa]|--(max-args|max-procs|max-lines|max-chars|replace|delimiter|eof|arg-file))$/) ||
-      (wr == "timeout" && o ~ /^(-[sk]|--(signal|kill-after))$/) || (wr == "stdbuf" && o ~ /^(-[ioe]|--(input|output|error))$/) }
-  function part(   k, j, t, v, w, m, x, wr, o, rd) {
-    for (k = 1; k <= nw; k++) {
-      if (W[k] ~ /^[A-Za-z_][A-Za-z0-9_]*=/ || W[k] ~ /^(if|while|until|then|do|else|[{!]|builtin)$/) continue
-      wr = base(W[k])
-      if (wr !~ /^(sudo|env|nice|exec|xargs|timeout|stdbuf|command|nohup|time|setsid|ionice)$/) break
-      while (k < nw && W[k + 1] ~ /^-/) { o = W[++k]
-        if (o !~ /=/ && (takes(wr, o) || (o ~ /^-[A-Za-z][A-Za-z]+$/ && takes(wr, "-" substr(o, length(o), 1))))) k++ }
-      if (wr == "timeout" && W[k + 1] ~ /^[0-9.]+[smhd]?$/) k++ }
+  function part(   k, j, t, v, w, m, x) {
+    for (k = 1; k <= nw; k++) if (W[k] !~ /^[A-Za-z_][A-Za-z0-9_]*=/ && W[k] !~ /^(if|while|until|then|do|else|[{!]|builtin)$/) break
     if (k > nw) return
+    # Past a wrapper the program is the first word that names a ship tool or is an expansion. No
+    # option of the wrapper is read, so no value of one can hide the tool.
+    if (base(W[k]) ~ /^(sudo|env|nice|exec|xargs|timeout|stdbuf|command|nohup|time|setsid|ionice)$/) {
+      for (j = k + 1; j <= nw; j++) if (base(W[j]) ~ TOOLS || (W[j] !~ /^-/ && W[j] ~ /[$`]/)) break
+      if (j > nw) return; k = j }
     t = base(W[k])
     if (t ~ /[$`]/) { for (j = k + 1; j <= nw; j++) { w = W[j]; gsub(/["\047]/, "", w)
         if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
-    if (t !~ /^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|docker|gh|kaggle|aws|gsutil)$/) return
-    # Reading an alias is harmless; setting one, to whatever value, is not.
-    rd = W[k + 1] == "config" && (P ~ /(^| )(--get(-all|-regexp)?|-l|--list|--unset(-all)?|get|list|unset)( |$)/ || tolower(W[nw]) ~ /alias\./)
-    if (t == "git" && tolower(P) ~ /alias\./ && !rd) f = 1
+    if (t !~ TOOLS) return
+    if (t == "git" && tolower(P) ~ /alias\./) f = 1
     v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
     for (j = k + 1; j <= nw; j++) { w = W[j]
       if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
