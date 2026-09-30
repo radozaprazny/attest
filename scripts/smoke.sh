@@ -1537,6 +1537,7 @@ says "…traced ask: no carrier is looked for" "$(cdec)" '^ask$'
 cpasses 'git push -u origin main && gh pr create --fill' "a PR after the push passes on the carrier"
 cpasses "cd $C && gh pr create --fill"                   "…and so does one after a cd into this repository"
 cpasses 'gh pr create --fill 2>&1 | tail -3'            "…and one piped into a filter"
+cpasses 'gh pr create --title x \\\n  --fill'             "…and one with a line continuation, read part by part (#65)"
 # From #32's review: a quote in a comment or a heredoc, or a git option inside a quoted command,
 # hid the push from the list; quoted values with escaped quotes; an abbreviated --no-dry-run.
 C="$NR"
@@ -1932,6 +1933,7 @@ ask@gcloud storage cp gs://b/x . && git $(echo push) origin other
 ask@podman images | grep push; g\\it push origin other
 ask@npm publish && npm --silent publish
 norec@gh pr create --title x \\\n  --fill
+norec@npm publish
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/
