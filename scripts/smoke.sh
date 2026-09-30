@@ -986,6 +986,18 @@ done
 check "…and without the tool's own --timeout, which exits 0 on a partial scan" sh -c "! grep -q -- --timeout '$L/argv'"
 check "…run from the repository root, where its ignore file and config live" \
   test "$(cat "$L/pwd" 2>/dev/null)" = "$(cd "$L/repo" && pwd -P)"
+# bash as /bin/sh (macOS) reports a background job a signal killed on stderr, when it reaps it
+# later outside the scan's discarded stderr (#62). A parent that ignores TERM passes that on: a
+# watchdog or scan sent TERM then lives on, holding the hook's output until the limit, or letting a
+# scan past it finish as clean. Both are read through a pipe, as Claude Code reads the hook.
+for _e in 0 42 1; do
+  check "…and the hook's stderr is empty after a scan that exits $_e" test -z "$(lguard "$_e" 'git push origin main' 2>&1 >/dev/null)"
+done
+_t0=$(date +%s); _x="$( (trap '' TERM; lguard 0 'git push origin main' ATTEST_LEAK_SCAN_SECONDS=8 2>&1) )"; _t1=$(date +%s)
+check "…and under a parent that ignores TERM its output ends with the scan, not 8 s later" test $((_t1 - _t0)) -le 4
+_t0=$(date +%s); _x="$( (trap '' TERM; lguard 0 'git push origin main' STUB_SLEEP=4 ATTEST_LEAK_SCAN_SECONDS=1 2>&1) )"; _t1=$(date +%s)
+says "…where a scan past the limit is still stopped, not read as clean" "$(col 5)" '^error$'
+check "…at the limit" test $((_t1 - _t0)) -le 3
 
 # A leak takes the pass away, and never says what it found.
 _out="$(lguard 42 'git push origin main')"

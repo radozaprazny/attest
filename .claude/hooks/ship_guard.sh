@@ -238,10 +238,10 @@ if [ -n "$FULL" ]; then
         {
           (cd "$(git -C "$ROOT" rev-parse --show-toplevel)" && exec betterleaks git . --log-opts="$LEAK_RANGE" \
              --redact=100 --no-banner --exit-code 42) </dev/null >/dev/null 2>&1 & _bl=$!
-          (sleep "$_limit"; kill "$_bl") </dev/null >/dev/null 2>&1 &
+          (sleep "$_limit"; kill -s KILL "$_bl") </dev/null >/dev/null 2>&1 &
           _dog=$!
           wait "$_bl"; _rc=$?
-          kill "$_dog" 2>/dev/null
+          kill -s KILL "$_dog" 2>/dev/null; wait "$_dog"
         } 2>/dev/null
         case "$_rc" in 0) SCAN=clean ;; 42) SCAN=leak ;; *) SCAN=error ;; esac
       fi ;;
