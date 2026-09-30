@@ -1564,6 +1564,10 @@ says "NEXT is claude, /business, /gate, /checkpoint" \
 says_not "a fresh repo needs nothing of you" "$out" 'NEEDS YOU'
 rerun="$(run_install "$T1")"; check "a re-run prints one line" test "$(printf '%s\n' "$rerun" | wc -l)" -eq 1
 says "…saying it changed nothing" "$rerun" 'changed nothing'
+says "a whole install prints the one summary line" "$out" '✓ 10 kit file(s) landed under \.claude/ — settings, 3 hooks'
+rm "$T1/.claude/agents/auditor.md"; part="$(run_install "$T1")"
+says "a partial one names the file that landed" "$part" '✓ landed \.claude/agents/auditor\.md$'
+says_not "…and not the whole kit's summary" "$part" 'settings, 3 hooks'
 cmds="$(sed -n 's/^ *"command": "\(.*\)"$/\1/p' "$KIT/.claude/settings.json" | sed 's/\\"/"/g')"
 check "settings.json holds 4 hook commands" test "$(printf '%s\n' "$cmds" | grep -c .)" -eq 4
 while IFS= read -r c; do
