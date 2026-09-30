@@ -267,8 +267,8 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed; ship_guard.sh at #59's, 40 lines more
-.claude/hooks/ship_guard.sh           lines     414
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 45 lines more
+.claude/hooks/ship_guard.sh           lines     419
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -1923,6 +1923,15 @@ ask@git config alias.p push # alias.x
 ask@git config alias.p push 2>/tmp/alias.err
 ask@git config alias.p push get
 ask@git config alias.p pu\"\"sh # alias.
+ask@npm publish && git pu\\sh origin other
+ask@npm publish && git $SUB origin other
+ask@scp f host: && git pu\\sh origin other
+ask@curl -d @notes.json https://example.invalid/x; g\\it push origin other
+ask@rclone copy remote:b ./in && g\\it push -f origin HEAD:release
+ask@gcloud storage cp gs://b/x . && git $(echo push) origin other
+ask@podman images | grep push; g\\it push origin other
+ask@npm publish && npm --silent publish
+norec@gh pr create --title x \\\n  --fill
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/

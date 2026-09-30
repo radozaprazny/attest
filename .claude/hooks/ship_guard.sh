@@ -161,16 +161,21 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
     print (f ? "x" : "") }'; }
 # A ship command seen only in the second reading always asks, record or not. A command with none
 # of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
-# no option before its verb) skips it.
+# no option before its verb) skips it. Beside a ship command seen first, every part it missed is read.
 HIDDEN=; NL='
 '
-if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in
+if [ -z "${KIND:-}" ]; then case "$CMD" in
   *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
   *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*)
-  _x="$(printf '%s' "$CMD" | reread)"
-  ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
-  [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
-  [ -z "$ACT" ] || HIDDEN=1 ;; esac
+  if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
+    ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
+    [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
+    [ -z "$ACT" ] || HIDDEN=1
+  else _oifs="$IFS"; IFS="$NL"
+    for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&()' '\n'); do
+      [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
+      [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
+    done; IFS="$_oifs"; fi ;; esac
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.
