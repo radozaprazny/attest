@@ -28,12 +28,20 @@ check() { # check <description> <command...>
   if "$@" >/dev/null 2>&1; then ok "$desc"; else fail "$desc"; fi
 }
 
+# got <text> — on a failure, what the case actually read, cut short, so a CI log says why.
+got() { printf '      got: %s\n' "$(printf '%s' "${1:-(nothing)}" | tr '\n' ' ' | cut -c1-240)"; }
+
+# has <text> <pattern> — grep's answer. A pattern with no BRE metacharacter is a plain substring
+# to grep, so the shell answers it without a fork: the suite makes ~870 of these calls. grep reads
+# a here-string, not a pipe: under pipefail, grep -q leaving early could fail the writer's side.
+has() { case "$2" in *[.\[\]\\*^\$]*) grep -q -e "$2" <<< "$1" ;; *) [[ $1 == *"$2"* ]] ;; esac; }
+
 says() { # says <description> <text> <pattern> — assert the output contains a pattern
-  if printf '%s' "$2" | grep -q "$3"; then ok "$1"; else fail "$1"; fi
+  if has "$2" "$3"; then ok "$1"; else fail "$1"; got "$2"; fi
 }
 
 says_not() { # says_not <description> <text> <pattern> — assert it does not
-  if printf '%s' "$2" | grep -q "$3"; then fail "$1"; else ok "$1"; fi
+  if has "$2" "$3"; then fail "$1"; got "$2"; else ok "$1"; fi
 }
 
 # run_install <args...> — capture the run's output. Never aborts the suite: a non-zero exit
@@ -44,6 +52,149 @@ DECL="$KIT/.claude/hooks/session_declaration.sh"
 GUARD="$KIT/.claude/hooks/ship_guard.sh"
 RGUARD="$KIT/.claude/hooks/record_guard.sh"
 
+# --- fixtures and helpers the groups share (#42) ----------------------------------------
+# fx_<name> builds a fixture on its first call in a process; every later call is a no-op.
+# The guard calls `betterleaks` on a push when one is on PATH (ADR-0070). CI has none and a
+# developer machine may, so every guard case in this suite runs with the scanner switched off —
+# otherwise the same suite would pass or fail by what happens to be installed. The one section
+# that tests the scanner switches it back on, against a stub it controls.
+export ATTEST_LEAK_SCAN=off
+fx_ship() { [ -z "${_fx_ship:-}" ] || return 0; _fx_ship=1
+  S="$WORK/ship"; mkdir -p "$S"
+  git -C "$S" init -q .
+  git -C "$S" symbolic-ref HEAD refs/heads/main
+  git -C "$S" config user.email smoke@example.invalid
+  git -C "$S" config user.name smoke
+  : > "$S/f"; git -C "$S" add f; git -C "$S" commit -qm init
+  SHA="$(git -C "$S" rev-parse --short HEAD)"
+}
+guard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"; }
+rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
+mguard() { # mguard <tool> [tool_input JSON body]
+  echo "{\"tool_name\":\"$1\",\"tool_input\":{${2:-}}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"
+}
+fx_e0() { [ -z "${_fx_e0:-}" ] || return 0; _fx_e0=1
+  E0="$WORK/empty-repo"; mkdir -p "$E0"; git -C "$E0" init -q
+  e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
+    CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
+}
+fx_leak() { [ -z "${_fx_leak:-}" ] || return 0; _fx_leak=1
+  L="$WORK/leakscan"; mkdir -p "$L/repo/.attest" "$L/bin"
+  git -C "$L/repo" init -q .
+  git -C "$L/repo" symbolic-ref HEAD refs/heads/main
+  git -C "$L/repo" config user.email smoke@example.invalid
+  git -C "$L/repo" config user.name smoke
+  : > "$L/repo/f"; git -C "$L/repo" add f; git -C "$L/repo" commit -qm init
+  LSHA="$(git -C "$L/repo" rev-parse --short HEAD)"
+  LREC="$L/repo/.attest/ship-20260916-000000-$LSHA.md"
+  LLOG="$L/repo/.attest/tmp/ship-guard.log"
+  # Distinctive, and shaped like no key: a `ghp_…` value here made betterleaks' own github-pat rule
+  # fire on this file, so the guard stopped the push that shipped it, and every full audit of this
+  # repository — or of a repository generated from it — would have reported it forever.
+  STUB_SECRET="SMOKE-STUB-SECRET-never-a-real-credential"
+  cat > "$L/bin/betterleaks" <<EOF
+#!/bin/sh
+printf '%s\n' "\$@" > "$L/argv"
+pwd -P > "$L/pwd"
+echo "Secret: $STUB_SECRET"
+echo "Secret: $STUB_SECRET" >&2
+sleep "\${STUB_SLEEP:-0}"
+exit "\${STUB_EXIT:-0}"
+EOF
+  chmod +x "$L/bin/betterleaks"
+}
+lguard() { # lguard <stub exit> <command> [VAR=value ...] — later assignments win
+  _e="$1"; _c="$2"; shift 2
+  rm -f "$L/argv" "$L/pwd"
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"}}" |
+    env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT="$_e" CLAUDE_PROJECT_DIR="$L/repo" "$@" sh "$GUARD"
+}
+# col <n> — field n of the last trace line: 2 is the decision, 5 the scan outcome
+col() { tail -n 1 "$LLOG" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+clean_record() { printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$LSHA" > "$LREC"; }
+fx_push() { [ -z "${_fx_push:-}" ] || return 0; _fx_push=1
+  P="$WORK/pushshape"; mkdir -p "$P"
+  git init -q --bare "$P/remote.git"
+  git init -q "$P/repo"
+  git -C "$P/repo" symbolic-ref HEAD refs/heads/main
+  git -C "$P/repo" config user.email smoke@example.invalid
+  git -C "$P/repo" config user.name smoke
+  : > "$P/repo/f"; git -C "$P/repo" add f; git -C "$P/repo" commit -qm init
+  git -C "$P/repo" remote add origin "$P/remote.git"
+  git -C "$P/repo" push -q origin main 2>/dev/null
+  git -C "$P/repo" checkout -qb feature
+  : > "$P/repo/g"; git -C "$P/repo" add g; git -C "$P/repo" commit -qm feature
+  git -C "$P/repo" checkout -q main
+  : > "$P/repo/h"; git -C "$P/repo" add h; git -C "$P/repo" commit -qm ahead
+  git init -q "$P/other"
+  git -C "$P/other" -c user.email=smoke@example.invalid -c user.name=smoke commit -q --allow-empty -m other
+  ln -s "$P/other" "$P/repo/L"
+  PSHA="$(git -C "$P/repo" rev-parse --short HEAD)"
+  mkdir -p "$P/repo/.attest"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$PSHA" > "$P/repo/.attest/ship-20260927-000000-$PSHA.md"
+}
+pguard() {
+  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$P/repo" sh "$GUARD"
+}
+pcol() { tail -n 1 "$P/repo/.attest/tmp/ship-guard.log" 2>/dev/null | awk -v n="$1" '{print $n}'; }
+passes() { if [ -z "$(pguard "$1")" ]; then ok "$2"; else fail "$2"; fi; }
+# cfix <name> [commit] — `init` on a remote, then X (src/a.py) and a clean record for X, untracked;
+# with `commit`, the record is committed on its own: the carrier.
+cfix() {
+  C="$WORK/carrier/$1/repo"
+  git init -q --bare "$WORK/carrier/$1/remote.git"; git init -q "$C"
+  git -C "$C" symbolic-ref HEAD refs/heads/main
+  git -C "$C" config user.email smoke@example.invalid; git -C "$C" config user.name smoke
+  : > "$C/f"; git -C "$C" add f; git -C "$C" commit -qm init
+  git -C "$C" remote add origin "$WORK/carrier/$1/remote.git"; git -C "$C" push -q origin main 2>/dev/null
+  mkdir -p "$C/src" "$C/.attest"; echo a > "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm work
+  X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
+  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
+  if [ "${2:-}" = commit ]; then git -C "$C" add "$CREC"; git -C "$C" commit -qm 'chore: commit the ship record'; fi
+}
+cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD"; }
+cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
+cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
+casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
+# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
+cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
+  says "…traced blocked" "$(cdec)" '^blocked$'; }
+cfix happy commit
+
+# --- groups: six processes at once, each with its own $WORK (#42) ---------------------------
+# With no SMOKE_GROUP the suite starts the six groups in parallel, prints their output in order
+# and adds up their verdicts; a group that dies before its verdict counts as a failure.
+# SMOKE_GROUP=all runs every group in this one process, in order; SMOKE_GROUP=<n> runs one.
+SMOKE_GROUP="${SMOKE_GROUP:-}"
+grp() { [ "$SMOKE_GROUP" = all ] || [ "$SMOKE_GROUP" = "$1" ]; }
+sh_check() {
+  # The hooks run as `sh <hook>`, so the `sh` on PATH is the shell under test. CI names the one it
+  # wants in ATTEST_SMOKE_WANT_SH (dash on ubuntu); a runner image that changed it fails here.
+  SH_REAL="$(readlink -f "$(command -v sh)" 2>/dev/null || command -v sh)"
+  echo "smoke: hooks run under $SH_REAL"
+  if [ -n "${ATTEST_SMOKE_WANT_SH:-}" ]; then
+    case "$SH_REAL" in */"$ATTEST_SMOKE_WANT_SH") ok "the hooks run under $ATTEST_SMOKE_WANT_SH" ;;
+      *) fail "the hooks run under $ATTEST_SMOKE_WANT_SH, not $SH_REAL" ;; esac
+  fi
+}
+if [ -z "$SMOKE_GROUP" ]; then
+  sh_check
+  for _g in 1 2 3 4 5 6 7 8 9; do SMOKE_GROUP=$_g bash "${BASH_SOURCE[0]}" > "$WORK/group-$_g.out" 2>&1 & done
+  wait || true
+  for _g in 1 2 3 4 5 6 7 8 9; do
+    while IFS= read -r _l; do case "$_l" in 'smoke: '[0-9]*' passed, '*) ;; *) echo "$_l" ;; esac
+    done < "$WORK/group-$_g.out"
+    _sum="$(sed -n 's/^smoke: \([0-9]*\) passed, \([0-9]*\) failed$/\1 \2/p' "$WORK/group-$_g.out")"
+    if [ -n "$_sum" ]; then PASS=$((PASS + ${_sum% *})); FAIL=$((FAIL + ${_sum#* }))
+    else fail "group $_g ran to its verdict"; fi
+  done
+  echo
+  echo "smoke: $PASS passed, $FAIL failed"
+  if [ "$FAIL" -eq 0 ]; then exit 0; else exit 1; fi
+fi
+[ "$SMOKE_GROUP" != all ] || sh_check
+
+if grp 1; then
 # --- 0. the kit carries no interpreter dependency --------------------------------------
 echo "kit shape:"
 py_count=$(find "$KIT/.claude" -name '*.py' | wc -l)
@@ -54,17 +205,88 @@ check "no inert .example files ship" test ! -e "$KIT/.mcp.json.example"
 _agents="$(ls "$KIT/.claude/agents")"
 if [ "$_agents" = auditor.md ]; then ok "the kit ships one subagent, the auditor"; else fail "the kit ships one subagent, the auditor ($(printf '%s' "$_agents" | tr '\n' ' '))"; fi
 
-# --- 0a. the gate's word budgets (issue #34) --------------------------------------------
-# Every word of these two files is paid on every /gate run, in two contexts. The targets are
-# 800 and 500; a replay showing that more auditor text catches a miss outranks them (#34).
+# --- 0. budgets: one table, the one home of every size limit (#42) ----------------------------
+# Nothing failed when prose grew, so it grew. A row is <file> <unit> <limit>; the units:
+#   words    wc -w of the file            lines     wc -l          comments  lines starting #
+#   desc     words of the frontmatter description, 0 counted as over
+#   fenced   words in the first ```markdown block; unfenced: the rest of the file
+#   prose    Markdown words outside fenced blocks; long: sentences of prose over 40 words
+prose() { # prose <file> <words|long> — a sentence ends at . ! ? before a space, or at the end
+  awk -v W="$2" '                       # of a heading, list item, table cell or paragraph
+    function flush(   i, j, k, n, c, w, parts) {
+      if (buf == "") return
+      gsub(/([.!?])[)"*_`]*[ \t]+/, "&\001", buf); k = split(buf, parts, "\001")
+      for (i = 1; i <= k; i++) { n = split(parts[i], w, /[ \t]+/); c = 0
+        for (j = 1; j <= n; j++) if (w[j] ~ /[A-Za-z0-9]/) c++
+        words += c; if (c > 40) long++ }
+      buf = "" }
+    /^[ \t]*(```|~~~)/ { flush(); fence = !fence; next }
+    fence { next }
+    /^[ \t]*$/ { flush(); next }
+    /^[ \t]*\|/ { flush(); if ($0 ~ /^[ \t]*\|[-: |]+\|?[ \t]*$/) next
+      n = split($0, cells, "|"); for (i = 1; i <= n; i++) { buf = cells[i]; flush() }; next }
+    /^#+[ \t]/ { flush(); buf = $0; sub(/^#+[ \t]+/, "", buf); flush(); next }
+    /^[ \t]*([-*+]|[0-9]+\.)[ \t]/ { flush(); buf = $0; sub(/^[ \t]*([-*+]|[0-9]+\.)[ \t]+/, "", buf); next }
+    /^>[ \t]?/ { sub(/^>[ \t]?/, "") }
+    { buf = (buf == "" ? $0 : buf " " $0) }
+    END { flush(); print (W == "long" ? long + 0 : words + 0) }' "$1"; }
+# nwords: runs of anything but space, tab and newline. wc -w counts by locale and platform (GNU
+# 798, GNU under LC_ALL=C 777, macOS 801 for gate/SKILL.md); awk counts the same everywhere.
+nwords() { awk '{ n += NF } END { print n + 0 }'; }
+fenced() { awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$1" | nwords; }
+measure() { # measure <unit> <file>
+  case "$1" in
+    words)    nwords < "$2" ;;
+    lines)    wc -l < "$2" ;;
+    comments) grep -cE '^[[:space:]]*#' "$2" ;;
+    desc)     _n=$(awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$2" | nwords)
+              [ "$_n" -gt 0 ] && echo "$_n" || echo 9999 ;;
+    fenced)   fenced "$2" ;;
+    unfenced) echo $(( $(nwords < "$2") - $(fenced "$2") )) ;;
+    prose)    prose "$2" words ;;
+    long)     prose "$2" long ;;
+  esac; }
+# budget_table <root>: one ok or fail per row, over the kit at <root>.
+budget_table() {
+  while read -r _f _u _max; do
+    case "$_f" in ''|'#'*) continue ;; esac
+    _n=$(measure "$_u" "$1/$_f" 2>/dev/null | tr -d ' '); _n=${_n:-9999}
+    if [ "$_n" -le "$_max" ]; then ok "$_f: $_u $_n, limit $_max"; else fail "$_f: $_u $_n, over its limit $_max"; fi
+  done <<'EOF'
+# the gate: paid on every /gate run, in two contexts (#34); the auditor at its #34 size
+.claude/skills/gate/SKILL.md          words     800
+.claude/agents/auditor.md             words     498
+.claude/agents/auditor.md             desc      40
+# the four document skills (#35–#38)
+.claude/skills/business/SKILL.md      words     400
+.claude/skills/business/SKILL.md      desc      40
+.claude/skills/decision/SKILL.md      words     300
+.claude/skills/decision/SKILL.md      desc      40
+.claude/skills/checkpoint/SKILL.md    words     300
+.claude/skills/checkpoint/SKILL.md    desc      40
+.claude/skills/compliance/SKILL.md    words     1200
+.claude/skills/compliance/SKILL.md    fenced    800
+.claude/skills/compliance/SKILL.md    unfenced  400
+# the hooks: each at its size when #42 landed
+.claude/hooks/ship_guard.sh           lines     374
+.claude/hooks/ship_guard.sh           comments  60
+.claude/hooks/record_guard.sh         lines     40
+.claude/hooks/session_declaration.sh  lines     64
+# the repository's own documents (#40, #41)
+README.md                             prose     700
+README.md                             long      0
+METHOD.md                             words     1500
+GUIDE.md                              words     2500
+GUIDE.md                              long      0
+EOF
+}
+echo "budgets:"
+budget_table "$KIT"
+
+# --- 0a. the gate (issue #34) ------------------------------------------------------------------
 echo "gate budgets:"
 GATE_MD="$KIT/.claude/skills/gate/SKILL.md"; AUDITOR_MD="$KIT/.claude/agents/auditor.md"
-gate_w=$(wc -w < "$GATE_MD"); auditor_w=$(wc -w 2>/dev/null < "$AUDITOR_MD" || echo 9999)
-if [ "$gate_w" -le 800 ]; then ok "gate/SKILL.md is within 800 words ($gate_w)"; else fail "gate/SKILL.md is within 800 words ($gate_w)"; fi
-if [ "$auditor_w" -le 500 ]; then ok "auditor.md is within 500 words ($auditor_w)"; else fail "auditor.md is within 500 words ($auditor_w)"; fi
 check "the auditor can read and nothing else" grep -qx 'tools: Read, Grep, Glob' "$AUDITOR_MD"
-desc_w=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$AUDITOR_MD" 2>/dev/null || true; } | wc -w)
-if [ "$desc_w" -ge 1 ] && [ "$desc_w" -le 40 ]; then ok "the auditor's description is 1-40 words ($desc_w)"; else fail "the auditor's description is 1-40 words ($desc_w)"; fi
 check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
 
 # --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
@@ -72,10 +294,6 @@ check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full
 # lives inside it, since no templates/BUSINESS.md ships, so its shape is checked here.
 echo "business budget:"
 BIZ_MD="$KIT/.claude/skills/business/SKILL.md"
-biz_w=$(wc -w 2>/dev/null < "$BIZ_MD" || echo 9999)
-if [ "$biz_w" -le 400 ]; then ok "business/SKILL.md is within 400 words ($biz_w)"; else fail "business/SKILL.md is within 400 words ($biz_w)"; fi
-biz_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$BIZ_MD" 2>/dev/null || true; } | wc -w)
-if [ "$biz_d" -ge 1 ] && [ "$biz_d" -le 40 ]; then ok "its description is 1-40 words ($biz_d)"; else fail "its description is 1-40 words ($biz_d)"; fi
 biz_adr=$(grep -c 'ADR-' "$BIZ_MD" 2>/dev/null || true)
 if [ "${biz_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($biz_adr)"; fi
 check "/business stays user-invoked" grep -qx 'disable-model-invocation: true' "$BIZ_MD"
@@ -99,13 +317,7 @@ check "no BUSINESS.md template ships" test ! -e "$KIT/templates/BUSINESS.md"
 # structure #38 checked against the consolidated text.
 echo "compliance budget and anchors:"
 COMP_MD="$KIT/.claude/skills/compliance/SKILL.md"
-comp_w=$(wc -w 2>/dev/null < "$COMP_MD" || echo 9999)
 comp_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$COMP_MD" 2>/dev/null || true)
-comp_tw=$(printf '%s\n' "$comp_sk" | wc -w)
-comp_iw=$((comp_w - comp_tw))
-if [ "$comp_w" -le 1200 ]; then ok "compliance/SKILL.md is within 1,200 words ($comp_w)"; else fail "compliance/SKILL.md is within 1,200 words ($comp_w)"; fi
-if [ "$comp_tw" -ge 1 ] && [ "$comp_tw" -le 800 ]; then ok "…its template is 1-800 words ($comp_tw)"; else fail "…its template is 1-800 words ($comp_tw)"; fi
-if [ "$comp_iw" -le 400 ]; then ok "…its instructions are within 400 ($comp_iw)"; else fail "…its instructions are within 400 ($comp_iw)"; fi
 comp_adr=$(grep -c 'ADR-' "$COMP_MD" 2>/dev/null || true)
 if [ "${comp_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($comp_adr)"; fi
 comp_date=$(grep -ciE 'shifting|20[0-9]{2}-[0-9]{2}|(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]* 20[0-9]{2}' "$COMP_MD" 2>/dev/null || true)
@@ -123,16 +335,16 @@ comp_b=$(printf '%s\n' "$comp_sk" | awk '
   /^ +[^ ]/ && b != "" { sub(/^ +/, " "); b = b $0; next }
   { if (b != "") print b; b = ""; print }
   END { if (b != "") print b }')
-comp_has() { printf '%s\n' "$comp_b" | grep -qE "$1"; }
+comp_has() { grep -qE "$1" <<< "$comp_b"; }
 check "template: an Art 4 AI literacy line"             comp_has '^- \*\*Art 4 '
 check "…a GPAI model you provide, 3(63)"               comp_has '^- \[ \] .*Art 3\(63\)'
 check "…a system built on a GPAI model, 3(66)"          comp_has '^- \[ \] .*Art 3\(66\)'
 check "…an Art 2 exclusions line"                       comp_has '^- \*\*Art 2 exclusions'
 check "…an Art 6(3) derogation line"                    comp_has '^- \*\*Art 6\(3\)'
 check "…a standalone Art 50 line"                       comp_has '^- \*\*Art 50 '
-if printf '%s\n' "$comp_b" | grep -E '^- \*\*Level' | grep -q 'Art 50'; then
+if grep -E '^- \*\*Level' <<< "$comp_b" | grep -c 'Art 50' >/dev/null; then
   fail "…and Art 50 is no option in the level"; else ok "…and Art 50 is no option in the level"; fi
-comp_25=$(printf '%s\n' "$comp_b" | awk '/^- \*\*Art 25\(1\)/ { f = 1; next } f && /^  - \([abc]\) / { n++ } f && /^- / { exit } END { print n + 0 }')
+comp_25=$(awk '/^- \*\*Art 25\(1\)/ { f = 1; next } f && /^  - \([abc]\) / { n++ } f && /^- / { exit } END { print n + 0 }' <<< "$comp_b")
 if [ "$comp_25" -eq 3 ]; then ok "…the Art 25(1) tripwire, limbs (a) to (c)"; else fail "…the Art 25(1) tripwire, limbs (a) to (c) ($comp_25)"; fi
 check "…Art 5(1) examples with (ba) and (bb)"           comp_has '^- \*\*Art 5\(1\).*\(ba\).*\(bb\)'
 check "…the national layer, date checked live"          comp_has 'Art 70.*Art 99.*record the date checked'
@@ -140,8 +352,8 @@ check "…the GDPR joints, date checked live"             comp_has 'Art 26\(9\).
 check "…the ship guard's log as a local store"          comp_has '^- \*\*.\.attest/tmp/ship-guard\.log'
 # Registration sits with the provider; a deployer registers only as a public authority, and
 # the FRIA (Art 27) is a deployer duty: count its mentions in the deployer list and overall.
-comp_prov=$(printf '%s\n' "$comp_sk" | awk '/^Provider:/ { f = 1; next } /^Deployer/ { exit } f')
-comp_depl=$(printf '%s\n' "$comp_sk" | awk '/^Deployer/ { f = 1; next } f && /^## / { exit } f')
+comp_prov=$(awk '/^Provider:/ { f = 1; next } /^Deployer/ { exit } f' <<< "$comp_sk")
+comp_depl=$(awk '/^Deployer/ { f = 1; next } f && /^## / { exit } f' <<< "$comp_sk")
 says     "…provider registration in the provider list"  "$comp_prov" 'Art 49(1)'
 says     "…deployer registration only via Art 26(8)"    "$comp_depl" 'Art 26(8)'
 says_not "…never in the provider list"                  "$comp_prov" '26(8)'
@@ -158,10 +370,6 @@ fi
 # refusal sentences are METHOD property 6 for this skill, so each is pinned word for word.
 echo "decision budget and refusal:"
 DEC_MD="$KIT/.claude/skills/decision/SKILL.md"
-dec_w=$(wc -w 2>/dev/null < "$DEC_MD" || echo 9999)
-if [ "$dec_w" -le 300 ]; then ok "decision/SKILL.md is within 300 words ($dec_w)"; else fail "decision/SKILL.md is within 300 words ($dec_w)"; fi
-dec_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$DEC_MD" 2>/dev/null || true; } | wc -w)
-if [ "$dec_d" -ge 1 ] && [ "$dec_d" -le 40 ]; then ok "its description is 1-40 words ($dec_d)"; else fail "its description is 1-40 words ($dec_d)"; fi
 dec_adr=$(grep -c 'ADR-' "$DEC_MD" 2>/dev/null || true)
 if [ "${dec_adr:-0}" -eq 0 ]; then ok "…it cites no ADR"; else fail "…it cites no ADR ($dec_adr)"; fi
 dec_rel=$(grep -cE 'Supersedes in part|Narrows|Widens|Extends|Relates to' "$DEC_MD" 2>/dev/null || true)
@@ -177,7 +385,7 @@ check "…none at all: below the threshold, nothing written" \
 # shellcheck disable=SC2016  # the backticks are the skill's Markdown, matched literally
 check "…and anything inferred is marked" grep -qxF -- '- Anything inferred is marked `(inferred)`.' "$DEC_MD"
 dec_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$DEC_MD" 2>/dev/null || true)
-dec_hl=$(printf '%s\n' "$dec_sk" | awk '/^## / { exit } { n++ } END { print n + 0 }')
+dec_hl=$(awk '/^## / { exit } { n++ } END { print n + 0 }' <<< "$dec_sk")
 if [ "$dec_hl" -ge 1 ] && [ "$dec_hl" -le 3 ]; then ok "the file it creates has a 1-3 line header ($dec_hl)"; else fail "the file it creates has a 1-3 line header ($dec_hl)"; fi
 says_not "…no HTML comment"                  "$dec_sk" '<!--'
 says     "…an entry headed by date and title" "$dec_sk" '^## YYYY-MM-DD — <imperative title>$'
@@ -193,10 +401,6 @@ check "no DECISIONS.md template ships" test ! -e "$KIT/templates/DECISIONS.md"
 # the hook that reads them back keeps only the three heading patterns as knobs.
 echo "checkpoint and declaration budgets:"
 CP_MD="$KIT/.claude/skills/checkpoint/SKILL.md"
-cp_w=$(wc -w 2>/dev/null < "$CP_MD" || echo 9999)
-if [ "$cp_w" -le 300 ]; then ok "checkpoint/SKILL.md is within 300 words ($cp_w)"; else fail "checkpoint/SKILL.md is within 300 words ($cp_w)"; fi
-cp_d=$({ awk '/^description:/ { f = 1; next } /^[a-z-]+:/ { f = 0 } f' "$CP_MD" 2>/dev/null || true; } | wc -w)
-if [ "$cp_d" -ge 1 ] && [ "$cp_d" -le 40 ]; then ok "its description is 1-40 words ($cp_d)"; else fail "its description is 1-40 words ($cp_d)"; fi
 cp_adr=$(grep -c 'ADR-' "$CP_MD" 2>/dev/null || true)
 if [ "${cp_adr:-0}" -eq 0 ]; then ok "…and it cites no ADR"; else fail "…and it cites no ADR ($cp_adr)"; fi
 check "/checkpoint stays user-invoked" grep -qx 'disable-model-invocation: true' "$CP_MD"
@@ -206,8 +410,6 @@ if [ "$cp_h" = '## Current state|## Next|' ]; then ok "the file it creates has e
 cp_l=$(printf '%s\n' "$cp_sk" | awk '/^## / { if (n > m) m = n; n = 0; s = 1; next } s && NF { n++ } END { if (n > m) m = n; print m + 0 }')
 if [ "$cp_l" -ge 1 ] && [ "$cp_l" -le 8 ]; then ok "…of at most 8 lines each ($cp_l)"; else fail "…of at most 8 lines each ($cp_l)"; fi
 check "no PROGRESS.md template ships" test ! -e "$KIT/templates/PROGRESS.md"
-decl_l=$(wc -l < "$DECL")
-if [ "$decl_l" -le 70 ]; then ok "session_declaration.sh is within 70 lines ($decl_l)"; else fail "session_declaration.sh is within 70 lines ($decl_l)"; fi
 decl_v=$(grep -oE 'ATTEST_[A-Z_]+' "$DECL" | LC_ALL=C sort -u | tr '\n' ' ')
 if [ "$decl_v" = 'ATTEST_NEXT_HEADING ATTEST_NONGOALS_HEADING ATTEST_STATE_HEADING ' ]; then
   ok "…and reads exactly three ATTEST_ variables, the heading patterns"
@@ -222,7 +424,7 @@ fi
 
 # --- 1. hooks: fail-open on every payload ----------------------------------------------
 echo "hooks — fail-open:"
-for hook in "$DECL" "$GUARD"; do
+for hook in "$DECL" "$GUARD" "$RGUARD"; do
   name="$(basename "$hook")"
   check "$name survives an empty payload"    sh -c "echo '{}' | sh '$hook'"
   check "$name survives garbage stdin"       sh -c "echo 'not json' | sh '$hook'"
@@ -295,7 +497,7 @@ says "…plus a notice naming 6 more" "$sp" '^  … (6 more line(s) — read the
 { echo '## Non-goals'; echo '<!--'; echo 'Write what it will NOT do.'; echo '## Next'; echo '-->'
   echo '- first'; echo; echo; echo; echo '- second'; printf -- '- %0500d\n' 0; } > "$D5/BUSINESS.md"
 sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
-_b=$(printf '%s\n' "$sp" | awk '/^- first$/ { f = 1; next } f && /^- second$/ { print b + 0; exit } f { b++ }')
+_b=$(awk '/^- first$/ { f = 1; next } f && /^- second$/ { print b + 0; exit } f { b++ }' <<< "$sp")
 if [ "$_b" = 1 ]; then ok "three blank lines between two non-goals print as one"; else fail "three blank lines between two non-goals print as one ($_b)"; fi
 says_not "…a multi-line HTML comment prints none of its lines" "$sp" 'Write what it will NOT do'
 says "…and a heading inside it moves no section" "$sp" '^- second$'
@@ -400,21 +602,12 @@ says     "a level-3 subheading does not end its parent section" \
 says_not "…and an override aimed at one selects nothing" \
          "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Detail' sh "$DECL")" 'sub marker'
 
+fi
+
+if grp 2; then
 # --- 3. the ship guard: asks exactly at the boundary -----------------------------------
 echo "hooks — PreToolUse ship guard:"
-# The guard calls `betterleaks` on a push when one is on PATH (ADR-0070). CI has none and a
-# developer machine may, so every guard case in this suite runs with the scanner switched off —
-# otherwise the same suite would pass or fail by what happens to be installed. The one section
-# that tests the scanner switches it back on, against a stub it controls.
-export ATTEST_LEAK_SCAN=off
-S="$WORK/ship"; mkdir -p "$S"
-git -C "$S" init -q .
-git -C "$S" symbolic-ref HEAD refs/heads/main
-git -C "$S" config user.email smoke@example.invalid
-git -C "$S" config user.name smoke
-: > "$S/f"; git -C "$S" add f; git -C "$S" commit -qm init
-SHA="$(git -C "$S" rev-parse --short HEAD)"
-guard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"; }
+fx_ship
 
 if [ -z "$(guard 'ls -la')" ]; then ok "an ordinary command passes untouched"; else fail "an ordinary command passes untouched"; fi
 says "git push without a record asks"        "$(guard 'git push origin main')" 'permissionDecision":"ask'
@@ -596,7 +789,6 @@ rm -f "$S"/.attest/ship-*.md
 # The record the guard above reads is an ordinary untracked file, and the ship guard judges
 # commands and publish tools — so the Write tool went straight past it. These two arms make the
 # write a prompt.
-rguard() { echo "{\"tool_name\":\"Write\",\"permission_mode\":\"auto\",\"tool_input\":{\"file_path\":\"$1\",\"content\":\"x\"}}" | CLAUDE_PROJECT_DIR="$S" sh "$RGUARD"; }
 says "writing a ship record asks"                "$(rguard "$S/.attest/ship-20260910-000000-abc1234.md")" 'permissionDecision":"ask'
 if [ -z "$(rguard "$S/src/main.py")" ]; then ok "an ordinary file write passes untouched"; else fail "an ordinary file write passes untouched"; fi
 if [ -z "$(rguard "$S/.attest/gate-20260910-000000-abc1234.md")" ]; then ok "a gate record is not gated — no machine reads it"; else fail "a gate record is not gated — no machine reads it"; fi
@@ -636,9 +828,6 @@ says "…and a write in the LAST part of a compound" \
 # A GitHub MCP server ships bytes over the API: `git push` is never typed, so the Bash matcher
 # never fires and the gate the README advertises was simply absent there.
 rm -f "$S"/.attest/ship-*.md "$S/.attest/tmp/ship-guard.log"
-mguard() { # mguard <tool> [tool_input JSON body]
-  echo "{\"tool_name\":\"$1\",\"tool_input\":{${2:-}}}" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"
-}
 says "an MCP push asks"            "$(mguard mcp__github__push_files)" 'permissionDecision":"ask'
 says "an MCP pull request asks"    "$(mguard mcp__github__create_pull_request)" 'permissionDecision":"ask'
 says "an MCP file write asks"      "$(mguard mcp__github__create_or_update_file)" 'permissionDecision":"ask'
@@ -694,9 +883,7 @@ says "a git push through the PowerShell tool asks" \
 # --- no HEAD to name: an empty repository, and no repository at all (ADR-0073) ----------
 # A bare `rev-parse HEAD` prints the word HEAD before failing in an empty repository, so the
 # guard used to think a HEAD existed: it scanned, and asked about a record "for HEAD ()".
-E0="$WORK/empty-repo"; mkdir -p "$E0"; git -C "$E0" init -q
-e0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
-  CLAUDE_PROJECT_DIR="$E0" sh "$GUARD")"
+fx_e0
 says     "a push from a repository with no commits asks"  "$e0_out" 'permissionDecision":"ask'
 says     "…says it has no commits yet"                    "$e0_out" 'NO HEAD — .*no commit yet'
 says     "…and blames the repository"                     "$e0_out" 'This repository has no commit'
@@ -711,9 +898,11 @@ git -C "$O0" checkout -q --orphan fresh
 o0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin fresh"}}' | CLAUDE_PROJECT_DIR="$O0" sh "$GUARD")"
 says "a push from an orphan branch asks NO HEAD"            "$o0_out" 'NO HEAD — '
 says "…and blames the branch, not the repository"           "$o0_out" 'This branch has no commit yet'
+# A $TMPDIR inside a git tree (a dotfiles $HOME) would put this directory in a repository; the
+# ceiling keeps git from looking above $WORK, so the case tests what it says.
 N0="$WORK/not-a-repo"; mkdir -p "$N0"
 n0_out="$(echo '{"tool_name":"Bash","tool_input":{"command":"git push origin main"}}' |
-  CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
+  GIT_CEILING_DIRECTORIES="$WORK" CLAUDE_PROJECT_DIR="$N0" sh "$GUARD")"
 says     "a push from outside any git checkout asks"      "$n0_out" 'permissionDecision":"ask'
 says     "…says git found no repository there"            "$n0_out" 'found no repository here, or refused to read one'
 says_not "…and gives no advice that cannot be followed"   "$n0_out" 'for this HEAD'
@@ -774,43 +963,16 @@ says "a push still claims what a push does"   "$(guard 'git push origin main')" 
 # does not exist yet, and most merges never touch this machine. Do not "fix" this assertion.
 if [ -z "$(guard 'gh pr merge 4 --merge')" ]; then ok "a merge stays silent — a declared gap, not a miss"; else fail "a merge stays silent — a declared gap, not a miss"; fi
 
+fi
+
+if grp 3; then
+fx_ship
 # --- the leak scanner, when one is installed (ADR-0070) --------------------------------
 # A STUB stands in for betterleaks: it records its argv one argument per line and the directory it
 # ran in, prints a fake secret on BOTH streams so a leak into the prompt or the trace would show,
 # sleeps if asked to, and exits with whatever the case asks for.
 echo "hooks — ship guard leak scan:"
-L="$WORK/leakscan"; mkdir -p "$L/repo/.attest" "$L/bin"
-git -C "$L/repo" init -q .
-git -C "$L/repo" symbolic-ref HEAD refs/heads/main
-git -C "$L/repo" config user.email smoke@example.invalid
-git -C "$L/repo" config user.name smoke
-: > "$L/repo/f"; git -C "$L/repo" add f; git -C "$L/repo" commit -qm init
-LSHA="$(git -C "$L/repo" rev-parse --short HEAD)"
-LREC="$L/repo/.attest/ship-20260916-000000-$LSHA.md"
-LLOG="$L/repo/.attest/tmp/ship-guard.log"
-# Distinctive, and shaped like no key: a `ghp_…` value here made betterleaks' own github-pat rule
-# fire on this file, so the guard stopped the push that shipped it, and every full audit of this
-# repository — or of a repository generated from it — would have reported it forever.
-STUB_SECRET="SMOKE-STUB-SECRET-never-a-real-credential"
-cat > "$L/bin/betterleaks" <<EOF
-#!/bin/sh
-printf '%s\n' "\$@" > "$L/argv"
-pwd -P > "$L/pwd"
-echo "Secret: $STUB_SECRET"
-echo "Secret: $STUB_SECRET" >&2
-sleep "\${STUB_SLEEP:-0}"
-exit "\${STUB_EXIT:-0}"
-EOF
-chmod +x "$L/bin/betterleaks"
-lguard() { # lguard <stub exit> <command> [VAR=value ...] — later assignments win
-  _e="$1"; _c="$2"; shift 2
-  rm -f "$L/argv" "$L/pwd"
-  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$_c\"}}" |
-    env PATH="$L/bin:$PATH" ATTEST_LEAK_SCAN=on STUB_EXIT="$_e" CLAUDE_PROJECT_DIR="$L/repo" "$@" sh "$GUARD"
-}
-# col <n> — field n of the last trace line: 2 is the decision, 5 the scan outcome
-col() { tail -n 1 "$LLOG" 2>/dev/null | awk -v n="$1" '{print $n}'; }
-clean_record() { printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$LSHA" > "$LREC"; }
+fx_leak
 clean_record
 
 # A clean scan changes nothing — and the scanner was asked exactly the right question, argument by
@@ -972,33 +1134,14 @@ else
   fail "…and the trace says absent"
 fi
 
+fi
+
+if grp 7; then
+fx_ship
 # --- 3a. a record speaks for HEAD, so the push has to ship HEAD alone (ADR-0076) --------
 # Each of these passed silently on v0.12.1 with a clean record for HEAD, and traced `pass`.
 echo "hooks — ship guard: what the push ships:"
-P="$WORK/pushshape"; mkdir -p "$P"
-git init -q --bare "$P/remote.git"
-git init -q "$P/repo"
-git -C "$P/repo" symbolic-ref HEAD refs/heads/main
-git -C "$P/repo" config user.email smoke@example.invalid
-git -C "$P/repo" config user.name smoke
-: > "$P/repo/f"; git -C "$P/repo" add f; git -C "$P/repo" commit -qm init
-git -C "$P/repo" remote add origin "$P/remote.git"
-git -C "$P/repo" push -q origin main 2>/dev/null
-git -C "$P/repo" checkout -qb feature
-: > "$P/repo/g"; git -C "$P/repo" add g; git -C "$P/repo" commit -qm feature
-git -C "$P/repo" checkout -q main
-: > "$P/repo/h"; git -C "$P/repo" add h; git -C "$P/repo" commit -qm ahead
-git init -q "$P/other"
-git -C "$P/other" -c user.email=smoke@example.invalid -c user.name=smoke commit -q --allow-empty -m other
-ln -s "$P/other" "$P/repo/L"
-PSHA="$(git -C "$P/repo" rev-parse --short HEAD)"
-mkdir -p "$P/repo/.attest"
-printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$PSHA" > "$P/repo/.attest/ship-20260927-000000-$PSHA.md"
-pguard() {
-  echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$P/repo" sh "$GUARD"
-}
-pcol() { tail -n 1 "$P/repo/.attest/tmp/ship-guard.log" 2>/dev/null | awk -v n="$1" '{print $n}'; }
-passes() { if [ -z "$(pguard "$1")" ]; then ok "$2"; else fail "$2"; fi; }
+fx_push
 passes 'git push'                           "a plain push of HEAD passes on HEAD's record"
 passes 'git push origin'                    "…and so does one naming only the remote"
 passes 'git push -u origin main'            "…and one naming the branch HEAD is on"
@@ -1089,33 +1232,15 @@ _out="$(printf '{"tool_name":"Write","tool_input":{"file_path":"%s/.attest/ship-
   env LC_ALL=C.UTF-8 CLAUDE_PROJECT_DIR="$P/repo" sh "$RGUARD")"
 says "record_guard asks on a record write holding an invalid byte" "$_out" 'permissionDecision":"ask'
 
+fi
+
+if grp 4; then
+fx_ship; fx_leak; fx_push
 # --- 3a2. a commit that only adds records carries them (ADR-0077) ----------------------
 # Committing a record moves HEAD, so the push that carried it asked with no evidence behind the
 # answer. HEAD now passes as the commit X a clean record names, traced `pass-carrier`, when X..HEAD
 # only adds records; every other shape below still asks.
 echo "hooks — ship guard: the record's own commit:"
-# cfix <name> [commit] — `init` on a remote, then X (src/a.py) and a clean record for X, untracked;
-# with `commit`, the record is committed on its own: the carrier.
-cfix() {
-  C="$WORK/carrier/$1/repo"
-  git init -q --bare "$WORK/carrier/$1/remote.git"; git init -q "$C"
-  git -C "$C" symbolic-ref HEAD refs/heads/main
-  git -C "$C" config user.email smoke@example.invalid; git -C "$C" config user.name smoke
-  : > "$C/f"; git -C "$C" add f; git -C "$C" commit -qm init
-  git -C "$C" remote add origin "$WORK/carrier/$1/remote.git"; git -C "$C" push -q origin main 2>/dev/null
-  mkdir -p "$C/src" "$C/.attest"; echo a > "$C/src/a.py"; git -C "$C" add src; git -C "$C" commit -qm work
-  X="$(git -C "$C" rev-parse --short HEAD)"; CREC=".attest/ship-20260928-100000-$X.md"
-  printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$X" > "$C/$CREC"
-  if [ "${2:-}" = commit ]; then git -C "$C" add "$CREC"; git -C "$C" commit -qm 'chore: commit the ship record'; fi
-}
-cguard() { echo "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"$1\"}}" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD"; }
-cdec() { tail -n 1 "$C/.attest/tmp/ship-guard.log" 2>/dev/null | awk '{print $2}'; }
-cpasses() { if [ -z "$(cguard "$1")" ] && [ "$(cdec)" = pass-carrier ]; then ok "$2"; else fail "$2"; fi; }
-casks() { says "$1 asks" "$(cguard 'git push')" 'permissionDecision":"ask'; says "…traced ask" "$(cdec)" '^ask$'; }
-# A blocker in a carried record asks as BLOCKED and names that record, never NO RECORD.
-cblocked() { says "$1 asks as BLOCKED, naming $2" "$(cguard 'git push')" "BLOCKED — .*Record $2 reports a blocker"
-  says "…traced blocked" "$(cdec)" '^blocked$'; }
-cfix happy commit
 _out="$(cguard 'git push')"; _rc=$?
 if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's clean record passes: exit 0, no output"
   else fail "a push whose HEAD only adds X's clean record passes: exit 0, no output"; fi
@@ -1247,9 +1372,11 @@ for c in 'npm publish; gh pr create --fill' 'git commit -qam x && gh pr create -
          'gh pr create --fill >(npm publish)' 'gh pr create --title x --body-file <(./deploy.sh)'; do
   says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'
 done
+# Payloads with a comma inside braces are built outside "$( )": bash 3.2 (macOS) reads \" there
+# differently, and the braces then expand.
+_pl='{"cwd":"'"$P/other"'","tool_name":"Bash","tool_input":{"command":"gh pr create --fill"}}'
 says "a PR whose shell sits in another repository asks on the carrier" \
-  "$(echo "{\"cwd\":\"$P/other\",\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"gh pr create --fill\"}}" |
-     CLAUDE_PROJECT_DIR="$C" sh "$GUARD")" 'permissionDecision":"ask'
+  "$(printf '%s' "$_pl" | CLAUDE_PROJECT_DIR="$C" sh "$GUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"ask'
 # A plain push under push.default=matching also sends another branch: the shape asks first.
 cfix matching commit
 git -C "$C" branch other HEAD~2; git -C "$C" push -q origin other 2>/dev/null
@@ -1259,6 +1386,10 @@ says "a bare push under push.default=matching, another branch ahead, asks" "$(cg
 says "…traced ask, never pass-carrier" "$(cdec)" '^ask$'
 cpasses 'git push origin main' "…while naming HEAD's branch still passes as the carrier"
 
+fi
+
+if grp 5; then
+fx_ship; fx_e0; fx_leak
 # --- 3a3. what the list reads, what the prompt says, and who answers it (ADR-0078) -------
 echo "hooks — ship guard: spellings, prompts and the deny switch:"
 cfix norec; rm "$C/$CREC"; NR="$C"
@@ -1369,8 +1500,9 @@ for _pl in '{"tool_name":"Bash","tool_input":{"command":"git push"}}' \
            "{\"tool_name\":\"Bash\",\"tool_input\":{\"command\":\"grep -rn 'git push' docs/\"}}"; do
   says "under ATTEST_GUARD=deny, $(printf '%s' "$_pl" | cut -c1-70) is denied" "$(echo "$_pl" | dny "$GUARD")" 'permissionDecision":"deny'
 done
+_pl='{"tool_name":"Write","tool_input":{"file_path":"'"$NR"'/.attest/ship-a.md","content":"x"}}'
 says "…and so is a Write of a record" \
-  "$(echo "{\"tool_name\":\"Write\",\"tool_input\":{\"file_path\":\"$NR/.attest/ship-a.md\",\"content\":\"x\"}}" | dny "$RGUARD")" 'permissionDecision":"deny'
+  "$(printf '%s' "$_pl" | dny "$RGUARD" 2>&1; echo " [payload: $_pl]")" 'permissionDecision":"deny'
 check "README no longer says the guard answers in every permission mode" sh -c "! grep -q 'whatever permission mode' '$KIT/README.md'"
 # The scan runs from the repository's top level, so diff.relative cannot narrow what it reads.
 _R="$WORK/carrier/scantop"; git init -q "$_R"; mkdir -p "$_R/proj/.attest"
@@ -1409,6 +1541,9 @@ chmod 500 "$G/.attest/tmp"
 says "an unwritable scratch still yields a decision" "$(tguard 'git push origin main')" 'permissionDecision":"ask'
 chmod 700 "$G/.attest/tmp"
 
+fi
+
+if grp 6; then
 # --- 4. install.sh: 10 files and 2 lines into a repo, no document; a re-run is one line (#39) --
 echo "install.sh — a fresh repo:"
 gi() { git init -q "$1" && git -C "$1" -c user.name=t -c user.email=t@example.invalid commit -q --allow-empty -m init; }
@@ -1509,12 +1644,22 @@ gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
 
+fi
+
+if grp 8 || grp 9; then
 # --- 10. a ship command spelled to hide it still asks (#56) ------------------------------------
 # Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
-# newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
-# asks with no record and passes on a clean one. silent: never asks.
-HP="$WORK/hidden"; git init -q "$HP"; git -C "$HP" symbolic-ref HEAD refs/heads/main; git -C "$HP" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one
-hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$1" | CLAUDE_PROJECT_DIR="$HP" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
+# newline). ask: asks, a clean record or not. norec: an ordinary ship command, so it asks with no
+# record and passes on a clean one. silent: never asks.
+# A record can only clear an ask, never raise one: the decision before the record lookup is the
+# same in both states. So an ask row runs with a clean record, which implies it asks with none; a
+# silent row runs with none; a norec row runs in both. Rows alternate between groups 8 and 9.
+HP="$WORK/hidden"; HC="$WORK/hidden-clean"
+for _r in "$HP" "$HC"; do git init -q "$_r"; git -C "$_r" symbolic-ref HEAD refs/heads/main
+  git -C "$_r" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one; done
+mkdir -p "$HC/.attest"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HC" rev-parse --short HEAD)" > "$HC/.attest/ship-20260101-000000-x.md"
+hid() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$2" | CLAUDE_PROJECT_DIR="$1" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
 hidden_rows() { cat <<'ROWS'
 ask@git pu\\sh origin main
 ask@git pu\\sh origin other
@@ -1681,20 +1826,22 @@ silent@time make test
 silent@sudo -Eu www-data ls
 ROWS
 }
-for _rec in none clean; do
-  if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
-    printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
-  while IFS='@' read -r _want _cmd; do
-    [ "$_want" != norec ] || { [ "$_rec" = none ] && _want=ask || _want=silent; }
-    _out="$(hid "$_cmd")"
-    if [ "$_want" = ask ]; then says "record $_rec: $_cmd asks" "$_out" 'permissionDecision":"ask'
-    else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
-  done < <(hidden_rows)
-done
-_asks=$(hidden_rows | grep -c '^ask@')
+_i=0; _asks=0
+while IFS='@' read -r _want _cmd; do
+  _i=$((_i + 1)); case "$SMOKE_GROUP.$((_i % 2))" in all.*|8.1|9.0) ;; *) continue ;; esac
+  case "$_want" in
+    ask) _asks=$((_asks + 1)); says "record clean: $_cmd asks" "$(hid "$HC" "$_cmd")" 'permissionDecision":"ask' ;;
+    norec) says "record none: $_cmd asks" "$(hid "$HP" "$_cmd")" 'permissionDecision":"ask'
+      says_not "record clean: $_cmd stays silent" "$(hid "$HC" "$_cmd")" 'permissionDecision' ;;
+    *) says_not "record none: $_cmd stays silent" "$(hid "$HP" "$_cmd")" 'permissionDecision' ;;
+  esac
+done < <(hidden_rows)
 says "…and with a clean record each hidden form is traced nothead ($_asks)" \
-  "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
+  "$(grep -c ' nothead ' "$HC/.attest/tmp/ship-guard.log" 2>/dev/null || true)" "^$_asks\$"
 
+fi
+
+if grp 6; then
 # --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
 _RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"
 _V="${_RQ#attest ship guard: }"; _V="${_V%% — *}"; _A="${_RQ#* — }"; _A="${_A%% (*}"
@@ -1709,6 +1856,8 @@ _RF="$(grep -oE '\.attest/ship-[0-9]{8}-[0-9]{6}-[0-9a-f]+\.md' "$KIT/README.md"
 check "README quotes a ship guard prompt" test -n "$_RQ"
 check "…whose verdict, action, reason and next step are still the hook's" quoted_prompt
 check "README's ship record block is the record it links, byte for byte" quoted_record
+
+fi
 
 # --- verdict ---------------------------------------------------------------------------
 echo

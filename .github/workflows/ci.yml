@@ -24,13 +24,22 @@ permissions:
 jobs:
   check:
     if: github.repository == 'radozaprazny/attest'
-    runs-on: ubuntu-latest
+    # Branch protection requires the check named `check`: the ubuntu entry keeps that name.
+    name: ${{ matrix.os == 'ubuntu-latest' && 'check' || format('check ({0})', matrix.os) }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - uses: astral-sh/setup-uv@d4b2f3b6ecc6e67c4457f6d3e41ec42d3d0fcb86 # v5
 
       - name: shellcheck — installer, hooks, smoke test
-        run: uvx --from shellcheck-py shellcheck install.sh scripts/*.sh .claude/hooks/*.sh
+        run: uvx --from shellcheck-py==0.11.0.1 shellcheck install.sh scripts/*.sh .claude/hooks/*.sh
 
+      # On ubuntu the hooks must run under dash, the strictest common /bin/sh.
       - name: smoke — hooks and install.sh
         run: ./scripts/smoke.sh
+        env:
+          ATTEST_SMOKE_WANT_SH: ${{ matrix.os == 'ubuntu-latest' && 'dash' || '' }}
