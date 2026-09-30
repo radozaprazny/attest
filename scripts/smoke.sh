@@ -31,12 +31,17 @@ check() { # check <description> <command...>
 # got <text> — on a failure, what the case actually read, cut short, so a CI log says why.
 got() { printf '      got: %s\n' "$(printf '%s' "${1:-(nothing)}" | tr '\n' ' ' | cut -c1-240)"; }
 
+# has <text> <pattern> — grep's answer. A pattern with no BRE metacharacter is a plain substring
+# to grep, so the shell answers it without a fork: the suite makes ~870 of these calls. grep reads
+# a here-string, not a pipe: under pipefail, grep -q leaving early could fail the writer's side.
+has() { case "$2" in *[.\[\]\\*^\$]*) grep -q -e "$2" <<< "$1" ;; *) [[ $1 == *"$2"* ]] ;; esac; }
+
 says() { # says <description> <text> <pattern> — assert the output contains a pattern
-  if printf '%s' "$2" | grep -q "$3"; then ok "$1"; else fail "$1"; got "$2"; fi
+  if has "$2" "$3"; then ok "$1"; else fail "$1"; got "$2"; fi
 }
 
 says_not() { # says_not <description> <text> <pattern> — assert it does not
-  if printf '%s' "$2" | grep -q "$3"; then fail "$1"; got "$2"; else ok "$1"; fi
+  if has "$2" "$3"; then fail "$1"; got "$2"; else ok "$1"; fi
 }
 
 # run_install <args...> — capture the run's output. Never aborts the suite: a non-zero exit
@@ -330,16 +335,16 @@ comp_b=$(printf '%s\n' "$comp_sk" | awk '
   /^ +[^ ]/ && b != "" { sub(/^ +/, " "); b = b $0; next }
   { if (b != "") print b; b = ""; print }
   END { if (b != "") print b }')
-comp_has() { printf '%s\n' "$comp_b" | grep -qE "$1"; }
+comp_has() { grep -qE "$1" <<< "$comp_b"; }
 check "template: an Art 4 AI literacy line"             comp_has '^- \*\*Art 4 '
 check "…a GPAI model you provide, 3(63)"               comp_has '^- \[ \] .*Art 3\(63\)'
 check "…a system built on a GPAI model, 3(66)"          comp_has '^- \[ \] .*Art 3\(66\)'
 check "…an Art 2 exclusions line"                       comp_has '^- \*\*Art 2 exclusions'
 check "…an Art 6(3) derogation line"                    comp_has '^- \*\*Art 6\(3\)'
 check "…a standalone Art 50 line"                       comp_has '^- \*\*Art 50 '
-if printf '%s\n' "$comp_b" | grep -E '^- \*\*Level' | grep -q 'Art 50'; then
+if grep -E '^- \*\*Level' <<< "$comp_b" | grep -c 'Art 50' >/dev/null; then
   fail "…and Art 50 is no option in the level"; else ok "…and Art 50 is no option in the level"; fi
-comp_25=$(printf '%s\n' "$comp_b" | awk '/^- \*\*Art 25\(1\)/ { f = 1; next } f && /^  - \([abc]\) / { n++ } f && /^- / { exit } END { print n + 0 }')
+comp_25=$(awk '/^- \*\*Art 25\(1\)/ { f = 1; next } f && /^  - \([abc]\) / { n++ } f && /^- / { exit } END { print n + 0 }' <<< "$comp_b")
 if [ "$comp_25" -eq 3 ]; then ok "…the Art 25(1) tripwire, limbs (a) to (c)"; else fail "…the Art 25(1) tripwire, limbs (a) to (c) ($comp_25)"; fi
 check "…Art 5(1) examples with (ba) and (bb)"           comp_has '^- \*\*Art 5\(1\).*\(ba\).*\(bb\)'
 check "…the national layer, date checked live"          comp_has 'Art 70.*Art 99.*record the date checked'
@@ -347,8 +352,8 @@ check "…the GDPR joints, date checked live"             comp_has 'Art 26\(9\).
 check "…the ship guard's log as a local store"          comp_has '^- \*\*.\.attest/tmp/ship-guard\.log'
 # Registration sits with the provider; a deployer registers only as a public authority, and
 # the FRIA (Art 27) is a deployer duty: count its mentions in the deployer list and overall.
-comp_prov=$(printf '%s\n' "$comp_sk" | awk '/^Provider:/ { f = 1; next } /^Deployer/ { exit } f')
-comp_depl=$(printf '%s\n' "$comp_sk" | awk '/^Deployer/ { f = 1; next } f && /^## / { exit } f')
+comp_prov=$(awk '/^Provider:/ { f = 1; next } /^Deployer/ { exit } f' <<< "$comp_sk")
+comp_depl=$(awk '/^Deployer/ { f = 1; next } f && /^## / { exit } f' <<< "$comp_sk")
 says     "…provider registration in the provider list"  "$comp_prov" 'Art 49(1)'
 says     "…deployer registration only via Art 26(8)"    "$comp_depl" 'Art 26(8)'
 says_not "…never in the provider list"                  "$comp_prov" '26(8)'
@@ -380,7 +385,7 @@ check "…none at all: below the threshold, nothing written" \
 # shellcheck disable=SC2016  # the backticks are the skill's Markdown, matched literally
 check "…and anything inferred is marked" grep -qxF -- '- Anything inferred is marked `(inferred)`.' "$DEC_MD"
 dec_sk=$(awk '/^```markdown$/ { f = 1; next } f && /^```$/ { exit } f' "$DEC_MD" 2>/dev/null || true)
-dec_hl=$(printf '%s\n' "$dec_sk" | awk '/^## / { exit } { n++ } END { print n + 0 }')
+dec_hl=$(awk '/^## / { exit } { n++ } END { print n + 0 }' <<< "$dec_sk")
 if [ "$dec_hl" -ge 1 ] && [ "$dec_hl" -le 3 ]; then ok "the file it creates has a 1-3 line header ($dec_hl)"; else fail "the file it creates has a 1-3 line header ($dec_hl)"; fi
 says_not "…no HTML comment"                  "$dec_sk" '<!--'
 says     "…an entry headed by date and title" "$dec_sk" '^## YYYY-MM-DD — <imperative title>$'
@@ -492,7 +497,7 @@ says "…plus a notice naming 6 more" "$sp" '^  … (6 more line(s) — read the
 { echo '## Non-goals'; echo '<!--'; echo 'Write what it will NOT do.'; echo '## Next'; echo '-->'
   echo '- first'; echo; echo; echo; echo '- second'; printf -- '- %0500d\n' 0; } > "$D5/BUSINESS.md"
 sp=$(CLAUDE_PROJECT_DIR="$D5" sh "$DECL")
-_b=$(printf '%s\n' "$sp" | awk '/^- first$/ { f = 1; next } f && /^- second$/ { print b + 0; exit } f { b++ }')
+_b=$(awk '/^- first$/ { f = 1; next } f && /^- second$/ { print b + 0; exit } f { b++ }' <<< "$sp")
 if [ "$_b" = 1 ]; then ok "three blank lines between two non-goals print as one"; else fail "three blank lines between two non-goals print as one ($_b)"; fi
 says_not "…a multi-line HTML comment prints none of its lines" "$sp" 'Write what it will NOT do'
 says "…and a heading inside it moves no section" "$sp" '^- second$'
