@@ -205,7 +205,9 @@ Without `--upgrade`, a kit file that differs from this kit is kept and counted. 
 replaces such a file only where git holds your committed copy, and names it first. A file with
 uncommitted changes, or one git does not track, is kept and named. Retired paths go under the
 same condition: `reviewer.md`, `doc-auditor.md`, `_shared/`, `audit-history/` and `triggers.sh`.
-It never touches a document or `settings.json`.
+It never touches a document or `settings.json`. It names what an older kit left for you to
+change: its `GUIDE.md`, the `.gitattributes` line `.claude/skills/*/*.sh text eol=lf`, and a bare
+`$CLAUDE_PROJECT_DIR` in the hook commands, which should read `${CLAUDE_PROJECT_DIR:-.}`.
 
 Restart Claude Code afterwards, because skills load at session start. The kit version is the
 `Kit version:` line in `.claude/skills/gate/SKILL.md`, and each record's `kit:` line.

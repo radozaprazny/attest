@@ -58,7 +58,7 @@ elif ! git rev-parse -q --verify HEAD >/dev/null 2>&1; then GIT=0
   need "git — no commit yet: /gate and the ship guard judge a commit, so commit once"
 fi
 
-for f in $FILES; do
+T=0; for f in $FILES; do T=$((T + 1))
   if ! present "$f"; then put "$f"; LANDED+=("$f")
   elif [ "$f" != .claude/settings.json ] && ! same "$f"; then DIFFER+=("$f"); fi
 done
@@ -125,8 +125,10 @@ fi
 if [ ${#LANDED[@]} -eq 0 ] && [ ${#DONE[@]} -eq 0 ] && [ ${#NEEDS[@]} -eq 0 ]; then
   echo "attest${V:+ $V} is already in $TARGET — this run changed nothing."; exit 0
 fi
-banner; n=0; for l in ${LANDED[@]+"${LANDED[@]}"}; do case "$l" in .claude/*) n=$((n + 1)) ;; esac; done
-[ "$n" -eq 0 ] || echo "  ✓ $n kit file(s) landed under .claude/ — settings, 3 hooks, the auditor, /gate /business /decision /compliance /checkpoint"
+banner; C=(); for l in ${LANDED[@]+"${LANDED[@]}"}; do case "$l" in .claude/*) C+=("$l") ;; esac; done
+# The summary line only for a whole install; a partial one names each file that landed.
+if [ ${#C[@]} -eq "$T" ]; then echo "  ✓ $T kit file(s) landed under .claude/ — settings, 3 hooks, the auditor, /gate /business /decision /compliance /checkpoint"
+else for l in ${C[@]+"${C[@]}"}; do echo "  ✓ landed $l"; done; fi
 for l in ${LANDED[@]+"${LANDED[@]}"}; do case "$l" in .claude/*) ;; *) echo "  ✓ $l" ;; esac; done
 if [ ${#NEEDS[@]} -gt 0 ]; then
   echo; echo "  NEEDS YOU"
