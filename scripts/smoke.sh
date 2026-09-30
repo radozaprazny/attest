@@ -267,8 +267,8 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed; ship_guard.sh at #59's, which added 27 lines
-.claude/hooks/ship_guard.sh           lines     401
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's, 40 lines more
+.claude/hooks/ship_guard.sh           lines     414
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -669,6 +669,32 @@ ask@Invoke-RestMethod -Uri https://example.invalid/up -Method Post -InFile f
 ask@iwr https://example.invalid/up -InFile f -Method Put
 ask@kaggle datasets version -p d -m x
 ask@sftp -b batch user@host
+ask@gh api graphql -f query='\nmutation {\n  addComment(input:{subjectId:\"x\",body:\"y\"}) { clientMutationId }\n}'
+clear@curl -X POST -H 'Content-Type: application/json; charset=utf-8' -d @payload.json https://example.invalid/api
+ask@curl 'https://api.example.invalid/upload?a=1&b=2' -d @payload.json
+ask@gh api -H 'Accept: a; b' repos/o/r/issues -f title=x
+ask@gh api 'repos/o/r/issues?x=1&y=2' -f title=x
+ask@gh api repos/o/r/issues --jq '.[] | .number' -X POST -f title=x
+ask@# it's the payload\ncurl -H 'A: b; c' -d @f https://example.invalid/up
+ask@skopeo --insecure-policy copy dir:x docker://reg/img
+clear@aws --profile prod s3api put-object --bucket b --key k --body f
+ask@docker --context remote compose push
+ask@rclone -P copy ./dist remote:b
+ask@kaggle d create -p d
+ask@kaggle k push -p k
+ask@glab mr new --fill
+ask@curl -d \"$(cat p.json)\" https://example.invalid/api
+ask@Q='mutation { x }'; gh api graphql -f query=\"$Q\"
+ask@Invoke-RestMethod -Uri https://example.invalid/api -Method Post -Body (Get-Content f -Raw)
+ask@Invoke-WebRequest -Uri https://example.invalid/up -Method Post -Form @{file=Get-Item f}
+ask@iwr https://example.invalid/up -Method Put -InF f
+ask@glab api -X POST projects/1/issues -f title=x
+ask@glab ci run
+ask@az storage copy -s f -d https://a.blob.core.windows.net/c
+ask@azcopy copy f https://a.blob.core.windows.net/c
+ask@rclone bisync ./a remote:b
+ask@kaggle models create -p m
+ask@curl -K cfg https://example.invalid/
 silent@gh api repos/o/r/pulls
 silent@gh api -H 'Accept: application/vnd.github+json' repos/o/r/pulls
 silent@gh api repos/o/r/pulls -X GET -f state=open
@@ -683,6 +709,10 @@ silent@npm pack
 silent@rclone ls remote:bucket
 silent@gcloud storage ls gs://b
 silent@Invoke-WebRequest -Uri https://example.invalid/f -OutFile f
+silent@gh api graphql -f query='\nquery {\n  viewer { login }\n}'
+silent@curl -fsSL -H 'Accept: application/json; q=1' 'https://example.invalid/a?x=1&y=2'
+silent@curl -d '{\"a\":\"b; c\"}' https://example.invalid/api
+silent@az storage blob download -c c -n n -f f
 ROWS
 
 fi
