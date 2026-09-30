@@ -171,9 +171,9 @@ sh_check() {
 }
 if [ -z "$SMOKE_GROUP" ]; then
   sh_check
-  for _g in 1 2 3 4 5 6; do SMOKE_GROUP=$_g bash "${BASH_SOURCE[0]}" > "$WORK/group-$_g.out" 2>&1 & done
+  for _g in 1 2 3 4 5 6 7 8 9; do SMOKE_GROUP=$_g bash "${BASH_SOURCE[0]}" > "$WORK/group-$_g.out" 2>&1 & done
   wait || true
-  for _g in 1 2 3 4 5 6; do
+  for _g in 1 2 3 4 5 6 7 8 9; do
     while IFS= read -r _l; do case "$_l" in 'smoke: '[0-9]*' passed, '*) ;; FAIL:*) echo "$_l" >&2 ;; *) echo "$_l" ;; esac
     done < "$WORK/group-$_g.out"
     _sum="$(sed -n 's/^smoke: \([0-9]*\) passed, \([0-9]*\) failed$/\1 \2/p' "$WORK/group-$_g.out")"
@@ -257,7 +257,7 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
 # the hooks: each at its size when #42 landed
-.claude/hooks/ship_guard.sh           lines     314
+.claude/hooks/ship_guard.sh           lines     374
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -1123,6 +1123,10 @@ else
   fail "…and the trace says absent"
 fi
 
+fi
+
+if grp 7; then
+fx_ship
 # --- 3a. a record speaks for HEAD, so the push has to ship HEAD alone (ADR-0076) --------
 # Each of these passed silently on v0.12.1 with a clean record for HEAD, and traced `pass`.
 echo "hooks — ship guard: what the push ships:"
@@ -1626,7 +1630,12 @@ gi "$U2"; gc "$U2" old; echo edit >> "$U2/.claude/skills/audit-history/SKILL.md"
 says "a retired path with uncommitted changes is kept and named" "$(run_install --upgrade "$U2")" 'audit-history — retired, kept'
 check "…and is still there" grep -q edit "$U2/.claude/skills/audit-history/SKILL.md"
 
+fi
+
+if grp 8 || grp 9; then
 # --- 10. a ship command spelled to hide it still asks (#56) ------------------------------------
+# The table is the suite's largest, so its two record states run at once: group 8 with no
+# record, group 9 with a clean one.
 # Rows: want@command, the command as it sits in the JSON payload (\\ is one shell backslash, \n a
 # newline). ask: asks with no record and with a clean one. norec: an ordinary ship command, so it
 # asks with no record and passes on a clean one. silent: never asks.
@@ -1799,6 +1808,7 @@ silent@sudo -Eu www-data ls
 ROWS
 }
 for _rec in none clean; do
+  case "$SMOKE_GROUP.$_rec" in all.*|8.none|9.clean) ;; *) continue ;; esac
   if [ "$_rec" = clean ]; then mkdir -p "$HP/.attest"
     printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$HP" rev-parse --short HEAD)" > "$HP/.attest/ship-20260101-000000-x.md"; fi
   while IFS='@' read -r _want _cmd; do
@@ -1808,10 +1818,15 @@ for _rec in none clean; do
     else says_not "record $_rec: $_cmd stays silent" "$_out" 'permissionDecision'; fi
   done < <(hidden_rows)
 done
-_asks=$(hidden_rows | grep -c '^ask@')
-says "…and with a clean record each hidden form is traced nothead ($_asks)" \
-  "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
+if grp 9; then
+  _asks=$(hidden_rows | grep -c '^ask@')
+  says "…and with a clean record each hidden form is traced nothead ($_asks)" \
+    "$(grep -c ' nothead ' "$HP/.attest/tmp/ship-guard.log")" "^$_asks\$"
+fi
 
+fi
+
+if grp 6; then
 # --- 9. the README quotes real text: its guard prompt from the hook, its record from .attest/ (#40) --
 _RQ="$(grep -m1 '^attest ship guard: ' "$KIT/README.md" || true)"
 _V="${_RQ#attest ship guard: }"; _V="${_V%% — *}"; _A="${_RQ#* — }"; _A="${_A%% (*}"
