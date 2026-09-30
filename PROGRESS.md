@@ -7,7 +7,8 @@
 - Wave 3: #40 `v0.21.0` (README 676 prose words, METHOD 1,455), #41 `v0.22.0` (GUIDE 2,294,
   8-row permission-mode table), #56 + #58 kit 0.23.0 (a hidden ship command asks).
 - #42 → kit 0.24.0: one budget table, nine parallel smoke groups, hooks under dash asserted on
-  ubuntu CI, macOS in CI, shellcheck pinned. Smoke 1018 passed, 0 failed.
+  ubuntu CI, macOS in CI, shellcheck pinned. Smoke on CI: ubuntu 873 passed, macOS 872,
+  0 failed.
 
 ## Next
 - #43: v1.0.0 and anything published — ask first.
