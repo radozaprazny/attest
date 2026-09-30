@@ -52,14 +52,41 @@ case "$TOOL" in
   mcp__*create_repository*) KIND=mcp; ACT="creates a repository and publishes what you send" ;;
   mcp__*) KIND=mcp; ACT="sends data off the machine" ;;
 esac
-ship_act() { case "$1" in
+# gh api, curl and PowerShell's web calls send data only with some options, so each part of the
+# command is read alone: a GET in one part never clears a POST in the next. A body read from a file
+# or stdin sends it; one written inline is in the command itself. A GraphQL call sends a mutation.
+sends() { printf '%s\n' "$1" | sed 's/\\n/;/g' | tr ';|&' '\n' | awk '
+  BEGIN { G["--method"] = "X"; G["--field"] = "F"; G["--raw-field"] = "f"; G["--input"] = "<"
+    split("data d data-binary d data-ascii d json d data-urlencode @ form F upload-file T", a, " ")
+    for (k = 1; k < 14; k += 2) C["--" a[k]] = a[k + 1] }
+  function val(r) { if (r != "") return r; i++; return w[i] }
+  function hit(o, v) { if (c == "gh") { if (o == "X") m = toupper(v); else if (o ~ /^[fF<]$/) { f = 1; if (o == "<" || v ~ /(^|=)@/) at = 1 } }
+    else if (o == "T" || (o == "d" && v ~ /^@/) || (o == "@" && v ~ /@/) || (o == "F" && v ~ /=[@<]/)) out = 1 }
+  { n = split($0, w, " "); c = ""; m = ""; f = 0; at = 0; g = 0; out = (tolower($0) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget) .*-infile/)
+    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b)
+      if (c == "") { if (b == "gh" && w[i + 1] == "api") { c = "gh"; i++ } else if (b == "curl") c = "curl"; continue }
+      if (x == "graphql") g = 1
+      else if (x ~ /^--/) { o = x; sub(/=.*/, "", o); v = (x ~ /=/) ? substr(x, index(x, "=") + 1) : ""
+        if (c == "gh" && o in G) hit(G[o], val(v)); else if (c == "curl" && o in C) hit(C[o], val(v)) }
+      else if (x ~ /^-[A-Za-z]/) { t = (c == "gh") ? "XfFHpqt" : "AbcCdDeEFHKmoPQrtTuUwxXyYz"
+        for (k = 2; k <= length(x); k++) if (index(t, substr(x, k, 1))) { hit(substr(x, k, 1), val(substr(x, k + 1))); break } } }
+    if (c == "gh" && (g ? (tolower($0) ~ /mutation/ || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
+    if (out) { print "sends data off the machine"; exit } }'; }
+# npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
+ship_act() { set -- "$1 "; case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
-  *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
+  *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T"*)
+  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker compose"*" push"*|*"docker-compose"*" push"*|\
+  *"podman"*" push"*|*"buildah"*" push"*|*"skopeo copy"*|*"skopeo sync"*|*"gh "*"workflow run"*|*"glab "*"mr create"*|\
+  *"glab release create"*|*"glab release upload"*|*"glab snippet create"*|*"aws s3 mv"*|*"aws s3api put-object"*|\
+  *"aws s3api upload-part"*|*"gcloud"*"storage cp"*|*"gcloud"*"storage mv"*|*"gcloud"*"storage rsync"*|*"az storage"*" upload"*|\
+  *"az storage blob sync"*|*"rclone copy"*|*"rclone sync"*|*"rclone move"*|*"wget"*"--post-file"*|*"wget"*"--body-file"*|\
+  *"sftp "*|*"kaggle"*"datasets create"*|*"kaggle"*"datasets version"*|*"kaggle"*"kernels push"*)
     echo "sends data off the machine" ;;
-  *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
+  *"gh repo edit"*"--visibility"*|*"gh repo create"*|*"glab repo create"*) echo "changes who can read this repository" ;;
+  *"gh api"*|*curl*|*-[Ii][Nn][Ff][Ii][Ll][Ee]*) sends "$1" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
 # A second reading, of the still JSON-escaped command. Line 1: the command with continuations
@@ -84,7 +111,7 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
         if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
     if (t !~ TOOLS) return
     if (t == "git" && tolower(P) ~ /alias\./) f = 1
-    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
+    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : (t == "npm") ? "pu(b(l(i(sh?)?)?)?)?" : "publish"
     for (j = k + 1; j <= nw; j++) { w = W[j]
       if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
       m++; x = (w ~ /[$`{*?[]/); gsub(/["\047]/, "", w)
