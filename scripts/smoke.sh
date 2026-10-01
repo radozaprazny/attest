@@ -267,8 +267,8 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 50 lines more
-.claude/hooks/ship_guard.sh           lines     424
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more
+.claude/hooks/ship_guard.sh           lines     426
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -695,6 +695,8 @@ ask@azcopy copy f https://a.blob.core.windows.net/c
 ask@rclone bisync ./a remote:b
 ask@kaggle models create -p m
 ask@curl -K cfg https://example.invalid/
+ask@gh api graphql -f query='mu''tation{x}'
+ask@gh api graphql -f query=mutatio\\\nn{x}
 silent@gh api repos/o/r/pulls
 silent@gh api -H 'Accept: application/vnd.github+json' repos/o/r/pulls
 silent@gh api repos/o/r/pulls -X GET -f state=open
@@ -1934,6 +1936,9 @@ ask@podman images | grep push; g\\it push origin other
 ask@npm publish && npm --silent publish
 norec@gh pr create --title x \\\n  --fill
 norec@npm publish
+ask@n''pm --silent publish
+ask@git push; c''argo --locked publish
+ask@npm publish; c''argo --locked publish
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/

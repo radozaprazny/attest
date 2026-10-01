@@ -74,18 +74,18 @@ sends() { printf '%s\n' "$1" | awk '
     if (c == "gh" && (g ? (M || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
     n = 0 }
   # A quoted run is taken whole: a character at a time is quadratic in some awks.
-  function walk(mode,   j, ch, d, q, wd, r) { n = 0
+  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0
     for (j = 1; j <= L + 1; j++) { ch = (j > L) ? ";" : substr(s, j, 1)
       if (ch == "\001" && mode == 1) q = ""
       if (j <= L && q != "" && ch != q && ch != "\\" && ch != "\001") { r = substr(s, j)
-        match(r, q == "\047" ? "^[^\047\001]+" : "^[^\"\\\\\001]+"); wd = wd substr(r, 1, RLENGTH); j += RLENGTH - 1; continue }
+        match(r, q == "\047" ? "^[^\047\001]+" : "^[^\"\\\\\001]+"); z = (RLENGTH > 0) ? RLENGTH : 1; wd = wd substr(r, 1, z); j += z - 1; continue }
       if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") wd = wd d; continue }
       if (q != "") { if (ch == q) q = ""; else wd = wd ch; continue }
       if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
       if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
       wd = wd ch } }
   { s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
-    L = length(s); M = (tolower(s) ~ /mutation/)
+    L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
     out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
     walk(0); walk(1); walk(2); if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
@@ -171,14 +171,16 @@ HIDDEN=; NL='
 can_hide() { case "$1" in
   *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
   *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*) return 0 ;; esac; return 1; }
-if [ -z "${KIND:-}" ] && can_hide "$CMD"; then
+unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
+  *'\"'*) _u="${_u%%'\"'*}${_u#*'\"'}" ;; *) return 0 ;; esac; done; }
+if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
     ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
     [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&()' '\n'); do
-      can_hide "$_p" && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
+      { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
       [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
     done; IFS="$_oifs"; fi
 fi
