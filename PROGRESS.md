@@ -20,6 +20,11 @@
   `curl`, `-InFile`); every part a first reading missed is read again.
 
 ## Next
+- #69: smoke is over its 10 s budget on ubuntu CI since #59 (10.7 s on PR #67, 11.3 s on main):
+  a guard call starts 50 processes. Kit 1.3.0 starts 31, no decision changed; its CI time
+  decides whether the budget holds.
+- #68: a ship tool spelled in capitals (`NPM publish`, `GIT push`) passes on a case-insensitive
+  file system.
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
   its web form, from a human); their links into PR #63, then close #43 by hand.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook
