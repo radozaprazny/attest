@@ -17,8 +17,7 @@
   scan.
 - #59 + #65 → kit 1.2.0: the ship list reads pnpm, npm's prefixes of publish, compose, podman,
   skopeo, glab, gcloud, az, rclone, sftp, kaggle uploads and writing web calls (`gh api`,
-  `curl`, `-InFile`); every part a first reading missed is read again. `ship_guard.sh` has
-  424 lines.
+  `curl`, `-InFile`); every part a first reading missed is read again.
 
 ## Next
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
