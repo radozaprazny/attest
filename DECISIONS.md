@@ -55,3 +55,11 @@ handed an alias. A second reading sees them, and such a command asks even on a c
 dry run passes only as `<verb> --dry-run`. The second reading skips no text to save a prompt:
 an over-ask costs a click, a hidden push costs the guard. Rejected: decoding every shell
 spelling, and reading wrapper options or exempting alias reads, which hid pushes in review. (#56)
+
+## 2026-10-01 — Read every part of a command, and a web call by its body's source
+Beside a ship command the first reading sees, every part it missed is read a second time,
+so a hidden push cannot ride on HEAD's record. `gh api`, `glab api`, `curl` and PowerShell's
+web calls ask on a write method, or on a body from a file, stdin or an expansion; an inline
+body is in the command itself and passes. Parts and words are cut three ways, quotes kept,
+reset at a newline and ignored, and any way that finds a write asks. Rejected: asking on every
+web call. (#59, #65)
