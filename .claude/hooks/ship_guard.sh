@@ -52,14 +52,58 @@ case "$TOOL" in
   mcp__*create_repository*) KIND=mcp; ACT="creates a repository and publishes what you send" ;;
   mcp__*) KIND=mcp; ACT="sends data off the machine" ;;
 esac
-ship_act() { case "$1" in
+# gh api, glab api, curl and PowerShell's web calls send data only with some options, so the raw
+# command is cut into parts and words three ways, as reread does (quotes kept, kept until a newline,
+# ignored): a GET in one part never clears a POST in the next. A body from a file, stdin or an
+# expansion sends; an inline one is in the command itself. A GraphQL call sends a mutation.
+sends() { printf '%s\n' "$1" | awk '
+  BEGIN { G["--method"] = "X"; G["--field"] = "F"; G["--raw-field"] = "f"; G["--input"] = "<"
+    split("data d data-binary d data-ascii d json d data-urlencode @ form F upload-file T config K", a, " ")
+    for (k = 1; k < 16; k += 2) C["--" a[k]] = a[k + 1] }
+  function val(r) { if (r != "") return r; i++; return w[i] }
+  function hit(o, v) { if (c == "gh") { if (o == "X") m = toupper(v); else if (o ~ /^[fF<]$/) { f = 1; if (o == "<" || v ~ /(^|=)[@$`]/) at = 1 } }
+    else if (o ~ /^[TK]$/ || (o == "d" && v ~ /^[@$`]/) || (o == "@" && v ~ /[@$`]/) || (o == "F" && v ~ /=[@<$`]/)) out = 1 }
+  function judge(   x, b, o, v, t, k) { c = ""; m = ""; f = 0; at = 0; g = 0
+    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b)
+      if (c == "") { if (b ~ /^(gh|glab)$/ && w[i + 1] == "api") { c = "gh"; i++ } else if (b == "curl") c = "curl"; continue }
+      if (x == "graphql") g = 1
+      else if (x ~ /^--/) { o = x; sub(/=.*/, "", o); v = (x ~ /=/) ? substr(x, index(x, "=") + 1) : ""
+        if (c == "gh" && o in G) hit(G[o], val(v)); else if (c == "curl" && o in C) hit(C[o], val(v)) }
+      else if (x ~ /^-[A-Za-z]/) { t = (c == "gh") ? "XfFHpqt" : "AbcCdDeEFHKmoPQrtTuUwxXyYz"
+        for (k = 2; k <= length(x); k++) if (index(t, substr(x, k, 1))) { hit(substr(x, k, 1), val(substr(x, k + 1))); break } } }
+    if (c == "gh" && (g ? (M || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
+    n = 0 }
+  # A quoted run is taken whole: a character at a time is quadratic in some awks.
+  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0
+    for (j = 1; j <= L + 1; j++) { ch = (j > L) ? ";" : substr(s, j, 1)
+      if (ch == "\001" && mode == 1) q = ""
+      if (j <= L && q != "" && ch != q && ch != "\\" && ch != "\001") { r = substr(s, j)
+        match(r, q == "\047" ? "^[^\047\001]+" : "^[^\"\\\\\001]+"); z = (RLENGTH > 0) ? RLENGTH : 1; wd = wd substr(r, 1, z); j += z - 1; continue }
+      if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") wd = wd d; continue }
+      if (q != "") { if (ch == q) q = ""; else wd = wd ch; continue }
+      if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
+      if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
+      wd = wd ch } }
+  { s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
+    L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
+    out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
+    walk(0); walk(1); walk(2); if (out) print "sends data off the machine" }'; }
+# npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
+ship_act() { set -- "$1 "; case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
-  *"npm publish"*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
+  *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T"*)
+  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker"*"compose"*" push"*|\
+  *"podman"*" push"*|*"buildah"*" push"*|*"skopeo"*" copy"*|*"skopeo"*" sync"*|*"gh "*"workflow run"*|*"glab "*"mr create"*|\
+  *"glab "*"mr new"*|*"glab "*"ci run"*|*"glab "*"release create"*|*"glab "*"release upload"*|*"glab "*"snippet create"*|\
+  *"aws"*"s3 mv"*|*"aws"*"s3api put-object"*|*"aws"*"s3api upload-part"*|*"gcloud"*"storage cp"*|*"gcloud"*"storage mv"*|\
+  *"gcloud"*"storage rsync"*|*"az "*"storage"*" upload"*|*"az "*"storage"*" sync"*|*"az "*"storage copy"*|*"azcopy"*" copy"*|\
+  *"azcopy"*" sync"*|*"rclone"*" copy"*|*"rclone"*"sync"*|*"rclone"*" move"*|*"rclone"*" rcat"*|*"wget"*"--post-file"*|\
+  *"wget"*"--body-file"*|*"sftp "*|*"kaggle"*" create"*|*"kaggle"*" version "*|*"kaggle"*" push"*)
     echo "sends data off the machine" ;;
-  *"gh repo edit"*"--visibility"*|*"gh repo create"*) echo "changes who can read this repository" ;;
+  *"gh repo edit"*"--visibility"*|*"gh repo create"*|*"glab "*"repo create"*) echo "changes who can read this repository" ;;
+  *"gh api"*|*"glab api"*|*[Cc][Uu][Rr][Ll]*|*[Ii][Nn][Vv][Oo][Kk][Ee]-*|*[Ii][Ww][Rr]*|*[Ii][Rr][Mm]*) sends "$CMD" ;;
 esac; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
 # A second reading, of the still JSON-escaped command. Line 1: the command with continuations
@@ -84,7 +128,7 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
         if (w ~ /^(push|publish|upload|submit|send-email)$/) { f = 1; return } }; return }
     if (t !~ TOOLS) return
     if (t == "git" && tolower(P) ~ /alias\./) f = 1
-    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : "publish"
+    v = (t == "twine") ? "upload" : (t ~ /^(gem|docker)$/) ? "push" : (t == "gsutil") ? "cp|rsync|mv" : (t == "npm") ? "pu(b(l(i(sh?)?)?)?)?" : "publish"
     for (j = k + 1; j <= nw; j++) { w = W[j]
       if (w ~ /^[-+]/) { if (t == "git" && w ~ /^(-[cC]|--(git-dir|work-tree|namespace|config-env|attr-source))$/) j++; continue }
       m++; x = (w ~ /[$`{*?[]/); gsub(/["\047]/, "", w)
@@ -121,16 +165,24 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
     print (f ? "x" : "") }'; }
 # A ship command seen only in the second reading always asks, record or not. A command with none
 # of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
-# no option before its verb) skips it.
+# no option before its verb) skips it. Beside a ship command seen first, every part it missed is read.
 HIDDEN=; NL='
 '
-if [ -z "${KIND:-}" ] && [ -z "${ACT:-}" ]; then case "$CMD" in
+can_hide() { case "$1" in
   *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
-  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*)
-  _x="$(printf '%s' "$CMD" | reread)"
-  ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
-  [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
-  [ -z "$ACT" ] || HIDDEN=1 ;; esac
+  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*) return 0 ;; esac; return 1; }
+unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
+  *'\"'*) _u="${_u%%'\"'*}${_u#*'\"'}" ;; *) return 0 ;; esac; done; }
+if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
+  if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
+    ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
+    [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
+    [ -z "$ACT" ] || HIDDEN=1
+  else _oifs="$IFS"; IFS="$NL"
+    for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&()' '\n'); do
+      { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
+      [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
+    done; IFS="$_oifs"; fi
 fi
 
 # A record written in a push's own command would skip its prompt, so every shell command is read.

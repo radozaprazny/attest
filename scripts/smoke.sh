@@ -267,8 +267,8 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed
-.claude/hooks/ship_guard.sh           lines     374
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more
+.claude/hooks/ship_guard.sh           lines     426
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -601,6 +601,121 @@ says     "a level-3 subheading does not end its parent section" \
          "$(CLAUDE_PROJECT_DIR="$D4" sh "$DECL")" 'sub marker'
 says_not "…and an override aimed at one selects nothing" \
          "$(CLAUDE_PROJECT_DIR="$D4" ATTEST_STATE_HEADING='Detail' sh "$DECL")" 'sub marker'
+
+fi
+
+if grp 1 || grp 6; then
+# --- 2b. ship commands the list did not name (#59) ----------------------------------------------
+# Rows: want@command, as it sits in the JSON payload. ask: asks with no record. clear: asks with no
+# record and passes on a clean one, as a listed command does. silent: never asks. Rows alternate
+# between groups 1 and 6. Each row was silent on the hook before #59, controls included.
+echo "hooks — ship guard: commands the list did not name (#59):"
+UP="$WORK/unlisted"; UC="$WORK/unlisted-clean"
+for _r in "$UP" "$UC"; do git init -q "$_r"; git -C "$_r" symbolic-ref HEAD refs/heads/main
+  git -C "$_r" -c user.name=s -c user.email=s@example.invalid commit -q --allow-empty -m one; done
+mkdir -p "$UC/.attest"
+printf -- '- HEAD: %s (main)\n- findings: 0 blocker · 0 note\n' "$(git -C "$UC" rev-parse --short HEAD)" > "$UC/.attest/ship-20260101-000000-x.md"
+u59() { printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$2" | CLAUDE_PROJECT_DIR="$1" ATTEST_LEAK_SCAN=off sh "$GUARD"; }
+_i=0
+while IFS='@' read -r _want _cmd; do
+  _i=$((_i + 1)); case "$SMOKE_GROUP.$((_i % 2))" in all.*|1.1|6.0) ;; *) continue ;; esac
+  case "$_want" in
+    ask) says "record none: $_cmd asks" "$(u59 "$UP" "$_cmd")" 'permissionDecision":"ask' ;;
+    clear) says "record none: $_cmd asks" "$(u59 "$UP" "$_cmd")" 'permissionDecision":"ask'
+      says_not "record clean: $_cmd passes" "$(u59 "$UC" "$_cmd")" 'permissionDecision' ;;
+    *) says_not "record none: $_cmd stays silent" "$(u59 "$UP" "$_cmd")" 'permissionDecision' ;;
+  esac
+done <<'ROWS'
+clear@pnpm -r publish
+ask@pnpm --filter a publish
+ask@npm pub
+ask@npm publ
+clear@npm pu --tag next
+ask@npm publis
+ask@npm --silent pub
+clear@docker compose push
+ask@docker-compose push
+ask@docker compose -f prod.yml push web
+ask@podman push img
+ask@buildah push img
+ask@skopeo copy docker-archive:x.tar docker://reg/img
+clear@gh api -X POST repos/o/r/issues
+ask@gh api repos/o/r/issues -f title=x
+ask@gh api repos/o/r/issues -F body=@notes.md
+ask@gh api --method PATCH repos/o/r
+ask@gh api -XPOST repos/o/r/issues
+ask@gh api -X GET repos/o/r/pulls && gh api -X POST repos/o/r/issues
+ask@gh api graphql -f query='mutation { addStar(input:{starrableId:\"x\"}) { clientMutationId } }'
+ask@gh api graphql -F query=@q.graphql
+ask@gh api repos/o/r/contents/x --input body.json
+ask@gh workflow run deploy.yml
+ask@glab mr create --fill
+ask@aws s3api put-object --bucket b --key k --body f
+ask@gcloud storage cp f gs://b/
+ask@gcloud --project p storage cp f gs://b/
+ask@az storage blob upload -f f -c c -n n
+ask@rclone copy dist remote:bucket
+clear@curl -F file=@f https://example.invalid/up
+ask@curl -d @f https://example.invalid/up
+ask@curl --data-binary @f https://example.invalid/up
+ask@curl -sd @f https://example.invalid/up
+ask@curl -d@f https://example.invalid/up
+ask@curl --json @f https://example.invalid/up
+ask@curl --data-urlencode c@f https://example.invalid/up
+ask@curl -X POST -F 'f=<secret.txt' https://example.invalid/up
+ask@wget --post-file f https://example.invalid/up
+clear@Invoke-WebRequest -Uri https://example.invalid/up -Method Post -InFile f
+ask@Invoke-RestMethod -Uri https://example.invalid/up -Method Post -InFile f
+ask@iwr https://example.invalid/up -InFile f -Method Put
+ask@kaggle datasets version -p d -m x
+ask@sftp -b batch user@host
+ask@gh api graphql -f query='\nmutation {\n  addComment(input:{subjectId:\"x\",body:\"y\"}) { clientMutationId }\n}'
+clear@curl -X POST -H 'Content-Type: application/json; charset=utf-8' -d @payload.json https://example.invalid/api
+ask@curl 'https://api.example.invalid/upload?a=1&b=2' -d @payload.json
+ask@gh api -H 'Accept: a; b' repos/o/r/issues -f title=x
+ask@gh api 'repos/o/r/issues?x=1&y=2' -f title=x
+ask@gh api repos/o/r/issues --jq '.[] | .number' -X POST -f title=x
+ask@# it's the payload\ncurl -H 'A: b; c' -d @f https://example.invalid/up
+ask@skopeo --insecure-policy copy dir:x docker://reg/img
+clear@aws --profile prod s3api put-object --bucket b --key k --body f
+ask@docker --context remote compose push
+ask@rclone -P copy ./dist remote:b
+ask@kaggle d create -p d
+ask@kaggle k push -p k
+ask@glab mr new --fill
+ask@curl -d \"$(cat p.json)\" https://example.invalid/api
+ask@Q='mutation { x }'; gh api graphql -f query=\"$Q\"
+ask@Invoke-RestMethod -Uri https://example.invalid/api -Method Post -Body (Get-Content f -Raw)
+ask@Invoke-WebRequest -Uri https://example.invalid/up -Method Post -Form @{file=Get-Item f}
+ask@iwr https://example.invalid/up -Method Put -InF f
+ask@glab api -X POST projects/1/issues -f title=x
+ask@glab ci run
+ask@az storage copy -s f -d https://a.blob.core.windows.net/c
+ask@azcopy copy f https://a.blob.core.windows.net/c
+ask@rclone bisync ./a remote:b
+ask@kaggle models create -p m
+ask@curl -K cfg https://example.invalid/
+ask@gh api graphql -f query='mu''tation{x}'
+ask@gh api graphql -f query=mutatio\\\nn{x}
+silent@gh api repos/o/r/pulls
+silent@gh api -H 'Accept: application/vnd.github+json' repos/o/r/pulls
+silent@gh api repos/o/r/pulls -X GET -f state=open
+silent@gh api graphql -f query='query { viewer { login } }'
+silent@gh workflow view deploy.yml
+silent@curl -fsSL https://example.invalid/install.sh
+silent@curl -d '{\"a\":1}' https://example.invalid/api
+silent@curl -H 'Authorization: x' -X POST https://example.invalid/api
+silent@docker compose up -d
+silent@npm run publish-docs
+silent@npm pack
+silent@rclone ls remote:bucket
+silent@gcloud storage ls gs://b
+silent@Invoke-WebRequest -Uri https://example.invalid/f -OutFile f
+silent@gh api graphql -f query='\nquery {\n  viewer { login }\n}'
+silent@curl -fsSL -H 'Accept: application/json; q=1' 'https://example.invalid/a?x=1&y=2'
+silent@curl -d '{\"a\":\"b; c\"}' https://example.invalid/api
+silent@az storage blob download -c c -n n -f f
+ROWS
 
 fi
 
@@ -1424,6 +1539,7 @@ says "…traced ask: no carrier is looked for" "$(cdec)" '^ask$'
 cpasses 'git push -u origin main && gh pr create --fill' "a PR after the push passes on the carrier"
 cpasses "cd $C && gh pr create --fill"                   "…and so does one after a cd into this repository"
 cpasses 'gh pr create --fill 2>&1 | tail -3'            "…and one piped into a filter"
+cpasses 'gh pr create --title x \\\n  --fill'             "…and one with a line continuation, read part by part (#65)"
 # From #32's review: a quote in a comment or a heredoc, or a git option inside a quoted command,
 # hid the push from the list; quoted values with escaped quotes; an abbreviated --no-dry-run.
 C="$NR"
@@ -1810,6 +1926,19 @@ ask@git config alias.p push # alias.x
 ask@git config alias.p push 2>/tmp/alias.err
 ask@git config alias.p push get
 ask@git config alias.p pu\"\"sh # alias.
+ask@npm publish && git pu\\sh origin other
+ask@npm publish && git $SUB origin other
+ask@scp f host: && git pu\\sh origin other
+ask@curl -d @notes.json https://example.invalid/x; g\\it push origin other
+ask@rclone copy remote:b ./in && g\\it push -f origin HEAD:release
+ask@gcloud storage cp gs://b/x . && git $(echo push) origin other
+ask@podman images | grep push; g\\it push origin other
+ask@npm publish && npm --silent publish
+norec@gh pr create --title x \\\n  --fill
+norec@npm publish
+ask@n''pm --silent publish
+ask@git push; c''argo --locked publish
+ask@npm publish; c''argo --locked publish
 silent@git push --dry-run origin HEAD
 silent@git log --format=$FMT
 silent@grep -rn push docs/

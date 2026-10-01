@@ -49,7 +49,7 @@ Claude Code's own permission rules decide.
 
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
-| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, repository creation and visibility. Publishes by `npm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. `docker` pushes, Kaggle submits. Uploads by `scp` or `rsync` to a remote, `aws s3`, `gsutil cp`, `curl`. |
+| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker compose`, `podman`, `buildah`, `skopeo`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
 | Record writes | A shell write to `.attest/ship-*.md`, such as `>`, `tee`, `cp` or `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
 | Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
@@ -229,7 +229,12 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - The guard reads text, not what the shell makes of it. Not read: `eval "$X"`, `xargs`, shell
   aliases, and words split by `IFS`. It defends against forgetting, not forgery.
 - The ship list is literal. A command not on it, such as `mvn deploy`, passes unseen until you
-  add it to `ship_act()`.
+  add it to `ship_act()`. Behind an expansion only the second reading's tools are read:
+  `podman $X img` passes.
+- A web request asks for a body from a file, stdin or an expansion (`curl -d @f`,
+  `-InFile`), not an inline one. `gh api` asks on a write method or fields without
+  `--method GET`; GraphQL on a `mutation`. PowerShell splatting passes.
+- Two-way copies (`aws s3 cp`, `rclone copy`) ask on downloads too.
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
   hooks, and so does a cloud session opened on several repositories ([managed][ms],
   [strict][sp], [cloud][ce]). Nothing reports it. The check is the session hook: no attest output at session start means no guard.
