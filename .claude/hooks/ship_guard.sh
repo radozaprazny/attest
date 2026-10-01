@@ -15,7 +15,7 @@
 set -uf
 export LC_ALL=C
 # The hook's own state starts empty, whatever the session's environment holds.
-KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; V=; AUDITED=; CARRY=; SHIPS=
+KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; V=; AUDITED=; CARRY=; SHIPS=; TOOL=
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
@@ -23,8 +23,8 @@ PAYLOAD="$(cat 2>/dev/null || true)"
 CMD="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"command"[[:space:]]*:[[:space:]]*"(([^"\\]|\\.)*)".*/\1/p')"
 [ -n "$CMD" ] || CMD="$PAYLOAD"
-TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' |
-  sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')"
+# The tool name matters only as mcp__*, which a payload without that text cannot hold.
+case "$PAYLOAD" in *mcp__*) TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' | sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')" ;; esac
 
 # Quotes go and git's own options (-C dir, -c k=v, …) are skipped: every spelling reads the same.
 # git.exe reads as git, and an option or value whose quotes do not pair up runs on to the word
@@ -178,15 +178,15 @@ if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
     ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
     [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
     [ -z "$ACT" ] || HIDDEN=1
-  else _oifs="$IFS"; IFS="$NL"
-    for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g' | tr ';|&()' '\n'); do
+  else _oifs="$IFS"; IFS="$NL;|&()"
+    for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g'); do
       { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
       [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
     done; IFS="$_oifs"; fi
 fi
 
-# A record written in a push's own command would skip its prompt, so every shell command is read.
-if [ "${KIND:-}" != mcp ]; then
+# A record written in a push's own command would skip its prompt, so every command naming ship- is read.
+if [ "${KIND:-}" != mcp ] && case "$NORM" in *ship-*) true ;; *) false ;; esac; then
   _parts="$(printf '%s' "$NORM" | sed 's#\\\\#/#g; s/\\n/;/g; s/>|/>/g' | tr ';|&' '\n' | sed 's/>[[:space:]]*/>/g')"
   _oifs="$IFS"; IFS="$NL"
   for _part in $_parts; do
@@ -202,19 +202,19 @@ fi
 
 [ -n "${ACT:-}" ] || exit 0
 
-# A credential in the command never reaches the trace or the prompt.
+# A credential in the command never reaches the trace or the prompt; the same sed then does san's work.
 if [ "${KIND:-}" = mcp ]; then SUBJ="$TOOL"; else SUBJ="$CMD"; fi
-SUBJ="$(printf '%s' "$SUBJ" | sed -E 's#://[^/@[:space:]]*@#://***@#g; s/(--password|--pass|--token|--api-key|--auth|-p)([= ]+)[^[:space:]]+/\1\2***/g
+SAFE="$(printf '%s' "$SUBJ" | sed -E 's#://[^/@[:space:]]*@#://***@#g; s/(--password|--pass|--token|--api-key|--auth|-p)([= ]+)[^[:space:]]+/\1\2***/g
   s/([A-Za-z0-9_]*([Kk][Ee][Yy]|[Tt][Oo][Kk][Ee][Nn]|[Ss][Ee][Cc][Rr][Ee][Tt]|[Pp][Aa][Ss][Ss]|PAT|AUTH|CRED)[A-Za-z0-9_]*)=(\\"[^"]*\\"|[^[:space:]]*)/\1=***/g
-  s/(-u|--user)([= ]+)[^[:space:]]*:[^[:space:]]*/\1\2***/g; s/([Bb]earer|[Tt]oken|[Bb]asic)[[:space:]]+[^[:space:]\\"]+/\1 ***/g')"
+  s/(-u|--user)([= ]+)[^[:space:]]*:[^[:space:]]*/\1\2***/g; s/([Bb]earer|[Tt]oken|[Bb]asic)[[:space:]]+[^[:space:]\\"]+/\1 ***/g
+  s#[^A-Za-z0-9 ._/:=@*+-]# #g; H; $!d; x; s/^\n//; s/\n/ /g; s/^(.{120}).*/\1/')"
 san() { printf '%s' "$1" | tr -c 'A-Za-z0-9 ._/:=@*+-' ' ' | cut -c1-"${2:-60}"; }
-SAFE="$(san "$SUBJ" 120)"
 
 SHA="$(git -C "$ROOT" rev-parse --short --verify -q HEAD 2>/dev/null || true)"
 FULL="$(git -C "$ROOT" rev-parse --verify -q HEAD 2>/dev/null || true)"
 MODE="$(printf '%s' "$PAYLOAD" |
   sed -nE 's/.*"permission_mode"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p')"
-trace() { { mkdir -p "$ROOT/.attest/tmp" && printf '%s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+trace() { { { [ -d "$ROOT/.attest/tmp" ] || mkdir -p "$ROOT/.attest/tmp"; } && printf '%s %s %s %s %s %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
   "$1" "${SHA:--}" "${MODE:--}" "$SCAN" "$SAFE" >> "$ROOT/.attest/tmp/ship-guard.log"; } 2>/dev/null || true; }
 # Every ask names its verdict first; ATTEST_GUARD=deny turns each into a deny, for where nobody answers.
 ask() { _d=ask; [ "${ATTEST_GUARD:-}" != deny ] || _d=deny
@@ -238,9 +238,9 @@ case "$CMD" in
   *) case " $NORM " in *" --no-d"*) ;;
        *" push --dry-run "*|*" publish --dry-run "*|*" upload --dry-run "*|*" rsync --dry-run "*) trace dryrun; exit 0 ;; esac ;;
 esac
-record_head_sha() {
-  sed -n '/^- HEAD:/{p;q;}' "$1" 2>/dev/null | tr -d '\r' |
-    sed -n 's/^- HEAD:[[:space:]]*\([0-9a-fA-F]\{7,\}\).*/\1/p' | tr 'A-F' 'a-f'
+record_head_sha() { [ -e "$1" ] || return 0
+  sed -n -e '/^- HEAD:/!d' -e "s/$CR//g" -e '/^- HEAD:[[:space:]]*[0-9a-fA-F]\{7,\}/!q' \
+    -e 's/^- HEAD:[[:space:]]*\([0-9a-fA-F]\{7,\}\).*/\1/' -e 'y/ABCDEF/abcdef/' -e p -e q "$1" 2>/dev/null
 }
 # The records naming commit $1: none (empty), `clean`, or `blocked <the first failing record>`.
 records_for() {
@@ -390,7 +390,7 @@ if [ -n "$HIDDEN" ]; then CARRY=; SHAPEDEC=nothead
 if [ -n "$FULL" ]; then
   # Every record naming HEAD must be clean (a later blocker still holds). A carrier is looked for
   # only once the push is read as shipping HEAD alone.
-  RECORDS="$(records_for "$FULL")"
+  CR="$(printf '\r')"; RECORDS="$(records_for "$FULL")"
   if [ -z "$RECORDS" ] && [ -z "$SHAPE" ] && [ "$CARRY" = 1 ]; then AUDITED="$(carrier)"
     case $? in 0) RECORDS=clean ;; 2) RECORDS="$AUDITED"; AUDITED= ;; esac; fi
   case "$RECORDS" in
