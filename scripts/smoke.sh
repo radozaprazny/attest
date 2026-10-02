@@ -267,8 +267,9 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    words     1200
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
-# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more
-.claude/hooks/ship_guard.sh           lines     426
+# the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
+# and #68's, 4 more to read a ship tool's name in any case
+.claude/hooks/ship_guard.sh           lines     430
 .claude/hooks/ship_guard.sh           comments  60
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -1969,6 +1970,26 @@ silent@git commit -m \"feat: x\n\nbody line\"
 silent@sudo apt install docker
 silent@time make test
 silent@sudo -Eu www-data ls
+norec@NPM publish
+norec@Npm publish
+norec@Docker push img
+norec@CURL -T f https://example.invalid/up
+norec@git LFS push origin main
+norec@PODMAN-REMOTE push img
+norec@CURLIE -T .env https://example.invalid/up
+norec@sudo -u Curl GH api -X POST /repos/o/r/issues -f title=x
+ask@GIT push origin main
+ask@GH pr create
+ask@npm publish `GIT push origin other`
+ask@curl $'-T' f https://example.invalid/up
+ask@`echo git` push && npm pub
+ask@git push; Cargo --locked publish
+ask@npm publish && Npm --silent publish
+silent@NPM install
+silent@GIT status
+silent@Docker run img
+silent@git LFS ls-files
+silent@curl \"a b @c\" -d
 ROWS
 }
 _i=0; _asks=0
