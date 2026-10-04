@@ -50,7 +50,7 @@ Claude Code's own permission rules decide.
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
 | Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker compose`, `podman`, `buildah`, `skopeo`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
-| Record writes | A shell write to `.attest/ship-*.md`, such as `>`, `tee`, `cp` or `sed -i` |
+| Record writes | A shell write to `.attest/ship-*.md` in any case: `>`, `tee`, `cp`, `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
 | Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
 | Knobs | `ATTEST_GUARD=deny`, `ATTEST_LEAK_SCAN=off`, `ATTEST_LEAK_SCAN_SECONDS` (1 to 540, default 30), in `settings.json`'s `env` or the shell. Fingerprints in `.betterleaksignore`. |
@@ -90,11 +90,11 @@ scan column reads `-`, `off`, `absent`, `clean`, `leak` or `error`.
 | `scanerr` | Clean record, HEAD alone; betterleaks failed or timed out |
 | `dryrun` | A plain dry run |
 | `mcp` | An MCP publish tool |
-| `record` | A ship record write, from either guard |
+| `record` | A record write, from either guard |
 
 ### Record guard
 
-| Matches | PreToolUse on `Write\|Edit` whose `file_path` is `.attest/ship-*.md` |
+| Matches | PreToolUse on `Write\|Edit` to `.attest/ship-*.md` in any case |
 |---|---|
 | Says | `attest record guard: RECORD WRITE — writes a ship record (<file>). Approve only if /gate ran and this is its verdict: approving is the attestation.` |
 | Knobs | `ATTEST_GUARD=deny` |

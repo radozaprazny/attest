@@ -27,14 +27,14 @@ CMD="$(printf '%s' "$PAYLOAD" |
 case "$PAYLOAD" in *mcp__*) TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' | sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')" ;; esac
 
 # Quotes go and git's own options (-C dir, -c k=v, …) are skipped: every spelling reads the same.
-# git.exe, GIT and C:\Git\GIT read as git, as a case-blind file system runs them (fold: any piece
-# naming a ship tool is lowered); unpaired quotes run on to the word pairing them, escaped ones aside.
-norm() { printf '%s' "$1" | awk 'BEGIN { SHIP = "(git|lfs|subtree|send-email|npm|pnpm|yarn|bun|uv|poetry|twine|cargo|gem|docker(-compose)?|podman|buildah|skopeo|gh|glab|kaggle|aws|gsutil|gcloud|az(copy)?|rclone|wget|scp|rsync|sftp|curl)" }
+# git.exe, GIT, C:\Git\GIT read as git, as a case-blind file system runs them (fold lowers a piece
+# naming a ship tool, a record writer or .attest); unpaired quotes run on to the word that pairs them.
+norm() { printf '%s' "$1" | awk 'BEGIN { SHIP = "(attest|tee|cp|mv|sed|perl|truncate|git|lfs|subtree|send-email|npm|pnpm|yarn|bun|uv|poetry|twine|cargo|gem|docker(-compose)?|podman|buildah|skopeo|gh|glab|kaggle|aws|gsutil|gcloud|az(copy)?|rclone|wget|scp|rsync|sftp|curl)" }
   function bare(x) { gsub(/\\*[\042\047]/, "", x); return x }
   function q(x) { gsub(/\\\\[\042\047]/, "", x); if (K == "" && match(x, /[\042\047]/)) K = substr(x, RSTART, 1); return K == "" ? 0 : gsub(K, "", x) }
   function fold(x,   m, b, j, p, y, k) { if (x !~ /[A-Z]/) return x; m = split(x, b, /[;|&()`]/); p = 1; y = ""
-    for (j = 1; j <= m; j++) { k = tolower(b[j]); sub(/.*[\/\\]/, "", k); sub(/\.(exe|cmd|ps1|bat)$/, "", k)
-      y = y (k ~ SHIP ? tolower(b[j]) : b[j]) substr(x, p + length(b[j]), 1); p += length(b[j]) + 1 }; return y }
+    for (j = 1; j <= m; j++) { k = tolower(b[j])
+      y = y (k ~ SHIP ? k : b[j]) substr(x, p + length(b[j]), 1); p += length(b[j]) + 1 }; return y }
   {
     out = ""
     for (i = 1; i <= NF; i++) {

@@ -1530,6 +1530,15 @@ for c in 'rsync -a src/ host:dst' 'scp a.txt user@host:/tmp' 'docker image push 
   says "$c asks" "$(cguard "$c")" 'permissionDecision":"ask'
 done
 says "a shell write to .attest\\ship-a.md asks as a record write" "$(cguard 'printf x > .attest\\ship-a.md')" 'RECORD WRITE'
+# A case-blind file system writes .ATTEST/ into .attest/ and runs TEE as tee (#75).
+for c in 'echo x > .ATTEST/ship-a.md' 'cp a .Attest/ship-a.md' 'echo x | TEE .attest/ship-a.md' 'CP a .attest/ship-a.md' \
+         'TRUNCATE -s0 .attest/SHIP-a.md' 'printf x > .ATTEST\\ship-a.md'; do
+  says "$c asks as a record write" "$(cguard "$c")" 'RECORD WRITE'
+done
+for p in "$S/.ATTEST/ship-a.md" "$S/.Attest/Ship-a.MD" 'C:\\p\\.ATTEST\\ship-a.md'; do
+  says "a Write to $p asks" "$(rguard "$p")" 'permissionDecision":"ask'
+done
+says_not "a Write to .attest/notes.md stays silent" "$(rguard "$S/.attest/notes.md")" 'permissionDecision'
 _out="$(rguard 'C:\\p\\.attest\\ship-a.md')"
 says "a Write to C:\\p\\.attest\\ship-a.md asks"      "$_out" 'permissionDecision":"ask'
 says "…naming the record by .attest/ and its name"     "$_out" '(.attest/ship-a.md)'
