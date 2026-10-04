@@ -18,13 +18,18 @@
 - #59 + #65 → kit 1.2.0: the ship list reads pnpm, npm's prefixes of publish, compose, podman,
   skopeo, glab, gcloud, az, rclone, sftp, kaggle uploads and writing web calls (`gh api`,
   `curl`, `-InFile`); every part a first reading missed is read again.
+- #69 `v1.3.0`: a guard call starts 31 processes, not 50, with no decision changed; ubuntu CI
+  smoke 8.4 s on PR #70 and 9.0 s on main, back under its 10 s budget (10.7 s on PR #67).
+- #68 → kit 1.4.0: a ship tool's name is read in any case, as a case-blind file system runs
+  it: `NPM publish` asks as `npm publish` does; `GIT push` asks even on a clean record.
 
 ## Next
-- #69: smoke is over its 10 s budget on ubuntu CI since #59 (10.7 s on PR #67, 11.3 s on main):
-  a guard call starts 50 processes. Kit 1.3.0 starts 31, no decision changed; its CI time
-  decides whether the budget holds.
-- #68: a ship tool spelled in capitals (`NPM publish`, `GIT push`) passes on a case-insensitive
-  file system.
+- #71: a NUL in a record's findings line lets a blocker pass under GNU grep (found in #69's
+  review; writing such a record asks).
+- From #68's review: #72 the second reading is quadratic in BWK awk (a real 61 KB heredoc
+  stalls the hook 32 s on macOS); #73 `docker build --push` and #74 three PowerShell web calls
+  pass silently; #75 a record written through `.ATTEST/` skips the record prompt on a
+  case-blind file system; #76 ship-list gaps (`curl.exe`, `git-lfs`, `git svn dcommit`, …).
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
   its web form, from a human); their links into PR #63, then close #43 by hand.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook

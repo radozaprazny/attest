@@ -27,15 +27,18 @@ CMD="$(printf '%s' "$PAYLOAD" |
 case "$PAYLOAD" in *mcp__*) TOOL="$(printf '%s' "$PAYLOAD" | tr ',' '\n' | sed -nE 's/.*"tool_name"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' | sed -n '1p')" ;; esac
 
 # Quotes go and git's own options (-C dir, -c k=v, …) are skipped: every spelling reads the same.
-# git.exe reads as git, and an option or value whose quotes do not pair up runs on to the word
-# that pairs them (an escaped quote does not count).
-norm() { printf '%s' "$1" | awk '
+# git.exe, GIT and C:\Git\GIT read as git, as a case-blind file system runs them (fold: any piece
+# naming a ship tool is lowered); unpaired quotes run on to the word pairing them, escaped ones aside.
+norm() { printf '%s' "$1" | awk 'BEGIN { SHIP = "(git|lfs|subtree|send-email|npm|pnpm|yarn|bun|uv|poetry|twine|cargo|gem|docker(-compose)?|podman|buildah|skopeo|gh|glab|kaggle|aws|gsutil|gcloud|az(copy)?|rclone|wget|scp|rsync|sftp|curl)" }
   function bare(x) { gsub(/\\*[\042\047]/, "", x); return x }
   function q(x) { gsub(/\\\\[\042\047]/, "", x); if (K == "" && match(x, /[\042\047]/)) K = substr(x, RSTART, 1); return K == "" ? 0 : gsub(K, "", x) }
+  function fold(x,   m, b, j, p, y, k) { if (x !~ /[A-Z]/) return x; m = split(x, b, /[;|&()`]/); p = 1; y = ""
+    for (j = 1; j <= m; j++) { k = tolower(b[j]); sub(/.*[\/\\]/, "", k); sub(/\.(exe|cmd|ps1|bat)$/, "", k)
+      y = y (k ~ SHIP ? tolower(b[j]) : b[j]) substr(x, p + length(b[j]), 1); p += length(b[j]) + 1 }; return y }
   {
     out = ""
     for (i = 1; i <= NF; i++) {
-      t = bare($i); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", t)
+      t = bare($i); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", t); t = fold(t)
       out = (out == "" ? t : out " " t)
       if (t ~ /git$/)
         while (i < NF && substr(bare($(i+1)), 1, 1) == "-") {
@@ -64,7 +67,7 @@ sends() { printf '%s\n' "$1" | awk '
   function hit(o, v) { if (c == "gh") { if (o == "X") m = toupper(v); else if (o ~ /^[fF<]$/) { f = 1; if (o == "<" || v ~ /(^|=)[@$`]/) at = 1 } }
     else if (o ~ /^[TK]$/ || (o == "d" && v ~ /^[@$`]/) || (o == "@" && v ~ /[@$`]/) || (o == "F" && v ~ /=[@<$`]/)) out = 1 }
   function judge(   x, b, o, v, t, k) { c = ""; m = ""; f = 0; at = 0; g = 0
-    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b)
+    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b); k = tolower(b); if (FOLD == 1 ? k ~ /^(gh|glab)$/ : FOLD == 2 && k == "curl") b = k
       if (c == "") { if (b ~ /^(gh|glab)$/ && w[i + 1] == "api") { c = "gh"; i++ } else if (b == "curl") c = "curl"; continue }
       if (x == "graphql") g = 1
       else if (x ~ /^--/) { o = x; sub(/=.*/, "", o); v = (x ~ /=/) ? substr(x, index(x, "=") + 1) : ""
@@ -84,10 +87,10 @@ sends() { printf '%s\n' "$1" | awk '
       if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
       if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
       wd = wd ch } }
-  { s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
+  { FOLD = 0; s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
     L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
     out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
-    walk(0); walk(1); walk(2); if (out) print "sends data off the machine" }'; }
+    walk(0); walk(1); walk(2); if (s ~ /[A-Z]/) for (FOLD = 1; FOLD <= 2; FOLD++) { walk(0); walk(1); walk(2) }; if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
 ship_act() { set -- "$1 "; case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
@@ -170,7 +173,8 @@ HIDDEN=; NL='
 '
 can_hide() { case "$1" in
   *\\[!\"]*|*'$'*|*'`'*|*'{'*|*'*'*|*'?'*|*'['*|*'@('*|*'+('*|*'!('*|*[Aa][Ll][Ii][Aa][Ss].*|\
-  *npm*|*yarn*|*bun*|*uv*|*poetry*|*cargo*|*twine*|*gem*|*docker*|*aws*|*gsutil*) return 0 ;; esac; return 1; }
+  *[Nn][Pp][Mm]*|*[Yy][Aa][Rr][Nn]*|*[Bb][Uu][Nn]*|*[Uu][Vv]*|*[Pp][Oo][Ee][Tt][Rr][Yy]*|*[Cc][Aa][Rr][Gg][Oo]*|\
+  *[Tt][Ww][Ii][Nn][Ee]*|*[Gg][Ee][Mm]*|*[Dd][Oo][Cc][Kk][Ee][Rr]*|*[Aa][Ww][Ss]*|*[Gg][Ss][Uu][Tt][Ii][Ll]*) return 0 ;; esac; return 1; }
 unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
   *'\"'*) _u="${_u%%'\"'*}${_u#*'\"'}" ;; *) return 0 ;; esac; done; }
 if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then

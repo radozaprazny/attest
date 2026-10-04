@@ -219,18 +219,17 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - The push-config check models `push.default`, `remote.*.push`, `remote.*.mirror`,
   `push.recurseSubmodules` and `submodule.recurse`, from git config, `-c` or `GIT_CONFIG_*`. It
   models nothing else.
-- These are outside the guard: commands that do not go through Claude Code's tools (a
-  terminal, an IDE, another tool), scripts (`make deploy`, your own deploy script), submodule
-  pushes, and git aliases such as `git p`.
+- These are outside the guard: commands run outside Claude Code's tools (a terminal, an
+  IDE), scripts (`make deploy`), submodule pushes, and git aliases (`git p`).
 - A command the guard reads only a second time always asks, clean record or not. That is a
   ship command spelled with a backslash or a line continuation, a ship tool whose subcommand is
   an expansion or sits behind options, a program named by an expansion before `push`, or git
   handed an alias.
 - The guard reads text, not what the shell makes of it. Not read: `eval "$X"`, `xargs`, shell
   aliases, and words split by `IFS`. It defends against forgetting, not forgery.
-- The ship list is literal. A command not on it, such as `mvn deploy`, passes unseen until you
-  add it to `ship_act()`. Behind an expansion only the second reading's tools are read:
-  `podman $X img` passes.
+- The ship list is literal, read in any case (`NPM` runs `npm` on a case-blind file system). A
+  command not on it, such as `mvn deploy`, passes unseen until you add it to `ship_act()`.
+  Behind an expansion only the second reading's tools are read: `podman $X img` passes.
 - A web request asks for a body from a file, stdin or an expansion (`curl -d @f`,
   `-InFile`), not an inline one. `gh api` asks on a write method or fields without
   `--method GET`; GraphQL on a `mutation`. PowerShell splatting passes.

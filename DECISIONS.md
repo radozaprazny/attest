@@ -61,5 +61,8 @@ Beside a ship command the first reading sees, every part it missed is read a sec
 so a hidden push cannot ride on HEAD's record. `gh api`, `glab api`, `curl` and PowerShell's
 web calls ask on a write method, or on a body from a file, stdin or an expansion; an inline
 body is in the command itself and passes. Parts and words are cut three ways, quotes kept,
-reset at a newline and ignored, and any way that finds a write asks. Rejected: asking on every
-web call. (#59, #65)
+reset at a newline and ignored, and any way that finds a write asks. A ship tool's name is read
+in any case, as a case-blind file system runs `NPM` as `npm`; a capitalised `git push` or
+`gh pr create` is not read as HEAD's, so it asks even on a clean record. Rejected: asking on
+every web call, and asking on every capital, which ran the second reading on most commands.
+(#59, #65, #68)
