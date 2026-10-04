@@ -22,14 +22,14 @@
   smoke 8.4 s on PR #70 and 9.0 s on main, back under its 10 s budget (10.7 s on PR #67).
 - #68 → kit 1.4.0: a ship tool's name is read in any case, as a case-blind file system runs
   it: `NPM publish` asks as `npm publish` does; `GIT push` asks even on a clean record.
+- #75 → kit 1.5.0: a record written through `.ATTEST/` or by `TEE` asks, in either guard.
 
 ## Next
 - #71: a NUL in a record's findings line lets a blocker pass under GNU grep (found in #69's
   review; writing such a record asks).
 - From #68's review: #72 the second reading is quadratic in BWK awk (a real 61 KB heredoc
   stalls the hook 32 s on macOS); #73 `docker build --push` and #74 three PowerShell web calls
-  pass silently; #75 a record written through `.ATTEST/` skips the record prompt on a
-  case-blind file system; #76 ship-list gaps (`curl.exe`, `git-lfs`, `git svn dcommit`, …).
+  pass silently; #76 ship-list gaps (`curl.exe`, `git-lfs`, `git svn dcommit`, …).
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
   its web form, from a human); their links into PR #63, then close #43 by hand.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook

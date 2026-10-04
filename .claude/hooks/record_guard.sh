@@ -16,7 +16,7 @@ FP="$(printf '%s' "$PAYLOAD" |
 [ -n "$FP" ] || exit 0
 
 case "$FP" in
-  *".attest/ship-"*".md"|*'.attest\\ship-'*".md") ;;
+  *.[Aa][Tt][Tt][Ee][Ss][Tt]/[Ss][Hh][Ii][Pp]-*.[Mm][Dd]|*.[Aa][Tt][Tt][Ee][Ss][Tt]"\\\\"[Ss][Hh][Ii][Pp]-*.[Mm][Dd]) ;;
   *) exit 0 ;;
 esac
 
