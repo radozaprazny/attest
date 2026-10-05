@@ -269,8 +269,9 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    unfenced  400
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
-# docker build that pushes only after the second reading, which its wide match must not cut short
-.claude/hooks/ship_guard.sh           lines     445
+# docker build that pushes only after the second reading, which its wide match must not cut short;
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk
+.claude/hooks/ship_guard.sh           lines     448
 .claude/hooks/ship_guard.sh           comments  63
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -728,6 +729,14 @@ silent@docker buildx build --cache-from type=registry,ref=r/x:c --load .
 silent@docker buildx build -o type=image,name=r/x,push=false .
 silent@cat docker-bake.hcl | grep -n push=true
 ROWS
+# A long command the second reading reads whole (#72): BWK awk, macOS's, took 6.5 s on these
+# 26 KB and 40 s on 66 KB, a character at a time. Group 1, the lightest.
+if grp 1; then
+  _c="cat > notes.md <<'EOF'\\n"; for _n in $(seq 600); do _c="$_c- line $_n reads \$HOME/x and {a,b} as text\\n"; done
+  _t0=$(date +%s); _x="$(u59 "$UP" "${_c}EOF")"; _t1=$(date +%s)
+  if [ -z "$_x" ] && [ $((_t1 - _t0)) -le 2 ]; then ok "a 26 KB heredoc read a second time stays silent, in at most 2 s ($((_t1 - _t0)) s)"
+  else fail "a 26 KB heredoc read a second time stays silent, in at most 2 s ($((_t1 - _t0)) s, ${#_x} bytes said)"; fi
+fi
 
 fi
 

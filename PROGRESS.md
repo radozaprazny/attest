@@ -26,13 +26,16 @@
 - #73 → kit 1.6.0: a docker build that pushes asks (`--push`, a registry output, `push=`,
   `--cache-to` a registry); it is read after the second reading, so a hidden push still asks.
 
+- #72 → kit 1.7.0: the second reading is linear in BWK awk, macOS's: a 66 KB heredoc it reads
+  whole takes 1.5 s, not 40 s, with the same output on 30,913 inputs.
+
 ## Next
-- #72, stacked on #73's PR: the second reading is quadratic in BWK awk (a real 61 KB heredoc
-  stalls the hook 32 s on macOS). Then #28 closes: `epic28-measure.sh` on main, its checklist,
-  DECISIONS 12 → 10 in a docs PR, and the maintainer's consent.
+- #28 closes once PRs #83 (#73) and #72's, stacked on it, are merged: `epic28-measure.sh` on
+  main, its checklist, DECISIONS 12 → 10 in a docs PR, and the maintainer's consent.
 - Backlog outside the epic (the maintainer, 2026-10-04): #74 three PowerShell web calls, #76
   ship-list gaps, #71 a NUL in a record's findings line, #79 record writers the scan does not
-  list, #80 hidden pushes the part loop misses, #81 docker sends #73 left out.
+  list, #80 hidden pushes the part loop misses, #81 docker sends #73 left out, #82 ship patterns
+  that span the whole command (prose asks since #68, three words take cubic time).
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
   its web form, from a human); their links into PR #63, then close #43 by hand.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook
