@@ -268,9 +268,10 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    fenced    800
 .claude/skills/compliance/SKILL.md    unfenced  400
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
-# and #68's, 4 more to read a ship tool's name in any case
-.claude/hooks/ship_guard.sh           lines     430
-.claude/hooks/ship_guard.sh           comments  60
+# and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
+# docker build that pushes only after the second reading, which its wide match must not cut short
+.claude/hooks/ship_guard.sh           lines     445
+.claude/hooks/ship_guard.sh           comments  63
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
 # the repository's own documents (#40, #41)
@@ -606,10 +607,11 @@ says_not "…and an override aimed at one selects nothing" \
 fi
 
 if grp 1 || grp 6; then
-# --- 2b. ship commands the list did not name (#59) ----------------------------------------------
+# --- 2b. ship commands the list did not name (#59, #73) -----------------------------------------
 # Rows: want@command, as it sits in the JSON payload. ask: asks with no record. clear: asks with no
 # record and passes on a clean one, as a listed command does. silent: never asks. Rows alternate
-# between groups 1 and 6. Each row was silent on the hook before #59, controls included.
+# between groups 1 and 6. Each row was silent on the hook before #59 (the docker builds, before
+# #73), controls included.
 echo "hooks — ship guard: commands the list did not name (#59):"
 UP="$WORK/unlisted"; UC="$WORK/unlisted-clean"
 for _r in "$UP" "$UC"; do git init -q "$_r"; git -C "$_r" symbolic-ref HEAD refs/heads/main
@@ -716,6 +718,15 @@ silent@gh api graphql -f query='\nquery {\n  viewer { login }\n}'
 silent@curl -fsSL -H 'Accept: application/json; q=1' 'https://example.invalid/a?x=1&y=2'
 silent@curl -d '{\"a\":\"b; c\"}' https://example.invalid/api
 silent@az storage blob download -c c -n n -f f
+clear@docker build --push -t r/x .
+silent@docker build -t r/x .
+clear@docker --context prod buildx build -o type=registry .
+clear@docker compose build --push
+clear@docker build -t r/x:$(date +%s) --push .
+clear@docker buildx build --output type=image,name=r/x,push=true .
+silent@docker buildx build --cache-from type=registry,ref=r/x:c --load .
+silent@docker buildx build -o type=image,name=r/x,push=false .
+silent@cat docker-bake.hcl | grep -n push=true
 ROWS
 
 fi
@@ -1999,6 +2010,10 @@ silent@GIT status
 silent@Docker run img
 silent@git LFS ls-files
 silent@curl \"a b @c\" -d
+ask@docker build --push -t r/x `g\\it push origin other` .
+ask@docker build --push . ; git pu\\\nsh origin other
+ask@g\\it push origin other # docker build --push
+ask@git push origin HEAD; docker build --pu$'sh' -t r/x .
 ROWS
 }
 _i=0; _asks=0

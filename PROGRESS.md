@@ -23,15 +23,18 @@
 - #68 → kit 1.4.0: a ship tool's name is read in any case, as a case-blind file system runs
   it: `NPM publish` asks as `npm publish` does; `GIT push` asks even on a clean record.
 - #75 → kit 1.5.0: a record written through `.ATTEST/` or by `TEE` asks, in either guard.
+- #73 → kit 1.6.0: a docker build that pushes asks (`--push`, a registry output, `push=`,
+  `--cache-to` a registry); it is read after the second reading, so a hidden push still asks.
 
 ## Next
-- #71: a NUL in a record's findings line lets a blocker pass under GNU grep (found in #69's
-  review; writing such a record asks).
-- From #68's review: #72 the second reading is quadratic in BWK awk (a real 61 KB heredoc
-  stalls the hook 32 s on macOS); #73 `docker build --push` and #74 three PowerShell web calls
-  pass silently; #76 ship-list gaps (`curl.exe`, `git-lfs`, `git svn dcommit`, …).
+- #72, stacked on #73's PR: the second reading is quadratic in BWK awk (a real 61 KB heredoc
+  stalls the hook 32 s on macOS). Then #28 closes: `epic28-measure.sh` on main, its checklist,
+  DECISIONS 12 → 10 in a docs PR, and the maintainer's consent.
+- Backlog outside the epic (the maintainer, 2026-10-04): #74 three PowerShell web calls, #76
+  ship-list gaps, #71 a NUL in a record's findings line, #79 record writers the scan does not
+  list, #80 hidden pushes the part loop misses, #81 docker sends #73 left out.
 - #43: the two list submissions, postponed by the maintainer (awesome-claude-code takes only
   its web form, from a human); their links into PR #63, then close #43 by hand.
 - Per PR (the grant and the ship ritual: the maintainer's auto-memory): reviewer on hook
-  changes (time-boxed), ship ritual, PR, CI, hand over the merge, tag after merge.
+  changes (time-boxed), ship ritual, PR, CI; PRs stacked, merged by the maintainer in one go.
 - Pre-epic backlog triaged on #43: #58 filed and fixed, two smoke items folded into #42.

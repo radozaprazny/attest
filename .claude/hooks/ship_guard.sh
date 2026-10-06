@@ -15,7 +15,7 @@
 set -uf
 export LC_ALL=C
 # The hook's own state starts empty, whatever the session's environment holds.
-KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; V=; AUDITED=; CARRY=; SHIPS=; TOOL=
+KIND=; ACT=; DEC=; CLEAN_RECORD=0; SCAN=-; V=; AUDITED=; CARRY=; SHIPS=; TOOL=; _x=; _xn=
 
 ROOT="${CLAUDE_PROJECT_DIR:-.}"
 PAYLOAD="$(cat 2>/dev/null || true)"
@@ -108,6 +108,16 @@ ship_act() { set -- "$1 "; case "$1" in
   *"gh repo edit"*"--visibility"*|*"gh repo create"*|*"glab "*"repo create"*) echo "changes who can read this repository" ;;
   *"gh api"*|*"glab api"*|*[Cc][Uu][Rr][Ll]*|*[Ii][Nn][Vv][Oo][Kk][Ee]-*|*[Ii][Ww][Rr]*|*[Ii][Rr][Mm]*) sends "$CMD" ;;
 esac; }
+# A docker build that pushes, read after the second reading, which alone reads a backslash: its
+# words lie apart, so it must not count a part as seen (#73). One star per pattern (dash takes time
+# to the power of its stars); keys in any case, in a part naming docker; --cache-from only pulls.
+build_push() { case "$1 " in *"docker "*|*"docker-compose "*) ;; *) return 1 ;; esac
+  case "$1" in *" build"*) case "$1" in *"--push"*) return 0 ;; esac ;; esac
+  _bpo="$IFS"; IFS=';|&'; for _bpp in $1; do case "$_bpp " in *"docker "*|*"docker-compose "*) case "$_bpp " in
+  *[\ =,o.][Pp][Uu][Ss][Hh]=[!fF0\\]*|*[Oo,][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!m][\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
+  *[!o]m[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!r]om[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!f]rom[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
+  *"cache-to"[\ =][!tT\\]*|*"cache-to"[\ =][tT][!yY\\]*|*"cache-to"[\ =][tT][yY][!pP\\]*|*"cache-to"[\ =][tT][yY][pP][!eE\\]*|\
+  *"cache-to"[\ =][tT][yY][pP][eE][!=\\]*) IFS="$_bpo"; return 0 ;; esac ;; esac; done; IFS="$_bpo"; return 1; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
 # A second reading, of the still JSON-escaped command. Line 1: the command with continuations
 # joined, other shell backslashes dropped and $'x' or $"x" read as "x". Line 2: `x` when a part
@@ -179,14 +189,19 @@ unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
   *'\"'*) _u="${_u%%'\"'*}${_u#*'\"'}" ;; *) return 0 ;; esac; done; }
 if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
-    ACT="$(ship_act "$(norm "${_x%"$NL"*}")")"
+    _xn="$(norm "${_x%"$NL"*}")"; ACT="$(ship_act "$_xn")"
     [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL;|&()"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g'); do
-      { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } && [ -z "$(ship_act "$(norm "$_p")")" ] || continue; _x="$(printf '%s' "$_p" | reread)"
-      [ -z "$(ship_act "$(norm "${_x%"$NL"*}")")" ] && [ "${_x##*"$NL"}" != x ] || { HIDDEN=1; break; }
+      { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } || continue; _pn="$(norm "$_p")"; [ -z "$(ship_act "$_pn")" ] || continue
+      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"
+      if [ -n "$(ship_act "$_xn")" ] || [ "${_x##*"$NL"}" = x ] || { ! build_push "$_pn" && build_push "$_xn"; }; then HIDDEN=1; break; fi
     done; IFS="$_oifs"; fi
+fi
+if [ -z "$ACT" ] && [ -z "${KIND:-}" ]; then
+  if build_push "$NORM"; then ACT="sends data off the machine"
+  elif [ -n "$_x" ] && build_push "$_xn"; then ACT="sends data off the machine"; HIDDEN=1; fi
 fi
 
 # A record written in a push's own command would skip its prompt, so every command naming ship- is read.
@@ -346,7 +361,7 @@ if [ -n "$FULL" ]; then
     while read -r _k _v; do
       [ "$_k" != pr ] || { _plain="pr"; continue; }
       if [ "$_k" = part ]; then case "$_v" in "gh pr create"*|"gh pr new"*) ;; *) [ -n "$SHIPS" ] ||
-        [ -z "$(ship_act "$(norm "$_v")")" ] || SHIPS="${_v%% *}" ;; esac; continue; fi
+        { _n="$(norm "$_v")"; [ -z "$(ship_act "$_n")" ] && ! build_push "$_n"; } || SHIPS="${_v%% *}" ;; esac; continue; fi
       [ -z "$SHAPE" ] || break
       case "$_k" in
         C) [ "$(cd "$CWD" 2>/dev/null && git -C "$_v" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ] ||

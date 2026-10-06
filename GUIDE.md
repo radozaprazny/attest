@@ -49,7 +49,7 @@ Claude Code's own permission rules decide.
 
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
-| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker compose`, `podman`, `buildah`, `skopeo`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
+| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker build --push`, `docker compose`, `podman`, `buildah`, `skopeo`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
 | Record writes | A shell write to `.attest/ship-*.md` in any case: `>`, `tee`, `cp`, `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
 | Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
@@ -59,7 +59,7 @@ Claude Code's own permission rules decide.
 alone: a plain `git push` whose refspecs resolve to HEAD, with known options, in this repository.
 Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse` and
 simple read commands may run. After it, anything but a ship command may run.
-Every other ship command, `gh pr create` included, passes on a clean record for HEAD alone.
+Any other ship command, `gh pr create` included, passes on HEAD's clean record.
 
 **Carrier.** With no record for HEAD, a push or `gh pr create` passes as `pass-carrier` when
 HEAD only adds non-merge commits of `.attest/ship-*.md` files. The commit below them must be
