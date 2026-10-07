@@ -729,13 +729,21 @@ silent@docker buildx build --cache-from type=registry,ref=r/x:c --load .
 silent@docker buildx build -o type=image,name=r/x,push=false .
 silent@cat docker-bake.hcl | grep -n push=true
 ROWS
-# A long command the second reading reads whole (#72): BWK awk, macOS's, took 6.5 s on these
-# 26 KB and 40 s on 66 KB, a character at a time. Group 1, the lightest.
+# A long command the second reading reads whole (#72) costs in proportion to its length: 2.5 times
+# the bytes may take 4.5 times the CPU, where a quadratic step takes 6. CPU seconds and a ratio, not
+# the clock: the groups run side by side and runners differ in speed. The least of three runs each,
+# taken in turn, for a busy machine only ever adds. Group 1, the lightest.
 if grp 1; then
-  _c="cat > notes.md <<'EOF'\\n"; for _n in $(seq 600); do _c="$_c- line $_n reads \$HOME/x and {a,b} as text\\n"; done
-  _t0=$(date +%s); _x="$(u59 "$UP" "${_c}EOF")"; _t1=$(date +%s)
-  if [ -z "$_x" ] && [ $((_t1 - _t0)) -le 2 ]; then ok "a 26 KB heredoc read a second time stays silent, in at most 2 s ($((_t1 - _t0)) s)"
-  else fail "a 26 KB heredoc read a second time stays silent, in at most 2 s ($((_t1 - _t0)) s, ${#_x} bytes said)"; fi
+  _long() { local _c _n; _c="cat > notes.md <<'EOF'\\n"
+    for _n in $(seq "$1"); do _c="$_c- line $_n reads \$HOME/x and {a,b} as text\\n"; done; printf '%s' "${_c}EOF"; }
+  _cpu() { local TIMEFORMAT='%3U %3S'; { time u59 "$UP" "$1" >> "$WORK/long.out" 2>&1; } 2> "$WORK/long.cpu"
+    tr , . < "$WORK/long.cpu" | awk '{ printf "%d", ($1 + $2) * 1000 }'; }
+  _c0="$(_long 600)"; _c1="$(_long 1500)"; _t0=''; _t1=''; : > "$WORK/long.out"
+  for _n in 1 2 3; do _x=$(_cpu "$_c0"); [ -n "$_t0" ] && [ "$_t0" -le "$_x" ] || _t0=$_x
+    _x=$(_cpu "$_c1"); [ -n "$_t1" ] && [ "$_t1" -le "$_x" ] || _t1=$_x; done
+  _x="$(cat "$WORK/long.out")"
+  if [ -z "$_x" ] && [ "$_t0" -gt 0 ] && [ $((2 * _t1)) -le $((9 * _t0)) ]; then ok "a 26 KB and a 66 KB heredoc read a second time stay silent, the longer in at most 4.5 times the CPU ($_t0 and $_t1 ms)"
+  else fail "a 26 KB and a 66 KB heredoc read a second time stay silent, the longer in at most 4.5 times the CPU ($_t0 and $_t1 ms, ${#_x} bytes said)"; fi
 fi
 
 fi

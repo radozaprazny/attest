@@ -26,12 +26,15 @@
 - #73 → kit 1.6.0: a docker build that pushes asks (`--push`, a registry output, `push=`,
   `--cache-to` a registry); it is read after the second reading, so a hidden push still asks.
 
-- #72 → kit 1.7.0: the second reading is linear in BWK awk, macOS's: a 66 KB heredoc it reads
-  whole takes 1.5 s, not 40 s, with the same output on 30,913 inputs.
+- #72 → kit 1.7.0: a long command the second reading reads whole costs in proportion to its
+  length: the reading builds its strings in runs, and its mark is read by `case`, not by a prefix
+  strip. A 66 KB heredoc, CPU seconds from `main` to now, with gawk: 4.0 → 0.4 under bash 3.2,
+  macOS's `sh`; 0.73 → 0.18 under dash; with BWK awk 20231127 under dash 40 → 0.8. A real Mac
+  needed 3.2 s on `main`; this state has not run on one.
 
 ## Next
-- #28 closes once PRs #83 (#73) and #72's, stacked on it, are merged: `epic28-measure.sh` on
-  main, its checklist, DECISIONS 12 → 10 in a docs PR, and the maintainer's consent.
+- #28 closes once PR #84 (#72) is merged: `epic28-measure.sh` on main, its checklist, DECISIONS
+  12 → 10 in a docs PR, and the maintainer's consent.
 - Backlog outside the epic (the maintainer, 2026-10-04): #74 three PowerShell web calls, #76
   ship-list gaps, #71 a NUL in a record's findings line, #79 record writers the scan does not
   list, #80 hidden pushes the part loop misses, #81 docker sends #73 left out, #82 ship patterns
