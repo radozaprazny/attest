@@ -156,25 +156,28 @@ reread() { awk 'BEGIN { TOOLS = "^(git|npm|yarn|bun|uv|poetry|twine|cargo|gem|do
   # One walk over r, splitting it into parts and words. A newline ends a part; with reset, it also
   # ends a quote, since an apostrophe in a comment or heredoc never closes. Both walks run: a
   # quoted string over several lines reads right only without the reset.
-  function walk(reset,   i, c, w, q) {
-    nw = 0; w = ""; q = ""; P = ""
-    for (i = 1; i <= length(r) + 1; i++) { c = (i > length(r)) ? ";" : substr(r, i, 1)
+  function aw(c) { wb = wb c; if (++bw > 255) { w = w wb; wb = ""; bw = 0 }; ap(c) }
+  function ap(c) { pb = pb c; if (++bp > 255) { P = P pb; pb = ""; bp = 0 } }
+  function walk(reset,   i, c, q) {
+    nw = 0; w = wb = P = pb = q = ""; bw = bp = 0
+    for (i = 1; i <= L + 1; i++) { c = (i > L) ? ";" : C[i]
       if (c == "\001") { if (reset) q = ""; if (q == "") c = ";" }
-      if (q != "") { w = w c; P = P c; if (c == q) q = ""; continue }
-      if (c == "\"" || c == "\047") { q = c; w = w c; P = P c; continue }
-      if (c ~ /[ ;|&()]/) { if (w != "") W[++nw] = w; w = ""
-        if (c != " ") { part(); nw = 0; P = "" } else P = P c; continue }
-      w = w c; P = P c } }
-  { s = $0; o = ""; n = length(s)
-    for (i = 1; i <= n; i++) { c = substr(s, i, 1)
-      if (c != "\\") { o = o c; continue }
-      d = substr(s, ++i, 1)
-      if (d == "n") { o = o "\001"; continue }
-      if (d == "t") { o = o " "; continue }
-      if (d != "\\") { o = o d; continue }
-      if (substr(s, i + 1, 2) == "\\n") i += 2 }
-    r = o; gsub(/\001/, ";", o); gsub(/[$]["\047]/, "\"", o); print o
-    gsub(/[@+!][(]/, "$(", r); walk(1); walk(0)
+      if (q != "") { aw(c); if (c == q) q = ""; continue }
+      if (c == "\"" || c == "\047") { q = c; aw(c); continue }
+      if (c ~ /[ ;|&()]/) { if (w wb != "") W[++nw] = w wb; w = wb = ""; bw = 0
+        if (c != " ") { P = P pb; part(); nw = 0; P = pb = ""; bp = 0 } else ap(c); continue }
+      aw(c) } }
+  function ao(c) { ob = ob c; if (++bo > 255) { o = o ob; ob = ""; bo = 0 } }
+  { n = split($0, S, ""); o = ob = ""; bo = 0
+    for (i = 1; i <= n; i++) { c = S[i]
+      if (c != "\\") { ao(c); continue }
+      d = S[++i]
+      if (d == "n") { ao("\001"); continue }
+      if (d == "t") { ao(" "); continue }
+      if (d != "\\") { ao(d); continue }
+      if (S[i + 1] S[i + 2] == "\\n") i += 2 }
+    r = o = o ob; gsub(/\001/, ";", o); gsub(/[$]["\047]/, "\"", o); print o
+    gsub(/[@+!][(]/, "$(", r); L = split(r, C, ""); walk(1); walk(0)
     print (f ? "x" : "") }'; }
 # A ship command seen only in the second reading always asks, record or not. A command with none
 # of what can hide one (a shell backslash, an expansion, an alias, a tool the list reads only with
@@ -190,13 +193,13 @@ unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
 if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
     _xn="$(norm "${_x%"$NL"*}")"; ACT="$(ship_act "$_xn")"
-    [ -n "$ACT" ] || [ "${_x##*"$NL"}" != x ] || ACT="sends data off the machine"
+    [ -n "$ACT" ] || case "$_x" in *"$NL"x|x) ACT="sends data off the machine" ;; esac  # a ##*NL strip is quadratic on one long line
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL;|&()"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g'); do
       { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } || continue; _pn="$(norm "$_p")"; [ -z "$(ship_act "$_pn")" ] || continue
-      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"
-      if [ -n "$(ship_act "$_xn")" ] || [ "${_x##*"$NL"}" = x ] || { ! build_push "$_pn" && build_push "$_xn"; }; then HIDDEN=1; break; fi
+      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"; case "$_x" in *"$NL"x|x) HIDDEN=1; break ;; esac
+      if [ -n "$(ship_act "$_xn")" ] || { ! build_push "$_pn" && build_push "$_xn"; }; then HIDDEN=1; break; fi
     done; IFS="$_oifs"; fi
 fi
 if [ -z "$ACT" ] && [ -z "${KIND:-}" ]; then

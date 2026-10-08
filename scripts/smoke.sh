@@ -269,8 +269,9 @@ budget_table() {
 .claude/skills/compliance/SKILL.md    unfenced  400
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
-# docker build that pushes only after the second reading, which its wide match must not cut short
-.claude/hooks/ship_guard.sh           lines     445
+# docker build that pushes only after the second reading, which its wide match must not cut short;
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk
+.claude/hooks/ship_guard.sh           lines     448
 .claude/hooks/ship_guard.sh           comments  63
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
@@ -728,6 +729,22 @@ silent@docker buildx build --cache-from type=registry,ref=r/x:c --load .
 silent@docker buildx build -o type=image,name=r/x,push=false .
 silent@cat docker-bake.hcl | grep -n push=true
 ROWS
+# A long command the second reading reads whole (#72) costs no more for holding no sender: with
+# none, the reading's mark was looked for by a strip that tried every prefix. The same 66 KB heredoc
+# with and without a sender hidden after it, so the awk, the runner and the length cancel out. CPU
+# seconds, not the clock: the groups run side by side. The least of two runs each, taken in turn,
+# for a busy machine only ever adds. Group 1, the lightest.
+if grp 1; then
+  _cpu() { local TIMEFORMAT='%3U %3S'; { time u59 "$UP" "$1" >> "$2" 2>&1; } 2> "$WORK/long.cpu"
+    tr , . < "$WORK/long.cpu" | awk '{ printf "%d", ($1 + $2) * 1000 }'; }
+  _c="cat > notes.md <<'EOF'\\n"; for _n in $(seq 1500); do _c="$_c- line $_n reads \$HOME/x and {a,b} as text\\n"; done
+  _t0=''; _t1=''; : > "$WORK/long.none"; : > "$WORK/long.sender"
+  for _n in 1 2; do _x=$(_cpu "${_c}EOF" "$WORK/long.none"); [ -n "$_t0" ] && [ "$_t0" -le "$_x" ] || _t0=$_x
+    _x=$(_cpu "${_c}EOF\\nnpm --silent publish" "$WORK/long.sender"); [ -n "$_t1" ] && [ "$_t1" -le "$_x" ] || _t1=$_x; done
+  _x="$(grep -c 'permissionDecision":"ask' "$WORK/long.sender" || true)"
+  if [ ! -s "$WORK/long.none" ] && [ "$_x" = 2 ] && [ "$_t1" -gt 0 ] && [ $((2 * _t0)) -le $((5 * _t1)) ]; then ok "a 66 KB heredoc read a second time stays silent, in at most 2.5 times the CPU of its twin hiding a sender, which asks ($_t0 and $_t1 ms)"
+  else fail "a 66 KB heredoc read a second time stays silent, in at most 2.5 times the CPU of its twin hiding a sender, which asks ($_t0 and $_t1 ms, $(wc -c < "$WORK/long.none") bytes said, $_x of 2 asked)"; fi
+fi
 
 fi
 
