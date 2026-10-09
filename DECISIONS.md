@@ -27,10 +27,6 @@ never clear one. Without it, the guard decides as it would with no scan. (ADR-00
 A `.claude/` in the repository reaches every collaborator and cloud session with no
 per-machine install; `install.sh` is the only way in. (epic #28 D5, ADR-0075)
 
-## 2026-09-26 — Break cleanly for v1
-v1.0.0 removes what the cut removes with no aliases and no deprecation window; a migration note
-of ≤15 lines tells an adopter how to move. (epic #28, #43)
-
 ## 2026-09-28 — Gate once before a push, with one read-only auditor
 `/gate` runs betterleaks and one auditor (Read, Grep, Glob) over what the next push sends, and
 always writes and commits a ship record: `HEAD`, `tree`, `scope`, `findings: n blocker · n
@@ -48,21 +44,19 @@ from the project root, or one line when no non-goals are declared, so a wired ho
 missing. `/checkpoint` rewrites only those two sections. Rejected: dropping the carrier for
 resume and compaction, which do not survive `/clear`. (epic #28 D3, declined 2026-09-26; #36)
 
-## 2026-09-30 — Ask on a ship command the guard reads only a second time
+## 2026-09-30 — Read every part of a command a second time, and ask on what only that finds
 The literal list misses a ship command spelled with a backslash, a line continuation or `$'…'`,
 one behind a wrapper or behind its own options, one whose subcommand is an expansion, and git
 handed an alias. A second reading sees them, and such a command asks even on a clean record. A
 dry run passes only as `<verb> --dry-run`. The second reading skips no text to save a prompt:
-an over-ask costs a click, a hidden push costs the guard. Rejected: decoding every shell
-spelling, and reading wrapper options or exempting alias reads, which hid pushes in review. (#56)
-
-## 2026-10-01 — Read every part of a command, and a web call by its body's source
-Beside a ship command the first reading sees, every part it missed is read a second time,
-so a hidden push cannot ride on HEAD's record. `gh api`, `glab api`, `curl` and PowerShell's
-web calls ask on a write method, or on a body from a file, stdin or an expansion; an inline
-body is in the command itself and passes. Parts and words are cut three ways, quotes kept,
-reset at a newline and ignored, and any way that finds a write asks. A ship tool's name and a
-record's path are read in any case, as a case-blind file system runs `NPM` as `npm` and writes
-`.ATTEST/` into `.attest/`; a capitalised `git push` or `gh pr create` is not read as HEAD's, so
-it asks even on a clean record. Rejected: asking on every web call, and asking on every capital,
-which ran the second reading on most commands. (#59, #65, #68, #75)
+an over-ask costs a click, a hidden push costs the guard. From 2026-10-01: beside a ship command
+the first reading sees, every part it missed is read a second time, so a hidden push cannot ride
+on HEAD's record. `gh api`, `glab api`, `curl` and PowerShell's web calls ask on a write method,
+or on a body from a file, stdin or an expansion; an inline body is in the command itself and
+passes. Parts and words are cut three ways, quotes kept, reset at a newline and ignored, and any
+way that finds a write asks. A ship tool's name and a record's path are read in any case, as a
+case-blind file system runs `NPM` as `npm` and writes `.ATTEST/` into `.attest/`; a capitalised
+`git push` or `gh pr create` is not read as HEAD's, so it asks even on a clean record. Rejected:
+decoding every shell spelling; reading wrapper options or exempting alias reads, which hid
+pushes in review; asking on every web call; asking on every capital, which ran the second
+reading on most commands. (#56, #59, #65, #68, #75)
