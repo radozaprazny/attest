@@ -24,11 +24,11 @@ state and the next step once, at session start. The skills and the auditor read 
 they run. A missing document costs nothing. The auditor reads a missing BUSINESS.md as no
 non-goals, and a missing DECISIONS.md as every choice unrecorded.
 
-A `DECISIONS.md` entry is never edited. A reversal is a new entry with a line
-`Supersedes: <heading>`. The format maps to [MADR][madr]. The heading gives the title and date,
-**Context** the problem statement, and **Options** the considered options. **Decision** and
-**Why** give the decision outcome, and **Consequences** the consequences. `Supersedes:` replaces
-MADR's status field and sits on the new entry, because old entries stay untouched.
+A `DECISIONS.md` entry is never edited; a reversal is a new entry with `Supersedes: <heading>`.
+The format maps to [MADR][madr]: the heading is its title and date, **Context** its problem
+statement, **Options** its considered options, **Decision** and **Why** its decision outcome,
+**Consequences** its consequences. `Supersedes:` stands in for its status field, on the new entry,
+since old entries stay untouched.
 
 ## Hooks
 
