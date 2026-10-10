@@ -270,7 +270,7 @@ records_for() {
   for rec in "$ROOT"/.attest/ship-*.md; do
     _r="$(record_head_sha "$rec")"
     case "$1" in "${_r:--}"*) ;; *) continue ;; esac
-    if sed -n '/^- findings:/{p;q;}' "$rec" | tr -d '\r' | grep -Eq '^- findings:[^0-9]*0 blocker'
+    if sed -n '/^- findings:/{p;q;}' "$rec" | tr -d '\r\000' | grep -Eq '^- findings:[^0-9]*0 blocker'
     then _f="${_f:-clean}"; else [ "${_f%% *}" = blocked ] || _f="blocked ${rec##*/}"; fi
   done 2>/dev/null
   echo "$_f"

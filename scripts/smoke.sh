@@ -839,6 +839,11 @@ printf -- '- HEAD: %s (main)\n- findings: 1 blocker\n' "$SHA" > "$S/.attest/ship
 says "a record reporting a blocker does not clear it either" "$(guard 'git push origin main')" 'permissionDecision":"ask'
 printf -- '- HEAD: %s (main)\n- findings: 10 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
 says "…and 10 blockers is not read as 0" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+# GNU grep reads a NUL as a line end, so text after one on the findings line matched as a line of its own (#71).
+printf -- '- HEAD: %s (main)\n- findings: 1 blocker\000- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
+says "…and a NUL in the findings line does not cut a clean line out of it (#71)" "$(guard 'git push origin main')" 'permissionDecision":"ask'
+if command -v busybox >/dev/null 2>&1; then mkdir -p "$WORK/bbgrep"; ln -sf "$(command -v busybox)" "$WORK/bbgrep/grep"
+  says "…under busybox grep too (#71)" "$(PATH="$WORK/bbgrep:$PATH" guard 'git push origin main')" 'permissionDecision":"ask'; fi
 printf -- '- HEAD: %s (main)\n- findings: 0 blocker\n' "$SHA" > "$S/.attest/ship-20260904-000000-$SHA.md"
 if [ -z "$(guard 'git push origin main')" ]; then ok "a clean record for HEAD clears it"; else fail "a clean record for HEAD clears it"; fi
 # The HEAD: line has to name THIS sha, not just be present
