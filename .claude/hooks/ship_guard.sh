@@ -67,7 +67,7 @@ sends() { printf '%s\n' "$1" | awk '
   function hit(o, v) { if (c == "gh") { if (o == "X") m = toupper(v); else if (o ~ /^[fF<]$/) { f = 1; if (o == "<" || v ~ /(^|=)[@$`]/) at = 1 } }
     else if (o ~ /^[TK]$/ || (o == "d" && v ~ /^[@$`]/) || (o == "@" && v ~ /[@$`]/) || (o == "F" && v ~ /=[@<$`]/)) out = 1 }
   function judge(   x, b, o, v, t, k) { c = ""; m = ""; f = 0; at = 0; g = 0
-    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b); k = tolower(b); if (FOLD == 1 ? k ~ /^(gh|glab)$/ : FOLD == 2 && k == "curl") b = k
+    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", b); k = tolower(b); if (FOLD == 1 ? k ~ /^(gh|glab)$/ : FOLD == 2 && k == "curl") b = k
       if (c == "") { if (b ~ /^(gh|glab)$/ && w[i + 1] == "api") { c = "gh"; i++ } else if (b == "curl") c = "curl"; continue }
       if (x == "graphql") g = 1
       else if (x ~ /^--/) { o = x; sub(/=.*/, "", o); v = (x ~ /=/) ? substr(x, index(x, "=") + 1) : ""
@@ -76,8 +76,10 @@ sends() { printf '%s\n' "$1" | awk '
         for (k = 2; k <= length(x); k++) if (index(t, substr(x, k, 1))) { hit(substr(x, k, 1), val(substr(x, k + 1))); break } } }
     if (c == "gh" && (g ? (M || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
     n = 0 }
-  # A quoted run is taken whole: a character at a time is quadratic in some awks.
-  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0
+  # A quoted run is taken whole: a character at a time is quadratic in some awks. A parenthesis or
+  # a backtick ends a part until a sender is seen; after it they are its arguments (`curl -u `cat c` -d @f`).
+  function prog(x) { sub(/.*\//, "", x); x = tolower(x); sub(/\.(exe|cmd|ps1|bat)$/, "", x); return x ~ /^(curl|gh|glab)$/ }
+  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0; seen = 0
     for (j = 1; j <= L + 1; j++) { ch = (j > L) ? ";" : substr(s, j, 1)
       if (ch == "\001" && mode == 1) q = ""
       if (j <= L && q != "" && ch != q && ch != "\\" && ch != "\001") { r = substr(s, j)
@@ -85,7 +87,7 @@ sends() { printf '%s\n' "$1" | awk '
       if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") wd = wd d; continue }
       if (q != "") { if (ch == q) q = ""; else wd = wd ch; continue }
       if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
-      if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
+      if (ch ~ /[ ;|&\001]/ || (ch ~ /[()`]/ && !seen)) { if (wd != "") { w[++n] = wd; if (!seen) seen = prog(wd) }; wd = ""; if (ch != " ") { judge(); seen = 0 }; continue }
       wd = wd ch } }
   { FOLD = 0; s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
     L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
@@ -98,6 +100,7 @@ ship_act() { set -- "$1 "
   for _v in " upload" " sync"; do case "$1" in *"$_v"*) case "${1%"$_v"*}" in *"az "*"storage"*) echo "sends data off the machine"; return ;; esac ;; esac; done
   case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
+  *"git-lfs push"*|*"git-send-email"*|*"git svn dcommit"*|*"git p4 submit"*|*"git http-push"*|*"git imap-send"*|\
   *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
