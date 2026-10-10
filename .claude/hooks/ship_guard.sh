@@ -67,7 +67,7 @@ sends() { printf '%s\n' "$1" | awk '
   function hit(o, v) { if (c == "gh") { if (o == "X") m = toupper(v); else if (o ~ /^[fF<]$/) { f = 1; if (o == "<" || v ~ /(^|=)[@$`]/) at = 1 } }
     else if (o ~ /^[TK]$/ || (o == "d" && v ~ /^[@$`]/) || (o == "@" && v ~ /[@$`]/) || (o == "F" && v ~ /=[@<$`]/)) out = 1 }
   function judge(   x, b, o, v, t, k) { c = ""; m = ""; f = 0; at = 0; g = 0
-    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b); k = tolower(b); if (FOLD == 1 ? k ~ /^(gh|glab)$/ : FOLD == 2 && k == "curl") b = k
+    for (i = 1; i <= n; i++) { x = w[i]; b = x; sub(/.*\//, "", b); sub(/\.([Ee][Xx][Ee]|[Cc][Mm][Dd]|[Pp][Ss]1|[Bb][Aa][Tt])$/, "", b); k = tolower(b); if (FOLD == 1 ? k ~ /^(gh|glab)$/ : FOLD == 2 && k == "curl") b = k
       if (c == "") { if (b ~ /^(gh|glab)$/ && w[i + 1] == "api") { c = "gh"; i++ } else if (b == "curl") c = "curl"; continue }
       if (x == "graphql") g = 1
       else if (x ~ /^--/) { o = x; sub(/=.*/, "", o); v = (x ~ /=/) ? substr(x, index(x, "=") + 1) : ""
@@ -76,8 +76,10 @@ sends() { printf '%s\n' "$1" | awk '
         for (k = 2; k <= length(x); k++) if (index(t, substr(x, k, 1))) { hit(substr(x, k, 1), val(substr(x, k + 1))); break } } }
     if (c == "gh" && (g ? (M || at) : ((m != "" || f) && m !~ /^(GET|HEAD)$/))) out = 1
     n = 0 }
-  # A quoted run is taken whole: a character at a time is quadratic in some awks.
-  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0
+  # A quoted run is taken whole: a character at a time is quadratic in some awks. A parenthesis or
+  # a backtick ends a part until a sender is seen; after it they are its arguments (`curl -u `cat c` -d @f`).
+  function prog(x) { sub(/.*\//, "", x); x = tolower(x); sub(/\.(exe|cmd|ps1|bat)$/, "", x); return x ~ /^(curl|gh|glab)$/ }
+  function walk(mode,   j, ch, d, q, wd, r, z) { n = 0; seen = 0
     for (j = 1; j <= L + 1; j++) { ch = (j > L) ? ";" : substr(s, j, 1)
       if (ch == "\001" && mode == 1) q = ""
       if (j <= L && q != "" && ch != q && ch != "\\" && ch != "\001") { r = substr(s, j)
@@ -85,23 +87,29 @@ sends() { printf '%s\n' "$1" | awk '
       if (ch == "\\" && q != "\047") { d = substr(s, ++j, 1); if (d != "\001") wd = wd d; continue }
       if (q != "") { if (ch == q) q = ""; else wd = wd ch; continue }
       if (ch == "\"" || ch == "\047") { if (mode < 2) q = ch; continue }
-      if (ch ~ /[ ;|&()\001]/) { if (wd != "") w[++n] = wd; wd = ""; if (ch != " ") judge(); continue }
+      if (ch ~ /[ ;|&\001]/ || (ch ~ /[()`]/ && !seen)) { if (wd != "") { w[++n] = wd; if (!seen) seen = prog(wd) }; wd = ""; if (ch != " ") { judge(); seen = 0 }; continue }
       wd = wd ch } }
   { FOLD = 0; s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
     L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
-    out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
+    u = tolower(s); out = (u ~ /(^|[^a-z0-9_-])(invoke-webrequest|invoke-restmethod|iwr|irm)([^;|&]* (-inf|-form|[(]?get-content|[(]gc )|[^;|&\001]* -b(o(dy?)?)? +[\042\047]?[$(])/ || u ~ /(^|[^a-z0-9_-])(curl|wget)[^;|&]* ([(]?get-content|[(]gc )/)
     walk(0); walk(1); walk(2); if (s ~ /[A-Z]/) for (FOLD = 1; FOLD <= 2; FOLD++) { walk(0); walk(1); walk(2) }; if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
-ship_act() { set -- "$1 "; case "$1" in
+ship_act() { set -- "$1 "
+  # A three-word entry is read as two before the last place of the third: dash takes time to the power of a pattern's stars (#82).
+  for _v in " push" " publish "; do case "$1" in *"$_v"*) case "${1%"$_v"*}" in *"docker"*"compose"*) echo "sends data off the machine"; return ;; esac ;; esac; done
+  for _v in " upload" " sync"; do case "$1" in *"$_v"*) case "${1%"$_v"*}" in *"az "*"storage"*) echo "sends data off the machine"; return ;; esac ;; esac; done
+  case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
+  *"git-lfs push"*|*"git-send-email"*|*"git svn dcommit"*|*"git p4 submit"*|*"git http-push"*|*"git imap-send"*|\
   *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker"*"compose"*" push"*|\
+  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker"*"manifest push"*|*"docker"*"imagetools create"*|\
+  *"docker"*"plugin push"*|*"docker"*"trust sign"*|\
   *"podman"*" push"*|*"buildah"*" push"*|*"skopeo"*" copy"*|*"skopeo"*" sync"*|*"gh "*"workflow run"*|*"glab "*"mr create"*|\
   *"glab "*"mr new"*|*"glab "*"ci run"*|*"glab "*"release create"*|*"glab "*"release upload"*|*"glab "*"snippet create"*|\
   *"aws"*"s3 mv"*|*"aws"*"s3api put-object"*|*"aws"*"s3api upload-part"*|*"gcloud"*"storage cp"*|*"gcloud"*"storage mv"*|\
-  *"gcloud"*"storage rsync"*|*"az "*"storage"*" upload"*|*"az "*"storage"*" sync"*|*"az "*"storage copy"*|*"azcopy"*" copy"*|\
+  *"gcloud"*"storage rsync"*|*"az "*"storage copy"*|*"azcopy"*" copy"*|\
   *"azcopy"*" sync"*|*"rclone"*" copy"*|*"rclone"*"sync"*|*"rclone"*" move"*|*"rclone"*" rcat"*|*"wget"*"--post-file"*|\
   *"wget"*"--body-file"*|*"sftp "*|*"kaggle"*" create"*|*"kaggle"*" version "*|*"kaggle"*" push"*)
     echo "sends data off the machine" ;;
@@ -110,14 +118,16 @@ ship_act() { set -- "$1 "; case "$1" in
 esac; }
 # A docker build that pushes, read after the second reading, which alone reads a backslash: its
 # words lie apart, so it must not count a part as seen (#73). One star per pattern (dash takes time
-# to the power of its stars); keys in any case, in a part naming docker; --cache-from only pulls.
+# to the power of its stars); keys in any case, in a part naming docker; --cache-from only pulls,
+# and a cache sent to gha, s3 or azblob is read when its type is the first key after cache-to (#81).
 build_push() { case "$1 " in *"docker "*|*"docker-compose "*) ;; *) return 1 ;; esac
   case "$1" in *" build"*) case "$1" in *"--push"*) return 0 ;; esac ;; esac
   _bpo="$IFS"; IFS=';|&'; for _bpp in $1; do case "$_bpp " in *"docker "*|*"docker-compose "*) case "$_bpp " in
   *[\ =,o.][Pp][Uu][Ss][Hh]=[!fF0\\]*|*[Oo,][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!m][\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
   *[!o]m[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!r]om[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!f]rom[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
   *"cache-to"[\ =][!tT\\]*|*"cache-to"[\ =][tT][!yY\\]*|*"cache-to"[\ =][tT][yY][!pP\\]*|*"cache-to"[\ =][tT][yY][pP][!eE\\]*|\
-  *"cache-to"[\ =][tT][yY][pP][eE][!=\\]*) IFS="$_bpo"; return 0 ;; esac ;; esac; done; IFS="$_bpo"; return 1; }
+  *"cache-to"[\ =][tT][yY][pP][eE][!=\\]*|*"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Gg][Hh][Aa]*|*"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Ss]3*|\
+  *"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Aa][Zz][Bb][Ll][Oo][Bb]*) IFS="$_bpo"; return 0 ;; esac ;; esac; done; IFS="$_bpo"; return 1; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
 # A second reading, of the still JSON-escaped command. Line 1: the command with continuations
 # joined, other shell backslashes dropped and $'x' or $"x" read as "x". Line 2: `x` when a part
@@ -193,12 +203,12 @@ unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
 if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
     _xn="$(norm "${_x%"$NL"*}")"; ACT="$(ship_act "$_xn")"
-    [ -n "$ACT" ] || case "$_x" in *"$NL"x|x) ACT="sends data off the machine" ;; esac  # a ##*NL strip is quadratic on one long line
+    [ -n "$ACT" ] || case "$_x" in *"$NL"x) ACT="sends data off the machine" ;; esac  # a lone x is text (#86); a ##*NL strip is quadratic on one long line
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL;|&()"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g'); do
       { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } || continue; _pn="$(norm "$_p")"; [ -z "$(ship_act "$_pn")" ] || continue
-      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"; case "$_x" in *"$NL"x|x) HIDDEN=1; break ;; esac
+      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"; case "$_x" in *"$NL"x) HIDDEN=1; break ;; esac
       if [ -n "$(ship_act "$_xn")" ] || { ! build_push "$_pn" && build_push "$_xn"; }; then HIDDEN=1; break; fi
     done; IFS="$_oifs"; fi
 fi
@@ -270,7 +280,7 @@ records_for() {
   for rec in "$ROOT"/.attest/ship-*.md; do
     _r="$(record_head_sha "$rec")"
     case "$1" in "${_r:--}"*) ;; *) continue ;; esac
-    if sed -n '/^- findings:/{p;q;}' "$rec" | tr -d '\r' | grep -Eq '^- findings:[^0-9]*0 blocker'
+    if sed -n '/^- findings:/{p;q;}' "$rec" | tr -d '\r\000' | grep -Eq '^- findings:[^0-9]*0 blocker'
     then _f="${_f:-clean}"; else [ "${_f%% *}" = blocked ] || _f="blocked ${rec##*/}"; fi
   done 2>/dev/null
   echo "$_f"

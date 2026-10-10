@@ -24,11 +24,11 @@ state and the next step once, at session start. The skills and the auditor read 
 they run. A missing document costs nothing. The auditor reads a missing BUSINESS.md as no
 non-goals, and a missing DECISIONS.md as every choice unrecorded.
 
-A `DECISIONS.md` entry is never edited. A reversal is a new entry with a line
-`Supersedes: <heading>`. The format maps to [MADR][madr]. The heading gives the title and date,
-**Context** the problem statement, and **Options** the considered options. **Decision** and
-**Why** give the decision outcome, and **Consequences** the consequences. `Supersedes:` replaces
-MADR's status field and sits on the new entry, because old entries stay untouched.
+A `DECISIONS.md` entry is never edited; a reversal is a new entry with `Supersedes: <heading>`.
+The format maps to [MADR][madr]: the heading is its title and date, **Context** its problem
+statement, **Options** its considered options, **Decision** and **Why** its decision outcome,
+**Consequences** its consequences. `Supersedes:` stands in for its status field, on the new entry,
+since old entries stay untouched.
 
 ## Hooks
 
@@ -49,7 +49,7 @@ Claude Code's own permission rules decide.
 
 | Matches | PreToolUse on `Bash\|PowerShell`, and four GitHub MCP tools: `push_files`, `create_or_update_file`, `create_pull_request`, `create_repository` |
 |---|---|
-| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker build --push`, `docker compose`, `podman`, `buildah`, `skopeo`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
+| Ship commands | `git push` with any git options or quotes, `git lfs push`, `git subtree push`, `git send-email`, `git svn dcommit`, `git p4 submit`, `git http-push`, `git imap-send`, `git-lfs push`, `git-send-email`. `gh` PRs, releases, gists, workflow runs, repository creation and visibility, and `gh api` writes. `glab` merge requests, CI runs, releases, snippets, repositories and `api` writes. Publishes by `npm`, `pnpm`, `yarn`, `bun`, `uv`, `poetry`, `twine`, `cargo`, `gem`. Pushes by `docker`, `docker build --push`, `docker compose`, `podman`, `buildah`, `skopeo`; `docker manifest push`, `plugin push`, `trust sign`, `compose publish`, `imagetools create`, and `--cache-to type=gha|s3|azblob`. Kaggle submits and uploads. Uploads by `scp`, `rsync`, `sftp`, `aws s3`, `s3api put-object`, `gsutil cp`, `gcloud storage`, `az storage`, `rclone`, and web requests with a file body. |
 | Record writes | A shell write to `.attest/ship-*.md` in any case: `>`, `tee`, `cp`, `sed -i` |
 | Says | `attest ship guard: <VERDICT> — <action> (<command>). <reason>. <next step>.` |
 | Verdicts | `NO RECORD`, `BLOCKED`, `COMMIT FIRST`, `NOT HEAD`, `LEAK`, `SCAN FAILED`, `MCP PUBLISH`, `NO HEAD` |
@@ -183,7 +183,7 @@ The ship guard parses two lines, and they are a contract:
   `0 blocker`.
 
 The guard reads every `.attest/ship-*.md` on disk, committed or not, but not the sha in its
-name, and ignores carriage returns. Every record naming HEAD must clear, so one blocker holds
+name, and ignores carriage returns and NUL bytes. Every record naming HEAD must clear, so one blocker holds
 the push. A record names a finding's class and path, never its value, line or
 excerpt: it is committed and published. Never edit a record; run `/gate` again.
 
@@ -229,14 +229,18 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   aliases, and words split by `IFS`. It defends against forgetting, not forgery.
 - The ship list is literal, read in any case (`NPM` runs `npm` on a case-blind file system). A
   command not on it, such as `mvn deploy`, passes unseen until you add it to `ship_act()`.
-  Behind an expansion only the second reading's tools are read: `podman $X img` passes.
+  Behind an expansion only the second reading's tools are read: `podman $X img` passes. A text
+  naming a tool and, later, its verb asks, however far apart.
 - A web request asks for a body from a file, stdin or an expansion (`curl -d @f`,
-  `-InFile`), not an inline one. `gh api` asks on a write method or fields without
+  `-InFile`, `-Body $x`), not an inline one. `gh api` asks on a write method or fields without
   `--method GET`; GraphQL on a `mutation`. PowerShell splatting passes.
 - Two-way copies (`aws s3 cp`, `rclone copy`) ask on downloads too.
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
   hooks, and so does a cloud session opened on several repositories ([managed][ms],
   [strict][sp], [cloud][ce]). Nothing reports it. The check is the session hook: no attest output at session start means no guard.
+- Measured with gawk, mawk and BWK awk 20231127 under dash and bash 3.2, and on the macOS
+  runner (awk 20200816). Under a BWK awk `reread()` and `norm()` grow faster than the command:
+  about 1 s at 66 KB.
 - On Windows the hooks need Git Bash. Without it, Claude Code runs hook commands in PowerShell
   ([hooks][hsh]), which has no `sh`. Not measured on Windows.
 - A ship record defends against forgetting, not forgery. For integrity, sign commits and require
