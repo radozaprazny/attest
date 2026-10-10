@@ -227,7 +227,10 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   an expansion or sits behind options, a program named by an expansion before `push`, or git
   handed an alias.
 - The guard reads text, not what the shell makes of it. Not read: `eval "$X"`, `xargs`, shell
-  aliases, and words split by `IFS`. It defends against forgetting, not forgery.
+  aliases, and words split by `IFS`. It defends against forgetting, not forgery. Spellings that
+  hide a sender are read no further (DECISIONS 2026-10-10); measured silent on 2026-10-10:
+  `git-lfs -v push`, `docker manifest $V`, `--cache-to type=$T`, `-Body:$x`, a body from a
+  pipeline (`$x | irm …`), `wget --post-data=$x`, a path with backslashes (`C:\tools\curl.exe`).
 - The ship list is literal, read in any case (`NPM` runs `npm` on a case-blind file system). A
   command not on it, such as `mvn deploy`, passes unseen until you add it to `ship_act()`.
   Behind an expansion only the second reading's tools are read: `podman $X img` passes. A text
