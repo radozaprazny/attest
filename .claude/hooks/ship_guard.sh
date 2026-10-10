@@ -91,7 +91,7 @@ sends() { printf '%s\n' "$1" | awk '
       wd = wd ch } }
   { FOLD = 0; s = $0; gsub(/\\\\/, "\002", s); gsub(/\\"/, "\"", s); gsub(/\\[nr]/, "\001", s); gsub(/\\t/, " ", s); gsub(/\002/, "\\", s)
     L = length(s); t = tolower(s); gsub(/[\\"\047\001]/, "", t); M = (t ~ /mutation/)
-    out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
+    u = tolower(s); out = (u ~ /(^|[^a-z0-9_-])(invoke-webrequest|invoke-restmethod|iwr|irm)([^;|&]* (-inf|-form|[(]?get-content|[(]gc )|[^;|&\001]* -b(o(dy?)?)? +[\042\047]?[$(])/ || u ~ /(^|[^a-z0-9_-])(curl|wget)[^;|&]* ([(]?get-content|[(]gc )/)
     walk(0); walk(1); walk(2); if (s ~ /[A-Z]/) for (FOLD = 1; FOLD <= 2; FOLD++) { walk(0); walk(1); walk(2) }; if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
 ship_act() { set -- "$1 "
