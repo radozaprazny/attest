@@ -270,7 +270,7 @@ budget_table() {
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
 # docker build that pushes only after the second reading, which its wide match must not cut short;
-# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 3 more (1 comment) to read a three-word entry as two words; #81's, 3 more (1 comment) for the docker sends it left out; #76's, 3 more (1 comment) to keep a sender's substitutions in its part, and a list line
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 4 more (1 comment) to read a three-word entry as two words; #81's, 3 more (1 comment) for the docker sends it left out; #76's, 3 more (1 comment) to keep a sender's substitutions in its part, and a list line
 .claude/hooks/ship_guard.sh           lines     458
 .claude/hooks/ship_guard.sh           comments  66
 .claude/hooks/record_guard.sh         lines     40
@@ -282,7 +282,8 @@ README.md                             prose     800
 README.md                             long      0
 METHOD.md                             words     1500
 # GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders, #85's awks and #82's prose ask, two limits
-GUIDE.md                              words     2600
+# the limits the 2026-10-10 review found, stated (docs/decisions-guard-scope), and the DECISIONS 2026-10-10 names that GUIDE lacked: two spellings, the unlisted record writers and the two readings 1.8.0 dropped
+GUIDE.md                              words     2700
 GUIDE.md                              long      0
 EOF
 }

@@ -9,6 +9,7 @@ choices → DECISIONS.md · backlog → GitHub issues · history → `docs/archi
 
 ## Verify
 - `./scripts/smoke.sh` must end `0 failed`; a hook change comes with its smoke case.
+- The guard's line budget in smoke rises only with a DECISIONS entry.
 
 ## Commits
 - Conventional Commits (`feat:`, `fix:`, `docs:`, `test:`, `chore:`, `refactor:`), imperative,

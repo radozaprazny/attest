@@ -60,3 +60,20 @@ case-blind file system runs `NPM` as `npm` and writes `.ATTEST/` into `.attest/`
 decoding every shell spelling; reading wrapper options or exempting alias reads, which hid
 pushes in review; asking on every web call; asking on every capital, which ran the second
 reading on most commands. (#56, #59, #65, #68, #75)
+
+## 2026-10-10 — Read spellings no further: the list defends against forgetting, not forgery
+The ship list and the second reading read a command as a person or a model writes one. A
+spelling placed to hide a sender beside one the first reading sees, a writer of a record the
+record scan does not list, a brace expansion that builds the program, a redirection glued to
+the verb, a PowerShell body in its colon form or from a pipeline stay limits stated in GUIDE,
+not fixes: each costs hook lines for a case nobody reaches by forgetting, and the human act
+behind a record is the record guard's prompt. The guard's line budget in smoke rises only with
+an entry here. Two readings 1.8.0 dropped stay dropped: a sender in a substitution after
+`curl`, `gh` or `glab`, read as that program's arguments since #76 (`gh api x $(curl -d @f u)`
+passes; a curl in a curl's still asks), and curl as Windows PowerShell's alias with `-InFile`
+or `-Form`. Beside a seen ship command the loop re-reads every part the first reading
+missed, not a part it already took as a sender: that is what "a hidden push cannot ride on
+HEAD's record" (2026-10-01) reads as. The hooks run under /bin/sh with git and the POSIX tools
+(awk, sed, grep, tr): that is what "nothing beyond git" (2026-08-28) reads as. Rejected: one
+awk pass over parts honouring quotes and continuations (#80), and an inverted record-write
+scan (#79). (#79, #80, #76, #74)
