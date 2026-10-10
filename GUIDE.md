@@ -40,7 +40,7 @@ Claude Code's own permission rules decide.
 
 | Matches | `SessionStart` |
 |---|---|
-| Says | BUSINESS.md's `## Non-goals` (up to 24 lines) and PROGRESS.md's `## Current state` and `## Next` (up to 8 each), inside `<project-declaration>`. A trimmed section says so. |
+| Says | BUSINESS.md's `## Non-goals` (up to 24 lines) and PROGRESS.md's `## Current state` and `## Next` (up to 8 each), inside `<project-declaration>`, in Claude's context, not on screen. A trimmed section says so. |
 | No non-goals | One line, `attest: no non-goals found in BUSINESS.md — …`, then the state if any |
 | Knobs | `ATTEST_NONGOALS_HEADING`, `ATTEST_STATE_HEADING`, `ATTEST_NEXT_HEADING`: awk regexes for headings in another language |
 | Trace words | None |
@@ -199,7 +199,8 @@ to `.gitattributes`. It writes no document. It refuses to install into the kit, 
 directory that holds it. Without git or a first commit, it says so under NEEDS YOU.
 
 A `settings.json` of yours is never edited. If it leaves a hook unwired, the installer prints a
-`jq` command that appends the kit's entries. Without jq, it tells you to ask Claude to merge them.
+`jq` command that appends the kit's entries; without jq, ask Claude to merge them. A re-run is
+the check: wired when it no longer names `settings.json`. `/hooks` lists each hook with its source.
 
 Without `--upgrade`, a kit file that differs from this kit is kept and counted. `--upgrade`
 replaces such a file only where git holds your committed copy, and names it first. A file with

@@ -119,7 +119,8 @@ if [ -n "${UNWIRED:-}" ]; then
     j='.hooks //= {} | reduce ($k[0].hooks | to_entries[]) as $e (.; .hooks[$e.key] = ((.hooks[$e.key] // []) as $a | $a + [$e.value[] | select(. as $x | $a | all(. != $x))]))'
     need "  to append the kit's hook entries and change no other key, run from $TARGET:
       jq --slurpfile k $(printf '%q' "$KIT/$S") '$j' $S > $S.new && mv $S.new $S"
-  else need "  no jq here: ask Claude to merge the hooks of $KIT/$S into it"; fi
+  else need "  no jq here: ask Claude to merge the hooks of $KIT/$S into it, changing no other key"; fi
+  need "  then re-run this installer: wired when it no longer names $S; in claude, /hooks lists each hook with its source"
 fi
 
 if [ ${#LANDED[@]} -eq 0 ] && [ ${#DONE[@]} -eq 0 ] && [ ${#NEEDS[@]} -eq 0 ]; then
@@ -136,7 +137,8 @@ if [ ${#NEEDS[@]} -gt 0 ]; then
 fi
 echo
 echo "  NEXT"
-echo "  1  claude        start it, or restart a session that was open: skills load at start"
+if [ -n "${UNWIRED:-}" ]; then echo "  1  claude        start it once settings.json wires the hooks (NEEDS YOU, above): until then the unwired hooks do not run"
+else echo "  1  claude        start it, or restart a session that was open: skills load at start"; fi
 echo "  2  /business     writes BUSINESS.md; its non-goals reach every session and /gate"
 echo "  3  /gate         before a push: audits what it sends, commits the record the guard reads"
 echo "  4  /checkpoint   before /clear: writes PROGRESS.md for the next session"

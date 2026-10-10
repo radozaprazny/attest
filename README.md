@@ -38,6 +38,8 @@ attest 0.20.0  →  /tmp/tmp.mFzdNbOmjp/myproj
 ```
 
 Restart Claude Code if a session was open in that project: skills load when a session starts.
+With your own `settings.json`, the installer says how to wire the hooks, and `/hooks` in Claude
+Code shows what is wired.
 
 ## The loop
 
