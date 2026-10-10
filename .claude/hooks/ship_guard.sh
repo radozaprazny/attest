@@ -92,16 +92,20 @@ sends() { printf '%s\n' "$1" | awk '
     out = (tolower(s) ~ /(invoke-webrequest|invoke-restmethod|iwr|irm|curl|wget)[^;|&]* (-inf|-form|[(]?get-content|[(]gc )/)
     walk(0); walk(1); walk(2); if (s ~ /[A-Z]/) for (FOLD = 1; FOLD <= 2; FOLD++) { walk(0); walk(1); walk(2) }; if (out) print "sends data off the machine" }'; }
 # npm takes any prefix of publish from pu on; each is a whole word, so np\m pub\lish stays hidden.
-ship_act() { set -- "$1 "; case "$1" in
+ship_act() { set -- "$1 "
+  # A three-word entry is read as two before the last place of the third: dash takes time to the power of a pattern's stars (#82).
+  for _v in " push" " publish "; do case "$1" in *"$_v"*) case "${1%"$_v"*}" in *"docker"*"compose"*) echo "sends data off the machine"; return ;; esac ;; esac; done
+  for _v in " upload" " sync"; do case "$1" in *"$_v"*) case "${1%"$_v"*}" in *"az "*"storage"*) echo "sends data off the machine"; return ;; esac ;; esac; done
+  case "$1" in
   *"git push"*|*"git lfs push"*|*"git subtree push"*|*"git send-email"*|*"gh "*"pr create"*|*"gh "*"pr new"*|*"gh release create"*|*"gh gist create"*|\
   *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker"*"compose"*" push"*|\
+  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|\
   *"podman"*" push"*|*"buildah"*" push"*|*"skopeo"*" copy"*|*"skopeo"*" sync"*|*"gh "*"workflow run"*|*"glab "*"mr create"*|\
   *"glab "*"mr new"*|*"glab "*"ci run"*|*"glab "*"release create"*|*"glab "*"release upload"*|*"glab "*"snippet create"*|\
   *"aws"*"s3 mv"*|*"aws"*"s3api put-object"*|*"aws"*"s3api upload-part"*|*"gcloud"*"storage cp"*|*"gcloud"*"storage mv"*|\
-  *"gcloud"*"storage rsync"*|*"az "*"storage"*" upload"*|*"az "*"storage"*" sync"*|*"az "*"storage copy"*|*"azcopy"*" copy"*|\
+  *"gcloud"*"storage rsync"*|*"az "*"storage copy"*|*"azcopy"*" copy"*|\
   *"azcopy"*" sync"*|*"rclone"*" copy"*|*"rclone"*"sync"*|*"rclone"*" move"*|*"rclone"*" rcat"*|*"wget"*"--post-file"*|\
   *"wget"*"--body-file"*|*"sftp "*|*"kaggle"*" create"*|*"kaggle"*" version "*|*"kaggle"*" push"*)
     echo "sends data off the machine" ;;

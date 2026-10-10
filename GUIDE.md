@@ -229,7 +229,8 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   aliases, and words split by `IFS`. It defends against forgetting, not forgery.
 - The ship list is literal, read in any case (`NPM` runs `npm` on a case-blind file system). A
   command not on it, such as `mvn deploy`, passes unseen until you add it to `ship_act()`.
-  Behind an expansion only the second reading's tools are read: `podman $X img` passes.
+  Behind an expansion only the second reading's tools are read: `podman $X img` passes. A text
+  naming a tool and, later, its verb asks, however far apart.
 - A web request asks for a body from a file, stdin or an expansion (`curl -d @f`,
   `-InFile`), not an inline one. `gh api` asks on a write method or fields without
   `--method GET`; GraphQL on a `mutation`. PowerShell splatting passes.

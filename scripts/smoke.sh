@@ -270,16 +270,17 @@ budget_table() {
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
 # docker build that pushes only after the second reading, which its wide match must not cut short;
-# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk
-.claude/hooks/ship_guard.sh           lines     448
-.claude/hooks/ship_guard.sh           comments  63
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 3 more (1 comment) to read a three-word entry as two words
+.claude/hooks/ship_guard.sh           lines     452
+.claude/hooks/ship_guard.sh           comments  64
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
 # the repository's own documents (#40, #41)
 README.md                             prose     700
 README.md                             long      0
 METHOD.md                             words     1500
-GUIDE.md                              words     2500
+# GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: 
+GUIDE.md                              words     2525
 GUIDE.md                              long      0
 EOF
 }
@@ -744,6 +745,15 @@ if grp 1; then
   _x="$(grep -c 'permissionDecision":"ask' "$WORK/long.sender" || true)"
   if [ ! -s "$WORK/long.none" ] && [ "$_x" = 2 ] && [ "$_t1" -gt 0 ] && [ $((2 * _t0)) -le $((5 * _t1)) ]; then ok "a 66 KB heredoc read a second time stays silent, in at most 2.5 times the CPU of its twin hiding a sender, which asks ($_t0 and $_t1 ms)"
   else fail "a 66 KB heredoc read a second time stays silent, in at most 2.5 times the CPU of its twin hiding a sender, which asks ($_t0 and $_t1 ms, $(wc -c < "$WORK/long.none") bytes said, $_x of 2 asked)"; fi
+  # A three-word entry read across the whole command cost the cube of its length in dash (#82):
+  # `docker compose ` 1,600 times, then `up -d`, against its two-word twin, `kaggle datasets ` 1,600
+  # times, then `list`; the same size, neither ships. The same CPU measure as above.
+  _c3=''; _c2=''; for _n in $(seq 1600); do _c3="${_c3}docker compose "; _c2="${_c2}kaggle datasets "; done
+  _t3=''; _t2=''; : > "$WORK/three.out"; : > "$WORK/two.out"
+  for _n in 1 2; do _x=$(_cpu "${_c3}up -d" "$WORK/three.out"); [ -n "$_t3" ] && [ "$_t3" -le "$_x" ] || _t3=$_x
+    _x=$(_cpu "${_c2}list" "$WORK/two.out"); [ -n "$_t2" ] && [ "$_t2" -le "$_x" ] || _t2=$_x; done
+  if [ ! -s "$WORK/three.out" ] && [ ! -s "$WORK/two.out" ] && [ "$_t3" -le $((4 * _t2 + 200)) ]; then ok "docker compose 1,600 times stays silent, in at most 4 times the CPU of its two-word twin plus 200 ms ($_t3 and $_t2 ms)"
+  else fail "docker compose 1,600 times stays silent, in at most 4 times the CPU of its two-word twin plus 200 ms ($_t3 and $_t2 ms; $(wc -c < "$WORK/three.out") and $(wc -c < "$WORK/two.out") bytes said)"; fi
 fi
 
 fi
