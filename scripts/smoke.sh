@@ -270,16 +270,16 @@ budget_table() {
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
 # docker build that pushes only after the second reading, which its wide match must not cut short;
-# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 3 more (1 comment) to read a three-word entry as two words
-.claude/hooks/ship_guard.sh           lines     452
-.claude/hooks/ship_guard.sh           comments  64
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 3 more (1 comment) to read a three-word entry as two words; #81's, 3 more (1 comment) for the docker sends it left out
+.claude/hooks/ship_guard.sh           lines     455
+.claude/hooks/ship_guard.sh           comments  65
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
 # the repository's own documents (#40, #41)
 README.md                             prose     700
 README.md                             long      0
 METHOD.md                             words     1500
-# GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: 
+# GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends
 GUIDE.md                              words     2525
 GUIDE.md                              long      0
 EOF
@@ -729,6 +729,23 @@ clear@docker buildx build --output type=image,name=r/x,push=true .
 silent@docker buildx build --cache-from type=registry,ref=r/x:c --load .
 silent@docker buildx build -o type=image,name=r/x,push=false .
 silent@cat docker-bake.hcl | grep -n push=true
+clear@docker manifest push r/x:1
+clear@docker buildx imagetools create -t r/x:1 r/x:a r/x:b
+clear@docker plugin push r/plugin:1
+clear@docker trust sign r/x:1
+clear@docker compose publish r/app:1
+clear@docker buildx build --cache-to type=gha -t x .
+clear@docker buildx build --cache-to=type=s3,region=eu-west-1,bucket=b -t x .
+clear@docker build --cache-to type=azblob,account_url=https://a.blob.core.windows.net -t x .
+silent@docker manifest inspect r/x:1
+silent@docker buildx imagetools inspect r/x:1
+silent@docker buildx build --cache-to type=local,dest=/tmp/c -t x .
+silent@docker buildx build --cache-from type=gha -t x .
+clear@docker compose -f prod.yml push web
+clear@docker compose alpha publish r/app:1
+silent@docker compose up -d publisher
+silent@docker compose logs -f publisher
+clear@az storage blob sync -s . -c c
 ROWS
 # A long command the second reading reads whole (#72) costs no more for holding no sender: with
 # none, the reading's mark was looked for by a strip that tried every prefix. The same 66 KB heredoc

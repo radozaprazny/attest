@@ -101,7 +101,8 @@ ship_act() { set -- "$1 "
   *"npm publish"*|*"npm pu "*|*"npm pub "*|*"npm publ "*|*"npm publi "*|*"npm publis "*|*"twine upload"*|*"cargo publish"*|*"docker push"*|*"docker image push"*|*"docker buildx"*"--push"*|\
   *"yarn publish"*|*"bun publish"*|*"uv publish"*|*"poetry publish"*|*"gem push"*|*"gh release upload"*|*"kaggle"*"submit"*|\
   *"scp "*":"*|*"scp "*'$'*|*"rsync "*":"*|*"rsync "*'$'*|*"aws s3 cp"*|*"aws s3 sync"*|*"gsutil cp"*|\
-  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|\
+  *"--upload-file"*|*"curl"*" -T"*|*"pnpm"*" publish"*|*"docker"*"manifest push"*|*"docker"*"imagetools create"*|\
+  *"docker"*"plugin push"*|*"docker"*"trust sign"*|\
   *"podman"*" push"*|*"buildah"*" push"*|*"skopeo"*" copy"*|*"skopeo"*" sync"*|*"gh "*"workflow run"*|*"glab "*"mr create"*|\
   *"glab "*"mr new"*|*"glab "*"ci run"*|*"glab "*"release create"*|*"glab "*"release upload"*|*"glab "*"snippet create"*|\
   *"aws"*"s3 mv"*|*"aws"*"s3api put-object"*|*"aws"*"s3api upload-part"*|*"gcloud"*"storage cp"*|*"gcloud"*"storage mv"*|\
@@ -114,14 +115,16 @@ ship_act() { set -- "$1 "
 esac; }
 # A docker build that pushes, read after the second reading, which alone reads a backslash: its
 # words lie apart, so it must not count a part as seen (#73). One star per pattern (dash takes time
-# to the power of its stars); keys in any case, in a part naming docker; --cache-from only pulls.
+# to the power of its stars); keys in any case, in a part naming docker; --cache-from only pulls,
+# and a cache sent to gha, s3 or azblob is read when its type is the first key after cache-to (#81).
 build_push() { case "$1 " in *"docker "*|*"docker-compose "*) ;; *) return 1 ;; esac
   case "$1" in *" build"*) case "$1" in *"--push"*) return 0 ;; esac ;; esac
   _bpo="$IFS"; IFS=';|&'; for _bpp in $1; do case "$_bpp " in *"docker "*|*"docker-compose "*) case "$_bpp " in
   *[\ =,o.][Pp][Uu][Ss][Hh]=[!fF0\\]*|*[Oo,][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!m][\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
   *[!o]m[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!r]om[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|*[!f]rom[\ =][Tt][Yy][Pp][Ee]=[Rr][Ee][Gg]*|\
   *"cache-to"[\ =][!tT\\]*|*"cache-to"[\ =][tT][!yY\\]*|*"cache-to"[\ =][tT][yY][!pP\\]*|*"cache-to"[\ =][tT][yY][pP][!eE\\]*|\
-  *"cache-to"[\ =][tT][yY][pP][eE][!=\\]*) IFS="$_bpo"; return 0 ;; esac ;; esac; done; IFS="$_bpo"; return 1; }
+  *"cache-to"[\ =][tT][yY][pP][eE][!=\\]*|*"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Gg][Hh][Aa]*|*"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Ss]3*|\
+  *"cache-to"[\ =][Tt][Yy][Pp][Ee]=[Aa][Zz][Bb][Ll][Oo][Bb]*) IFS="$_bpo"; return 0 ;; esac ;; esac; done; IFS="$_bpo"; return 1; }
 [ -n "${KIND:-}" ] || ACT="$(ship_act "$NORM")"
 # A second reading, of the still JSON-escaped command. Line 1: the command with continuations
 # joined, other shell backslashes dropped and $'x' or $"x" read as "x". Line 2: `x` when a part
