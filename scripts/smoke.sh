@@ -270,7 +270,7 @@ budget_table() {
 # the hooks: each at its size when #42 landed; ship_guard.sh at #59's and #65's, 52 lines more,
 # and #68's, 4 more to read a ship tool's name in any case; #73's, 15 more (3 comments) to read a
 # docker build that pushes only after the second reading, which its wide match must not cut short;
-# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 3 more (1 comment) to read a three-word entry as two words; #81's, 3 more (1 comment) for the docker sends it left out; #76's, 3 more (1 comment) to keep a sender's substitutions in its part, and a list line
+# #72's, 3 more to build the second reading's strings in runs, linear in BWK awk; #82's, 4 more (1 comment) to read a three-word entry as two words; #81's, 3 more (1 comment) for the docker sends it left out; #76's, 3 more (1 comment) to keep a sender's substitutions in its part, and a list line
 .claude/hooks/ship_guard.sh           lines     458
 .claude/hooks/ship_guard.sh           comments  66
 .claude/hooks/record_guard.sh         lines     40
