@@ -276,8 +276,9 @@ budget_table() {
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
 # the repository's own documents (#40, #41)
-# the Compared with table, four rows against the one-line alternatives (docs/readme-business-first)
-README.md                             prose     775
+# the Compared with table, four rows against the one-line alternatives (docs/readme-business-first);
+# the installer's wiring sentence (feat/install-wired-or-told)
+README.md                             prose     800
 README.md                             long      0
 METHOD.md                             words     1500
 # GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders, #85's awks and #82's prose ask, two limits
@@ -1792,6 +1793,7 @@ says "…and /gate's material block reads it from the installed copy" \
 says "NEXT is claude, /business, /gate, /checkpoint" \
   "$(printf '%s\n' "$out" | sed -n '/NEXT/,$p' | awk '$1 ~ /^[0-9]$/ { printf "%s ", $2 }')" '^claude /business /gate /checkpoint $'
 says_not "a fresh repo needs nothing of you" "$out" 'NEEDS YOU'
+says "…and step 1 is start it, unconditioned" "$out" '1  claude        start it, or restart a session that was open'
 rerun="$(run_install "$T1")"; check "a re-run prints one line" test "$(printf '%s\n' "$rerun" | wc -l)" -eq 1
 says "…saying it changed nothing" "$rerun" 'changed nothing'
 says "a whole install prints the one summary line" "$out" '✓ 10 kit file(s) landed under \.claude/ — settings, 3 hooks'
@@ -1839,6 +1841,8 @@ printf '%s\n' '{ "permissions": { "allow": ["Bash(npm test)"] }, "model": "sonne
 cp "$T5/.claude/settings.json" "$WORK/settings.orig"; out="$(run_install "$T5")"
 check "over your own PreToolUse hook the output is ≤30 lines" test "$(printf '%s\n' "$out" | wc -l)" -le 30
 says "…naming settings.json as not wiring every kit hook" "$out" 'settings.json — yours, kept, and it does not wire'
+says "…and how to know: a re-run, and /hooks in claude" "$out" 'then re-run this installer: wired when it no longer names'
+says "…and NEXT's first step waits for the wiring" "$out" '1  claude        start it once settings.json wires the hooks'
 check "…which it never edits" cmp -s "$WORK/settings.orig" "$T5/.claude/settings.json"
 if command -v jq >/dev/null 2>&1; then
   (cd "$T5" && eval "$(printf '%s\n' "$out" | sed -n 's/^ *\(jq --slurpfile .*\)/\1/p')") >/dev/null 2>&1 || true
@@ -1848,7 +1852,9 @@ if command -v jq >/dev/null 2>&1; then
   says "…after which a re-run is one line" "$(run_install "$T5")" 'changed nothing'
 else echo "  skip: jq is not on PATH, so the printed merge command is not run"; fi
 NOJQ="$WORK/nojq"; mkdir -p "$NOJQ"; for c in bash git tr cmp cp mv mkdir dirname sed grep awk tail head rm cat; do ln -s "$(command -v "$c")" "$NOJQ/$c"; done
-cp "$WORK/settings.orig" "$T5/.claude/settings.json"; says "without jq it asks Claude to merge the kit's hooks" "$(PATH="$NOJQ" run_install "$T5")" 'no jq here: ask Claude to merge'
+cp "$WORK/settings.orig" "$T5/.claude/settings.json"; _nojq="$(PATH="$NOJQ" run_install "$T5")"
+says "without jq it asks Claude to merge the kit's hooks" "$_nojq" 'no jq here: ask Claude to merge'
+says "…and says how to know without jq too" "$_nojq" '/hooks lists each hook with its source'
 T6="$WORK/wired"; mkdir -p "$T6/.claude"; gi "$T6"
 wire() { sed -e "$1" -e '1a\
   "permissions": { "allow": ["PowerShell(git status)"] },' "$KIT/.claude/settings.json" > "$T6/.claude/settings.json"; run_install "$T6"; }
