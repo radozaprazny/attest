@@ -2036,6 +2036,10 @@ ask@docker build --push -t r/x `g\\it push origin other` .
 ask@docker build --push . ; git pu\\\nsh origin other
 ask@g\\it push origin other # docker build --push
 ask@git push origin HEAD; docker build --pu$'sh' -t r/x .
+silent@\\x
+silent@x\\
+silent@echo \\x
+silent@echo a\nx\\
 ROWS
 }
 _i=0; _asks=0

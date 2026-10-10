@@ -193,12 +193,12 @@ unq() { _u=$1; while :; do case "$_u" in *"'"*) _u="${_u%%"'"*}${_u#*"'"}" ;;
 if [ -z "${KIND:-}" ] && { can_hide "$CMD" || can_hide "$NORM"; }; then
   if [ -z "$ACT" ]; then _x="$(printf '%s' "$CMD" | reread)"
     _xn="$(norm "${_x%"$NL"*}")"; ACT="$(ship_act "$_xn")"
-    [ -n "$ACT" ] || case "$_x" in *"$NL"x|x) ACT="sends data off the machine" ;; esac  # a ##*NL strip is quadratic on one long line
+    [ -n "$ACT" ] || case "$_x" in *"$NL"x) ACT="sends data off the machine" ;; esac  # a lone x is text (#86); a ##*NL strip is quadratic on one long line
     [ -z "$ACT" ] || HIDDEN=1
   else _oifs="$IFS"; IFS="$NL;|&()"
     for _p in $(printf '%s' "$CMD" | sed 's/\\n/;/g'); do
       { can_hide "$_p" || { unq "$_p"; can_hide "$_u"; }; } || continue; _pn="$(norm "$_p")"; [ -z "$(ship_act "$_pn")" ] || continue
-      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"; case "$_x" in *"$NL"x|x) HIDDEN=1; break ;; esac
+      _x="$(printf '%s' "$_p" | reread)"; _xn="$(norm "${_x%"$NL"*}")"; case "$_x" in *"$NL"x) HIDDEN=1; break ;; esac
       if [ -n "$(ship_act "$_xn")" ] || { ! build_push "$_pn" && build_push "$_xn"; }; then HIDDEN=1; break; fi
     done; IFS="$_oifs"; fi
 fi
