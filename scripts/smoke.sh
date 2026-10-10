@@ -279,8 +279,8 @@ budget_table() {
 README.md                             prose     700
 README.md                             long      0
 METHOD.md                             words     1500
-# GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders
-GUIDE.md                              words     2550
+# GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders, #85's awks and #82's prose ask, two limits
+GUIDE.md                              words     2600
 GUIDE.md                              long      0
 EOF
 }

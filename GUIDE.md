@@ -238,6 +238,9 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
 - Managed settings with `allowManagedHooksOnly` or `strictPluginOnlyCustomization` stop project
   hooks, and so does a cloud session opened on several repositories ([managed][ms],
   [strict][sp], [cloud][ce]). Nothing reports it. The check is the session hook: no attest output at session start means no guard.
+- Measured with gawk, mawk and BWK awk 20231127 under dash and bash 3.2, and on the macOS
+  runner (awk 20200816). Under a BWK awk `reread()` and `norm()` grow faster than the command:
+  about 1 s at 66 KB.
 - On Windows the hooks need Git Bash. Without it, Claude Code runs hook commands in PowerShell
   ([hooks][hsh]), which has no `sh`. Not measured on Windows.
 - A ship record defends against forgetting, not forgery. For integrity, sign commits and require
