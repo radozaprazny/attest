@@ -282,8 +282,8 @@ README.md                             prose     800
 README.md                             long      0
 METHOD.md                             words     1500
 # GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders, #85's awks and #82's prose ask, two limits
-# the limits the 2026-10-10 review found, stated (docs/decisions-guard-scope)
-GUIDE.md                              words     2650
+# the limits the 2026-10-10 review found, stated (docs/decisions-guard-scope), and the DECISIONS 2026-10-10 names that GUIDE lacked: two spellings, the unlisted record writers and the two readings 1.8.0 dropped
+GUIDE.md                              words     2700
 GUIDE.md                              long      0
 EOF
 }
