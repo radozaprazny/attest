@@ -183,7 +183,8 @@ The ship guard parses two lines, and they are a contract:
   `0 blocker`.
 
 The guard reads every `.attest/ship-*.md` on disk, committed or not, but not the sha in its
-name, and ignores carriage returns and NUL bytes. Every record naming HEAD must clear, so one blocker holds
+name, and ignores carriage returns and NUL bytes. Older `gate-*.md` records sit in
+`docs/archive/records/`. Every record naming HEAD must clear, so one blocker holds
 the push. A record names a finding's class and path, never its value, line or
 excerpt: it is committed and published. Never edit a record; run `/gate` again.
 
