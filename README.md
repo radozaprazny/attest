@@ -1,7 +1,8 @@
 # attest
 
-Stop the push you would regret. Your non-goals in context before the first edit. One audit per
-push, with a dated record.
+Tell your project what it must not become. attest puts that declaration in front of Claude Code
+at the start of every session, and holds every push, publish or upload until a leak scan and one
+audit have checked that exact commit against it, leaving a dated record.
 
 attest attests process, not artifacts: it is not GitHub Artifact Attestations. It is a kit for
 [Claude Code](https://code.claude.com): three shell hooks, five skills and one read-only auditor.
@@ -14,7 +15,8 @@ git clone https://github.com/radozaprazny/attest.git /tmp/attest
 ```
 
 **Requirements:** Claude Code · git · `bash` for `install.sh` (it runs once) · `/bin/sh` for the
-hooks · optional: [`betterleaks`](https://github.com/betterleaks/betterleaks) on your PATH.
+hooks · Linux or macOS; Windows needs Git Bash and is not measured · optional:
+[`betterleaks`](https://github.com/betterleaks/betterleaks) on your PATH.
 
 The installer copies 10 files into your project's `.claude/` and appends one line each to
 `.gitignore` and `.gitattributes`. It never overwrites a file of yours. `--upgrade` replaces only
@@ -36,6 +38,15 @@ attest 0.20.0  →  /tmp/tmp.mFzdNbOmjp/myproj
 ```
 
 Restart Claude Code if a session was open in that project: skills load when a session starts.
+
+## The loop
+
+`/business` once: three questions in one message, each with a proposed answer from your
+repository: what the project does, what it deliberately does not do, whether it touches
+regulated ground. The non-goals are the one measure every audit has. Without them `/gate` checks
+secrets and personal data; with them, also that a change builds nothing you ruled out. Then
+work, `/decision` when a choice lands, `/gate` before each push, and `/checkpoint` before
+`/clear`.
 
 ## What it looks like
 
@@ -61,11 +72,6 @@ is committed on its own, and the next push passes on it. This one gated PR #54
 - key layer: betterleaks 1.8.1 — unpushed 0 · unstaged 0 · staged 0 · untracked skipped
 ```
 
-## The loop
-
-`/business` once: purpose, non-goals, regulated ground. Then work, `/decision` when a choice
-lands, `/gate` before each push, and `/checkpoint` before `/clear`.
-
 ## What it costs
 
 - **Per push:** `/gate` and the auditor are 1,296 words of kit text (798 and 498, by `wc -w`).
@@ -88,27 +94,24 @@ lands, `/gate` before each push, and `/checkpoint` before `/clear`.
   commands, and GitHub MCP writes. A deploy script or a git alias leaves no prompt.
 - **An ask needs someone to answer it.** What it becomes in each permission mode, and
   `ATTEST_GUARD=deny` for runs nobody watches, is in [GUIDE.md](GUIDE.md#permission-modes).
-- **Windows needs Git Bash** to run the hooks.
 
-## Works with
+## Compared with
 
-- **`/code-review`** reviews the code. `/gate` leaves that to it and asks what must not ship.
-- **spec-kit** says what to build. attest keeps what you declared you will not build in front
-  of every session.
-- **GitHub push protection** blocks known secret patterns at the server. attest asks earlier,
-  on your machine, and about more than secrets.
+| | Does | attest adds |
+|---|---|---|
+| `permissions.ask: ["Bash(git push *)"]` in Claude Code's settings | A prompt before every push, in every mode | A reason to answer: a leak scan, an audit against your non-goals and a record; a clean record passes with no prompt |
+| GitHub push protection | Known secret patterns, at the server, after the push | Asks earlier, on your machine, about more than secrets |
+| A pre-push leak scan (betterleaks, gitleaks) | Secrets, locally | The same scan, plus the non-goals, the audit and the record |
+| `/code-review` | The code | Nothing: `/gate` asks only what must not ship |
 
 ## Evidence
 
-`scripts/fixture.sh` builds a small repository with 4 planted faults, and
-[`scripts/fixture-key.md`](scripts/fixture-key.md) is the answer key. On 2026-09-29, kit 0.20.0,
-the auditor found all 4 with the right class, path and severity. It added 2 notes, each with its
-evidence, and no extra blocker. That is n = 1: /gate's material step, run verbatim, then the
-auditor, from a Claude Code 2.1.284 session on Claude Opus 5.5.
-
-An earlier dogfood, in July 2026 on an unversioned kit older than 0.1.0, is in
-[the devlog's account](docs/archive/attest-devlog.md#what-the-dogfood-proved). No adopter is
-claimed here without a public record.
+`scripts/fixture.sh` builds a repository with 4 planted faults; [`scripts/fixture-key.md`](scripts/fixture-key.md)
+is the key. On 2026-09-29, kit 0.20.0, the auditor found all 4 with the right class, path and
+severity, added 2 notes with their evidence and no extra blocker: n = 1, from a Claude Code
+2.1.284 session on Claude Opus 5.5. An earlier dogfood, July 2026 on an unversioned kit, is in
+[the devlog](docs/archive/attest-devlog.md#what-the-dogfood-proved). No adopter is claimed
+without a public record.
 
 The method without the tool is [METHOD.md](METHOD.md). Every hook, command and knob is in
 [GUIDE.md](GUIDE.md).

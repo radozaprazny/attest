@@ -276,7 +276,8 @@ budget_table() {
 .claude/hooks/record_guard.sh         lines     40
 .claude/hooks/session_declaration.sh  lines     64
 # the repository's own documents (#40, #41)
-README.md                             prose     700
+# the Compared with table, four rows against the one-line alternatives (docs/readme-business-first)
+README.md                             prose     775
 README.md                             long      0
 METHOD.md                             words     1500
 # GUIDE lists what the guard reads, so a longer ship list is a longer GUIDE: #81's docker sends, #76's git senders, #85's awks and #82's prose ask, two limits
