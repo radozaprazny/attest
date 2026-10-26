@@ -1,7 +1,7 @@
 # attest
 
 Tell your project what it must not become. attest puts that declaration in front of Claude Code
-at the start of every session, and holds every push, publish or upload until a leak scan and one
+at the start of every session, and holds a push, publish or upload until a leak scan and one
 audit have checked that exact commit against it, leaving a dated record.
 
 attest attests process, not artifacts: it is not GitHub Artifact Attestations. It is a kit for
@@ -76,13 +76,24 @@ is committed on its own, and the next push passes on it. This one gated PR #54
 
 ## What it costs
 
-- **Per push:** `/gate` and the auditor are 1,296 words of kit text (798 and 498, by `wc -w`).
-- **Time:** install, `/business`, one change, `/gate` and the push took 6 min 7 s and 5 user
-  turns. `/gate` took 2 min 21 s of it, the auditor 71 s. Measured on 2026-09-29 with Claude
-  Code 2.1.268, Fable 5.1 at xhigh effort, in auto mode ([PR #54](https://github.com/radozaprazny/attest/pull/54)).
-- **Prompts:** attest adds one per clean push, the record write.
+- **Per push:** `/gate` and the auditor are 1,297 words of kit text (799 and 498, by `wc -w`).
+- **First guarded push:** install, wiring, one change, `/gate` and the push, on three projects
+  with their own `settings.json` (kit 1.9.0, auto mode, October 2026; from file times, the
+  guard's trace and the transcripts):
+
+| Project | Wiring | Total | `/gate` | Turns | Prompts |
+|---|---|---|---|---|---|
+| Dashboard, upgraded from 0.12.0 | 1:39, three edits | 21:15 | 5:51 | 3 | 2 |
+| Rust library, 49 files | 12:12, by Claude | 35:59 | 2:15 | 6 | 3 |
+| JavaScript library, 18 files, settings closed to Claude | 1:00, `jq` | 18:30 | 3:10 | 5 | 2 |
+
+Totals include reading each step from a second session; every `/gate` found 0 blockers.
+
+- **Prompts:** one per clean push, the record write. Every run above also asked on `/gate`'s
+  own first command, a false ask 1.9.1 removed. A push Claude chains after `git remote -v` still
+  asks ([#95](https://github.com/radozaprazny/attest/issues/95)).
 - **Every session:** the session hook prints your non-goals and current state. In this
-  repository on 2026-09-29 that was 385 words, by `wc -w` of its output.
+  repository on 2026-10-26 that was 402 words, by `wc -w` of its output.
 
 ## Limits
 
