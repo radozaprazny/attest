@@ -93,7 +93,7 @@ Totals include reading each step from a second session; every `/gate` found 0 bl
   own first command, a false ask 1.9.1 removed. The Rust run's third prompt, on a push Claude chained
   after `git remote -v`, is gone in 1.9.2 ([#95](https://github.com/radozaprazny/attest/issues/95)).
 - **Every session:** the session hook prints your non-goals and current state. In this
-  repository on 2026-10-26 that was 412 words, by `wc -w` of its output.
+  repository on 2026-10-26 that was 414 words, by `wc -w` of its output.
 
 ## Limits
 
