@@ -23,7 +23,7 @@ material to `.attest/tmp/gate/` and prints a summary; never read the patches her
 ```bash
 cd "$(git rev-parse --show-toplevel)" || exit 1
 D=.attest/tmp/gate; mkdir -p "$D"; rm -f "$D"/*
-export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=off
+export GIT_CONFIG_COUNT=$((GIT_CONFIG_COUNT+1)) GIT_CONFIG_KEY_${GIT_CONFIG_COUNT:-0}=core.quotepath GIT_CONFIG_VALUE_${GIT_CONFIG_COUNT:-0}=off
 K=(.claude/hooks/{ship_guard,record_guard,session_declaration}.sh .claude/agents/auditor.md
   .claude/skills/{gate,business,decision,compliance,checkpoint}/SKILL.md)
 X=("${K[@]/#/:!}" ':!.attest/tmp'); F=(-p --no-ext-diff --date=short --format='commit %h %ad %s')

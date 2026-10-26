@@ -310,6 +310,10 @@ git -C "$G8" -c user.name=t -c user.email=t@example.invalid commit -qm init; ech
 (cd "$G8" && bash -c "$GB") > /dev/null 2>&1 || true
 says "…and run, it writes a committed non-ASCII path as it is" "$(cat "$G8/.attest/tmp/gate/range.patch" 2>/dev/null)" 'b/ä.txt'
 says "…and an untracked one" "$(cat "$G8/.attest/tmp/gate/untracked.txt" 2>/dev/null)" 'nový.txt'
+# A session's own GIT_CONFIG_* stays: the block adds its key after them, not over the first.
+(cd "$G8" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.abbrev GIT_CONFIG_VALUE_0=12 bash -c "$GB") > /dev/null 2>&1 || true
+says "…and run with a session's own GIT_CONFIG_*, it keeps them" "$(cat "$G8/.attest/tmp/gate/log.txt" 2>/dev/null)" '^[0-9a-f]\{12\} '
+says "…and still writes the non-ASCII path as it is" "$(cat "$G8/.attest/tmp/gate/range.patch" 2>/dev/null)" 'b/ä.txt'
 
 # --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
 # The skill is paid on every run and stands between install and first value; the skeleton
