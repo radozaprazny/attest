@@ -344,7 +344,7 @@ if [ -n "$FULL" ]; then
     [ "$(git -C "$CWD" rev-parse --show-toplevel 2>/dev/null)" = "$TOP" ] ||
       SHAPE="The shell is in another repository, $(san "$CWD")"
     case "$CMD" in *'<('*|*'>('*) SHAPE="It holds a process substitution, which runs a command the guard cannot read" ;; esac
-    _shape="$(printf '%s' "$CMD" | sed -E 's/\\n/;/g; s/\\//g; s/[0-9]*>&[0-9-]*//g; s/&>>?[[:space:]]*[^[:space:];|&]+//g
+    _shape="$(printf '%s' "$CMD" | sed -E 's/\\\\\\n/ /g; s/\\n/;/g; s/\\//g; s/[0-9]*>&[0-9-]*//g; s/&>>?[[:space:]]*[^[:space:];|&]+//g
       s/[0-9]*>>?\|?[[:space:]]*[^[:space:];|&]+//g; s/[0-9]*<+[[:space:]]*[^[:space:];|&]+//g' | tr ';|&' '\n' | awk '
       function scan(k) { G = 0; V = 0; for (k = 1; k <= NF; k++) if ($k ~ /(^|\/)git(\.exe)?$/) { G = k; break }
         if (G) { for (k = G + 1; k <= NF && substr($k, 1, 1) == "-"; k++)

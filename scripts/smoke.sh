@@ -1398,6 +1398,8 @@ passes "cd $P/repo && git push"                    "…and one after a cd into t
 passes 'git status && git push'                    "…and one after a read-only git command"
 passes 'git remote -v && git push'                 "…and one after listing the remotes (#95)"
 passes 'git remote get-url origin; git push'       "…or after looking one up"
+passes 'git push \\\n  -u origin main'            "…and one split by a line continuation (#98)"
+passes 'git status \\\n  --short && git push'    "…and one after a read-only command split the same way"
 passes 'git push -q --no-verify -o ci.skip origin main' "…and one with the options the list knows"
 # A commit, pull or reset in the same command moves HEAD after the guard has read it.
 for c in 'git add -A && git commit -m x && git push' 'git commit --amend --no-edit && git push --force-with-lease' \
@@ -1420,6 +1422,12 @@ for c in 'git push origin feature' 'git push origin feature:main' 'git push --al
          '(cd ../other && git push)' '{ cd ../other; git push; }' 'env -C ../other git push' \
          "git -C $P/repo/L/.. push origin main" 'git push --follow-tags' 'git push origin $BRANCH' \
          'git push origin main <(./deploy.sh)' 'git push origin main >(./deploy.sh)' 'git push origin main && scp f.txt x@host:'; do
+  says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
+  says "…traced nothead" "$(pcol 2)" '^nothead$'
+done
+# #98: the words after a line continuation are the push's own, not a part after it.
+for c in 'git push \\\norigin HEAD~1:main' 'git push \\\n--all origin' 'git push \\\norigin feature:main' \
+         'git push \\\n--mirror origin' 'git push \\\n\\\n--mirror origin'; do
   says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
   says "…traced nothead" "$(pcol 2)" '^nothead$'
 done
@@ -1496,6 +1504,11 @@ cpasses 'gh pr create --fill'           "…and the pull request opened on it"
 for c in 'git remote -v && git push -u origin main' 'git remote -v; git push -u origin main' \
          'git status && git push -u origin main'; do cpasses "$c" "…and $c"; done
 for c in 'git remote add x ../x.git && git push x main' 'git remote set-url origin ../x.git && git push'; do
+  says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'; done
+# #98: a push split by a line continuation is read whole on the carrier too.
+cpasses 'git push \\\n  -u origin main' "…and a push split by a line continuation"
+for c in 'git push \\\norigin HEAD~1:main' 'git push \\\n--all origin' 'git push \\\norigin feature:main' \
+         'git push \\\n--mirror origin'; do
   says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'; done
 says "a release on the carrier still asks: only a push or a PR is carried" "$(cguard 'gh release create v1')" 'permissionDecision":"ask'
 # The carrier is looked for only once the shape passed, so a bad shape leaves HEAD with no record.
