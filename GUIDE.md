@@ -229,7 +229,7 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   handed an alias.
 - The guard reads text, not what the shell makes of it. Not read: `eval "$X"`, `xargs`, shell
   aliases, and words split by `IFS`. It defends against forgetting, not forgery. Spellings that
-  hide a sender are read no further (DECISIONS 2026-10-10); measured silent on 2026-10-10:
+  hide a sender pass, alone or beside a push (DECISIONS 2026-10-10); measured 2026-10-26:
   `git-lfs -v push`, `docker manifest $V`, `--cache-to type=$T`, `-Body:$x`, a body from a
   pipeline (`$x | irm …`), `wget --post-data=$x`, a path with backslashes (`C:\tools\curl.exe`).
   Not read either: `{git,push}`, `git>/dev/null push`, a record written by `dd`, `install` or
