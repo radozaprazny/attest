@@ -295,6 +295,20 @@ echo "gate budgets:"
 GATE_MD="$KIT/.claude/skills/gate/SKILL.md"; AUDITOR_MD="$KIT/.claude/agents/auditor.md"
 check "the auditor can read and nothing else" grep -qx 'tools: Read, Grep, Glob' "$AUDITOR_MD"
 check "/gate takes one optional argument, full" grep -qx 'argument-hint: "\[full\]"' "$GATE_MD"
+# The material block is the first command /gate runs, before any record exists, so the ship guard
+# must not ask on it: a `git -c … "$@"` helper did, on every first /gate. It reads quotepath from
+# git's config environment instead (git 2.31 on), and must still write a non-ASCII path as it is.
+GB="$(awk '/^## 1\./ { s = 1 } s && /^```bash$/ { f = 1; next } f && /^```$/ { exit } f' "$GATE_MD")"
+GBJ="$(printf "bash <<'EOF'\n%s\nEOF\n" "$GB" | awk 'BEGIN { ORS = "\\n" } { gsub(/\\/, "\\\\"); gsub(/"/, "\\\""); gsub(/\t/, "\\t"); print }')"
+fx_ship; _gb="$(printf '{"tool_name":"Bash","tool_input":{"command":"%s"}}' "$GBJ" | CLAUDE_PROJECT_DIR="$S" sh "$GUARD"; echo "rc=$?")"
+if [ "$_gb" = rc=0 ]; then ok "/gate's material block passes the ship guard with no record"
+else fail "/gate's material block passes the ship guard with no record"; got "$_gb"; fi
+G8="$WORK/gate-paths"; mkdir -p "$G8/.claude/skills/gate"; cp "$GATE_MD" "$G8/.claude/skills/gate/"
+git init -q "$G8"; echo a > "$G8/ä.txt"; git -C "$G8" add -A
+git -C "$G8" -c user.name=t -c user.email=t@example.invalid commit -qm init; echo b > "$G8/nový.txt"
+(cd "$G8" && bash -c "$GB") > /dev/null 2>&1 || true
+says "…and run, it writes a committed non-ASCII path as it is" "$(cat "$G8/.attest/tmp/gate/range.patch" 2>/dev/null)" 'b/ä.txt'
+says "…and an untracked one" "$(cat "$G8/.attest/tmp/gate/untracked.txt" 2>/dev/null)" 'nový.txt'
 
 # --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
 # The skill is paid on every run and stands between install and first value; the skeleton

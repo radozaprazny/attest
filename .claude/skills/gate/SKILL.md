@@ -13,7 +13,7 @@ Scope is what the next push sends: `HEAD --not --remotes`, plus uncommitted and 
 files. `full` adds all history (`--all`). Code review is left to `/code-review`.
 No commit yet: say so and stop.
 
-Kit version: 1.9.0
+Kit version: 1.9.1
 
 ## 1. Material and key layer — one Bash call
 
@@ -23,17 +23,17 @@ material to `.attest/tmp/gate/` and prints a summary; never read the patches her
 ```bash
 cd "$(git rev-parse --show-toplevel)" || exit 1
 D=.attest/tmp/gate; mkdir -p "$D"; rm -f "$D"/*
-g() { git -c core.quotepath=off "$@"; }
+export GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.quotepath GIT_CONFIG_VALUE_0=off
 K=(.claude/hooks/{ship_guard,record_guard,session_declaration}.sh .claude/agents/auditor.md
   .claude/skills/{gate,business,decision,compliance,checkpoint}/SKILL.md)
 X=("${K[@]/#/:!}" ':!.attest/tmp'); F=(-p --no-ext-diff --date=short --format='commit %h %ad %s')
 R=(HEAD --not --remotes); L='HEAD --branches --tags --not --remotes'
 [ -z "${FULL:-}" ] || { R=(--all); L=--all; }
-{ g log "${F[@]}" "${R[@]}" -- . "${X[@]}"; g log "${F[@]}" --diff-filter=M "${R[@]}" -- "${K[@]}"; } > "$D/range.patch"
-g log --date=short --format='%h %ad %s' "${R[@]}" > "$D/log.txt"
-g diff --no-ext-diff HEAD > "$D/worktree.patch"
+{ git log "${F[@]}" "${R[@]}" -- . "${X[@]}"; git log "${F[@]}" --diff-filter=M "${R[@]}" -- "${K[@]}"; } > "$D/range.patch"
+git log --date=short --format='%h %ad %s' "${R[@]}" > "$D/log.txt"
+git diff --no-ext-diff HEAD > "$D/worktree.patch"
 U=(); while IFS= read -r -d '' e; do case $e in '?? '*) U+=("${e#?? }");; esac
-done < <(g status --porcelain -z -uall -- . "${X[@]}")
+done < <(git status --porcelain -z -uall -- . "${X[@]}")
 printf '%s\n' "${U[@]}" | sed '/^$/d' > "$D/untracked.txt"
 ls -d BUSINESS.md DECISIONS.md COMPLIANCE.md 2>/dev/null > "$D/docs.txt"
 b() { n=$1; shift; betterleaks "$@" --redact=100 --no-banner --exit-code 42 --report-format json \
@@ -47,7 +47,7 @@ echo "kit $(sed -n 's/^Kit version: \([^ ]*\).*/\1/p' .claude/skills/gate/SKILL.
 wc -l "$D"/*.patch "$D"/*.txt
 ```
 
-- `-z` status is never quoted; `quotepath=off` keeps non-ASCII paths readable.
+- `-z` status is never quoted; `core.quotepath=off` (git's environment, 2.31 on) keeps non-ASCII paths readable.
 - The kit's own 9 files are left out where added or untracked, so a first `/gate` audits your
   change, not the install, even uncommitted or with no remote; an edit to one stays in.
   `.claude/settings.json` never is left out: its `env` can hold secrets.
