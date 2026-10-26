@@ -11,10 +11,10 @@
   reads 458 lines (capped, DECISIONS 2026-10-10); `.attest/` holds ship records only.
 
 ## Next
-- Promo plan of 2026-10-10: install → first guarded push measured on kit 1.9.0, n = 3
-  (2026-10-16 and 10-25, `local/first-push-results.md`); next README's cost table, then #43's
-  two list submissions (awesome-claude-code takes only its web form, from a human) and one post.
-  A push chained after `git remote -v` asks even on a clean record (seen in a run; ≤ 1.6.0 too).
+- Promo plan of 2026-10-10: install → first guarded push measured on kit 1.9.0, n = 3, now
+  README's cost table (raw notes in `local/first-push-results.md`); next #43's two list
+  submissions (awesome-claude-code takes only its web form, from a human) and one post.
+  A push chained after `git remote -v` asks even on a clean record (#95).
 - Guard backlog: #71, #74, #81, #86 fixed; #82, #76, #85 narrowed; #79, #80 are limits
   (DECISIONS 2026-10-10). #72's final state has not run on a real Mac.
 - Per PR (the maintainer's auto-memory; the standing grant ended with #28): a time-boxed reviewer
