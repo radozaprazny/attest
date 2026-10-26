@@ -57,8 +57,8 @@ Claude Code's own permission rules decide.
 
 **Pass.** A push passes when every record naming HEAD reports `0 blocker`, and it ships HEAD
 alone: a plain `git push` whose refspecs resolve to HEAD, with known options, in this repository.
-Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse` and
-simple read commands may run. After it, anything but a ship command may run.
+Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse`,
+`git remote [-v|show|get-url]` and simple read commands may run. After it, anything but a ship command may run.
 Any other ship command, `gh pr create` included, passes on HEAD's clean record.
 
 **Carrier.** With no record for HEAD, a push or `gh pr create` passes as `pass-carrier` when

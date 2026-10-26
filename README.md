@@ -90,8 +90,8 @@ is committed on its own, and the next push passes on it. This one gated PR #54
 Totals include reading each step from a second session; every `/gate` found 0 blockers.
 
 - **Prompts:** one per clean push, the record write. Every run above also asked on `/gate`'s
-  own first command, a false ask 1.9.1 removed. A push Claude chains after `git remote -v` still
-  asks ([#95](https://github.com/radozaprazny/attest/issues/95)).
+  own first command, a false ask 1.9.1 removed. The Rust run's third prompt, on a push Claude chained
+  after `git remote -v`, is gone in 1.9.2 ([#95](https://github.com/radozaprazny/attest/issues/95)).
 - **Every session:** the session hook prints your non-goals and current state. In this
   repository on 2026-10-26 that was 402 words, by `wc -w` of its output.
 

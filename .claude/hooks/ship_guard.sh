@@ -357,7 +357,7 @@ if [ -n "$FULL" ]; then
         if (!last) print "nopush"
         for (i = 1; i <= last; i++) { $0 = p[i]; scan(); bad = ""
           if (pr && i == last) { if (/[$`]/) print "unsafe $("; continue }
-          ro = (G == 1 && V && $V ~ /^(status|diff|log|show|fetch|add|rev-parse)$/) || $1 ~ /^(echo|printf|ls|pwd|true|sleep|date|cat|head|tail|grep|wc|sort)$/
+          for (k = V + 1; V && $V == "remote" && $k ~ /^(-v|--verbose)$/; k++); ro = (G == 1 && V && ($V ~ /^(status|diff|log|show|fetch|add|rev-parse)$/ || $V == "remote" && (k > NF || $k ~ /^(get-url|show)$/))) || $1 ~ /^(echo|printf|ls|pwd|true|sleep|date|cat|head|tail|grep|wc|sort)$/
           if (!(V && $V == "push") && !ro && $1 != "cd" && $1 ~ /^[A-Za-z0-9._\/-]+$/) { print "pre " $1 " " (V ? $V : ""); continue }
           for (k = 1; k <= NF; k++) if ($k !~ /^[A-Za-z0-9._\/:@^~+=,%-]+$/) { bad = $k; break }
           if (bad != "") print "unsafe " bad
