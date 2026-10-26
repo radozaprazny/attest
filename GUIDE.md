@@ -57,8 +57,8 @@ Claude Code's own permission rules decide.
 
 **Pass.** A push passes when every record naming HEAD reports `0 blocker`, and it ships HEAD
 alone: a plain `git push` whose refspecs resolve to HEAD, with known options, in this repository.
-Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse` and
-simple read commands may run. After it, anything but a ship command may run.
+Before it, only `cd` inside the repository, `git status|diff|log|show|fetch|add|rev-parse`,
+`git remote [-v|show|get-url]` and simple read commands may run. After it, anything but a ship command may run.
 Any other ship command, `gh pr create` included, passes on HEAD's clean record.
 
 **Carrier.** With no record for HEAD, a push or `gh pr create` passes as `pass-carrier` when
@@ -229,7 +229,7 @@ Restart Claude Code afterwards, because skills load at session start. The kit ve
   handed an alias.
 - The guard reads text, not what the shell makes of it. Not read: `eval "$X"`, `xargs`, shell
   aliases, and words split by `IFS`. It defends against forgetting, not forgery. Spellings that
-  hide a sender are read no further (DECISIONS 2026-10-10); measured silent on 2026-10-10:
+  hide a sender pass, alone or beside a push (DECISIONS 2026-10-10); measured 2026-10-26:
   `git-lfs -v push`, `docker manifest $V`, `--cache-to type=$T`, `-Body:$x`, a body from a
   pipeline (`$x | irm …`), `wget --post-data=$x`, a path with backslashes (`C:\tools\curl.exe`).
   Not read either: `{git,push}`, `git>/dev/null push`, a record written by `dd`, `install` or

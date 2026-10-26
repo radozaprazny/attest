@@ -5,7 +5,7 @@ A Claude Code kit that injects a project's non-goals at session start and holds 
 publish until a dated record says a leak scan of that exact HEAD came back clean.
 
 ## Non-goals
-- No interpreter beyond /bin/sh in hooks.
+- No interpreter in hooks beyond /bin/sh and the POSIX tools, awk among them.
 - Nothing in the kit edits your code: no formatter, and no rule that rewrites your files.
 - No warning you cannot act on when it fires: a hook prevents, it does not remind.
 - One way to install: `install.sh`, copy-if-absent, into the repo's own `.claude/`; no plugin.

@@ -310,6 +310,10 @@ git -C "$G8" -c user.name=t -c user.email=t@example.invalid commit -qm init; ech
 (cd "$G8" && bash -c "$GB") > /dev/null 2>&1 || true
 says "…and run, it writes a committed non-ASCII path as it is" "$(cat "$G8/.attest/tmp/gate/range.patch" 2>/dev/null)" 'b/ä.txt'
 says "…and an untracked one" "$(cat "$G8/.attest/tmp/gate/untracked.txt" 2>/dev/null)" 'nový.txt'
+# A session's own GIT_CONFIG_* stays: the block adds its key after them, not over the first.
+(cd "$G8" && GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=core.abbrev GIT_CONFIG_VALUE_0=12 bash -c "$GB") > /dev/null 2>&1 || true
+says "…and run with a session's own GIT_CONFIG_*, it keeps them" "$(cat "$G8/.attest/tmp/gate/log.txt" 2>/dev/null)" '^[0-9a-f]\{12\} '
+says "…and still writes the non-ASCII path as it is" "$(cat "$G8/.attest/tmp/gate/range.patch" 2>/dev/null)" 'b/ä.txt'
 
 # --- 0b. /business's budget and the skeleton it writes (issue #35) -------------------------
 # The skill is paid on every run and stands between install and first value; the skeleton
@@ -1392,6 +1396,8 @@ passes 'git push origin main >/dev/null'           "…and one with stdout disca
 passes 'git push origin \"main\"'                "…and one with a quoted branch"
 passes "cd $P/repo && git push"                    "…and one after a cd into this repository"
 passes 'git status && git push'                    "…and one after a read-only git command"
+passes 'git remote -v && git push'                 "…and one after listing the remotes (#95)"
+passes 'git remote get-url origin; git push'       "…or after looking one up"
 passes 'git push -q --no-verify -o ci.skip origin main' "…and one with the options the list knows"
 # A commit, pull or reset in the same command moves HEAD after the guard has read it.
 for c in 'git add -A && git commit -m x && git push' 'git commit --amend --no-edit && git push --force-with-lease' \
@@ -1420,7 +1426,9 @@ done
 # Anything before the push that is not on the short read-only list may change what it sends.
 for c in 'git update-ref refs/heads/main feature && git push origin main' 'git symbolic-ref HEAD refs/heads/feature && git push origin HEAD' \
          'git config push.default matching && git push' 'npm version patch && git push' \
-         "sh -c 'cd ../other && git push'" 'if cd ../other; then git push; fi'; do
+         "sh -c 'cd ../other && git push'" 'if cd ../other; then git push; fi' \
+         'git remote add x ../x.git && git push x main' 'git remote set-url origin ../x.git && git push' \
+         'git remote -v add --mirror=push x ../x.git && git push x'; do
   says "$c asks" "$(pguard "$c")" 'permissionDecision":"ask'
   says "…traced compound" "$(pcol 2)" '^compound$'
 done
@@ -1484,6 +1492,11 @@ if [ -z "$_out" ] && [ "$_rc" = 0 ]; then ok "a push whose HEAD only adds X's cl
 says "…traced pass-carrier" "$(cdec)" '^pass-carrier$'
 cpasses 'git push -u origin main 2>&1'  "…and so does the push naming its branch"
 cpasses 'gh pr create --fill'           "…and the pull request opened on it"
+# #95: a model lists the remotes before it pushes; only a read-only command may come first.
+for c in 'git remote -v && git push -u origin main' 'git remote -v; git push -u origin main' \
+         'git status && git push -u origin main'; do cpasses "$c" "…and $c"; done
+for c in 'git remote add x ../x.git && git push x main' 'git remote set-url origin ../x.git && git push'; do
+  says "$c asks on the carrier" "$(cguard "$c")" 'permissionDecision":"ask'; done
 says "a release on the carrier still asks: only a push or a PR is carried" "$(cguard 'gh release create v1')" 'permissionDecision":"ask'
 # The carrier is looked for only once the shape passed, so a bad shape leaves HEAD with no record.
 says "a commit chained before the push asks" "$(cguard 'git commit --allow-empty -m x && git push')" 'permissionDecision":"ask'
