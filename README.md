@@ -21,10 +21,10 @@ hooks · Linux or macOS; Windows needs Git Bash and is not measured · optional:
 The installer copies 10 files into your project's `.claude/` and appends one line each to
 `.gitignore` and `.gitattributes`. It never overwrites a file of yours. `--upgrade` replaces only
 the kit's own files, naming each first, and only where git holds a copy. The real output of
-0.20.0 on a fresh repository:
+1.9.3 on a fresh repository:
 
 ```text
-attest 0.20.0  →  /tmp/tmp.mFzdNbOmjp/myproj
+attest 1.9.3  →  /tmp/tmp.HArQNlhlpP/myproj
 
   ✓ 10 kit file(s) landed under .claude/ — settings, 3 hooks, the auditor, /gate /business /decision /compliance /checkpoint
   ✓ .gitignore += .attest/tmp/
@@ -61,16 +61,16 @@ attest ship guard: NO RECORD — sends data off the machine (git push origin mai
 
 `/gate` runs betterleaks and the auditor over what the push would send, then writes a ship
 record. The record guard asks before that write, and approving it is the attestation. The record
-is committed on its own, and the next push passes on it. This one gated PR #54
-([`.attest/ship-20260929-194043-ff45cc5.md`](.attest/ship-20260929-194043-ff45cc5.md)):
+is committed on its own, and the next push passes on it. This one gated PR #100
+([`.attest/ship-20261026-154809-ea072e3.md`](.attest/ship-20261026-154809-ea072e3.md)):
 
 ```markdown
-- HEAD: ff45cc5 (refactor/install-lean)
+- HEAD: ea072e3 (fix/guard-line-continuation)
 - tree: clean
-- scope: HEAD --not --remotes + worktree (3 commits, 0 untracked)
-- findings: 0 blocker · 1 note
+- scope: HEAD --not --remotes + worktree (2 commits, 0 untracked)
+- findings: 0 blocker · 0 note
 - verdict: ✅ clean to push
-- kit: 0.20.0
+- kit: 1.9.3
 - key layer: betterleaks 1.8.1 — unpushed 0 · unstaged 0 · staged 0 · untracked skipped
 ```
 
@@ -121,9 +121,9 @@ Totals include reading each step from a second session; every `/gate` found 0 bl
 
 `scripts/fixture.sh` builds a repository with 4 planted faults; [`scripts/fixture-key.md`](scripts/fixture-key.md)
 is the key. On 2026-09-29, kit 0.20.0, the auditor found all 4 with the right class, path and
-severity, added 2 notes with their evidence and no extra blocker: n = 1, from a Claude Code
-2.1.284 session on Claude Opus 5.5. An earlier dogfood, July 2026 on an unversioned kit, is in
-[the devlog](docs/archive/attest-devlog.md#what-the-dogfood-proved). No adopter is claimed
+severity, added 2 evidenced notes and no extra blocker. n = 1, not yet rerun on 1.9.x, from a
+Claude Code 2.1.284 session on Claude Opus 5.5. An earlier dogfood, July 2026 on an
+unversioned kit, is in [the devlog](docs/archive/attest-devlog.md#what-the-dogfood-proved). No adopter is claimed
 without a public record.
 
 The method without the tool is [METHOD.md](METHOD.md). Every hook, command and knob is in
