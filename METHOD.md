@@ -118,7 +118,7 @@ difference an auditor will ask about, so state which one you have.
 
 The documents have to be maintained; a stale declaration audits worse than none, because it
 launders drift as approval. The gate costs one audit per push: on the kit that implements this,
-1,297 words of instructions at kit 1.9.3 (by `wc -w`), and 71 seconds for the auditor in one
+1,297 words of instructions at kit 1.9.3 (split on whitespace), and 71 seconds for the auditor in one
 timed run at kit 0.20.0. The
 auditor's reading varies on secondary findings across runs — treat a blocker as reliable and a
 note as advisory.
