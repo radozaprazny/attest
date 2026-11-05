@@ -76,7 +76,7 @@ is committed on its own, and the next push passes on it. This one gated PR #100
 
 ## What it costs
 
-- **Per push:** `/gate` and the auditor are 1,297 words of kit text (799 and 498, by `wc -w`).
+- **Per push:** `/gate` and the auditor are 1,297 words of kit text (799 and 498, split on whitespace).
 - **First guarded push:** install, wiring, one change, `/gate` and the push, on three projects
   with their own `settings.json` (kit 1.9.0, auto mode, October 2026; from file times, the
   guard's trace and the transcripts):
