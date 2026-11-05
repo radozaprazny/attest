@@ -104,7 +104,8 @@ Totals include reading each step from a second session; every `/gate` found 0 bl
 - **The guard runs on your machine, and you can approve past it.** A push from a terminal, an
   IDE or another tool never reaches it.
 - **It sees only what it is pointed at.** It reads git pushes, common publish and upload
-  commands, and GitHub MCP writes. A deploy script or a git alias leaves no prompt.
+  commands, and GitHub MCP writes. A deploy script or a git alias leaves no prompt: list it in
+  `permissions.ask`.
 - **An ask needs someone to answer it.** What it becomes in each permission mode, and
   `ATTEST_GUARD=deny` for runs nobody watches, is in [GUIDE.md](GUIDE.md#permission-modes).
 
