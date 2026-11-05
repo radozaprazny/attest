@@ -104,7 +104,8 @@ Totals include reading each step from a second session; every `/gate` found 0 bl
 - **The guard runs on your machine, and you can approve past it.** A push from a terminal, an
   IDE or another tool never reaches it.
 - **It sees only what it is pointed at.** It reads git pushes, common publish and upload
-  commands, and GitHub MCP writes. A deploy script or a git alias leaves no prompt.
+  commands, and GitHub MCP writes. A deploy script or a git alias leaves no prompt: list it in
+  `permissions.ask`.
 - **An ask needs someone to answer it.** What it becomes in each permission mode, and
   `ATTEST_GUARD=deny` for runs nobody watches, is in [GUIDE.md](GUIDE.md#permission-modes).
 
@@ -120,11 +121,10 @@ Totals include reading each step from a second session; every `/gate` found 0 bl
 ## Evidence
 
 `scripts/fixture.sh` builds a repository with 4 planted faults; [`scripts/fixture-key.md`](scripts/fixture-key.md)
-is the key. On 2026-09-29, kit 0.20.0, the auditor found all 4 with the right class, path and
-severity, added 2 evidenced notes and no extra blocker. n = 1, not yet rerun on 1.9.x, from a
-Claude Code 2.1.284 session on Claude Opus 5.5. An earlier dogfood, July 2026 on an
-unversioned kit, is in [the devlog](docs/archive/attest-devlog.md#what-the-dogfood-proved). No adopter is claimed
-without a public record.
+is the key. On 2026-11-05, kit 1.9.3, the auditor found all 4 with the right class, path and
+severity in 3 runs of 3, with 2 evidenced notes and no extra blocker. Each ran `/gate`'s
+material step and the auditor on Claude Opus 5.5, not a fresh session. Kit 0.20.0 scored the
+same once, on 2026-09-29. No adopter is claimed without a public record.
 
 The method without the tool is [METHOD.md](METHOD.md). Every hook, command and knob is in
 [GUIDE.md](GUIDE.md).

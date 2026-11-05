@@ -133,8 +133,8 @@ at its own first property: declare what is true, then check reality against the 
 And the evidence base is small. In July 2026 an unversioned build of the reference
 implementation, older than 0.1.0 and no longer re-runnable, was dogfooded on two sandboxes with
 planted faults: four planted fault classes were caught and two true negatives held
-([the devlog's account](docs/archive/attest-devlog.md#what-the-dogfood-proved)). A planted
-fixture run on kit 0.20.0 is in the README. Both are quoted with their sample size for the same
+([the devlog's account](docs/archive/attest-devlog.md#what-the-dogfood-proved)). Three planted
+fixture runs on kit 1.9.3 are in the README. Both are quoted with their sample size for the same
 reason the method exists at all.
 
 ## The reference implementation
